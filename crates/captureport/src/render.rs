@@ -51,9 +51,23 @@ fn import_status_label(status: &captureport_core::ImportStatus) -> &'static str 
     match status {
         captureport_core::ImportStatus::Checking => "Checking…",
         captureport_core::ImportStatus::New => "New",
-        captureport_core::ImportStatus::Imported => "Imported",
-        captureport_core::ImportStatus::PossibleDuplicate => "Possible duplicate",
-        captureport_core::ImportStatus::Unknown => "Unknown",
+        captureport_core::ImportStatus::Imported => "✓ Imported",
+        captureport_core::ImportStatus::PossibleDuplicate => "! Possible duplicate",
+        captureport_core::ImportStatus::Unknown => "? Unknown",
+    }
+}
+
+fn plan_status_label(status: captureport_ingest::PlanStatus) -> &'static str {
+    use captureport_ingest::PlanStatus;
+    match status {
+        PlanStatus::Ready => "Ready",
+        PlanStatus::ExistingIdentical => "Already present (identical)",
+        PlanStatus::Skipped => "Skipped",
+        PlanStatus::DestinationCollision => "Destination collision",
+        PlanStatus::InvalidPath => "Invalid path",
+        PlanStatus::DestinationUnavailable => "Destination unavailable",
+        PlanStatus::InsufficientDiskSpace => "Not enough disk space",
+        PlanStatus::UnsupportedSource => "Unsupported source",
     }
 }
 
@@ -204,7 +218,8 @@ impl Browser {
                     .text_sm()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .flex_shrink_0()
-                    .child("Sources"),
+                    .text_color(p.muted)
+                    .child("SOURCES"),
             )
             .child(button(
                 "Open folder…",
@@ -239,7 +254,7 @@ impl Browser {
                 .unwrap_or(name);
             panel = panel.child(
                 div()
-                    .id(("source", index))
+                    .id(gpui::ElementId::named_usize("source", index))
                     .cursor_pointer()
                     .p_2()
                     .min_h(px(34.))
@@ -273,41 +288,34 @@ impl Browser {
             )
             .child(
                 div()
-                    .mt_3()
+                    .mt_4()
                     .flex_shrink_0()
                     .text_sm()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("Workflow"),
+                    .text_color(p.muted)
+                    .child("WORKFLOW"),
             )
-            .child(button(
-                "Browse media",
+            .child(sidebar_nav("Browse media", self.page == Page::Browser, p,
                 cx.listener(|t, _, _, c| {
                     t.page = Page::Browser;
                     c.notify()
                 }),
             ))
-            .child(button(
-                "Preview / import",
-                cx.listener(|t, _, w, c| t.import_selected(&ImportSelected, w, c)),
-            ))
-            .child(button(
-                "Cancel import",
-                cx.listener(|t, _, w, c| t.cancel_import(&CancelImport, w, c)),
-            ))
-            .child(button(
-                "History",
+            .child(sidebar_nav("History", self.page == Page::History, p,
                 cx.listener(|t, _, w, c| t.history(&ShowHistory, w, c)),
             ))
-            .child(button(
-                "Recovery",
+            .child(sidebar_nav("Recovery", self.page == Page::Recovery, p,
                 cx.listener(|t, _, _, c| t.show_recovery(c)),
             ))
-            .child(button(
-                "Reconcile library",
+            .child(sidebar_nav("Import settings", self.page == Page::Settings, p,
+                cx.listener(|t, _, _, c| t.show_settings(c)),
+            ))
+            .child(div().mt_4().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(p.muted).child("LIBRARY TOOLS"))
+            .child(button("Reconcile library",
                 cx.listener(|t, _, w, c| t.reconcile(&ReconcileLibrary, w, c)),
             ))
-            .child(button(
-                "Cancel library scan",
+            .child(button("Cancel library scan",
                 cx.listener(|t, _, w, c| t.cancel_reconcile(&CancelReconcile, w, c)),
             ))
             .child(button(
@@ -315,13 +323,13 @@ impl Browser {
                 cx.listener(|t, _, w, c| t.clock(&AdjustClock, w, c)),
             ))
             .child(button(
-                "Import settings",
-                cx.listener(|t, _, _, c| t.show_settings(c)),
-            ))
-            .child(button(
                 "Clear thumbnail cache",
                 cx.listener(|t, _, _, c| t.clear_thumbnail_cache(c)),
             ))
+            .child(if self.importing {
+                button("Cancel import", cx.listener(|t, _, w, c| t.cancel_import(&CancelImport, w, c)))
+                    .into_any_element()
+            } else { div().into_any_element() })
             .child(
                 div()
                     .mt_2()
@@ -354,14 +362,14 @@ impl Browser {
         };
         let row_count = rows.len();
         let rows = std::sync::Arc::new(rows);
-        let empty = if self.scanning {
-            "Scanning source…"
-        } else {
-            "Choose a source to browse media"
-        };
+        let source_name = self.source_alias.clone().or_else(|| self.state.source.as_ref()
+            .and_then(|source| source.display_name.clone()))
+            .unwrap_or_else(|| "No source open".into());
         div().flex_1().min_w_0().min_h_0().flex().flex_col()
             .child(div().px_5().py_3().flex().flex_wrap().items_center().gap_2().border_b_1().border_color(p.border)
-                .child(div().mr_3().font_weight(gpui::FontWeight::SEMIBOLD).child(format!("Media · {visible}")))
+                .child(div().mr_3().min_w_0().flex().flex_col()
+                    .child(div().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_name))
+                    .child(div().text_xs().text_color(p.muted).child(format!("{visible} visible media items"))))
                 .child(div().flex().flex_wrap().gap_2()
                     .child(chip("All",self.state.filter==MediaFilter::All,cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
                     .child(chip("Photos",self.state.filter==MediaFilter::Photos,cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
@@ -382,7 +390,7 @@ impl Browser {
                 .child(div().id("thumbnail-size-slider").flex().items_center().gap_1()
                     .children((0..=4).map(|step| {
                         let active = step <= self.ui.thumbnail_size;
-                        div().id(("thumbnail-size-step", step as usize)).w(px(30.)).h(px(22.))
+                        div().id(gpui::ElementId::named_usize("thumbnail-size-step", step as usize)).w(px(30.)).h(px(22.))
                             .flex().items_center().cursor_pointer()
                             .on_click(cx.listener(move |t,_,_,c| t.set_thumbnail_size(step,c)))
                             .on_mouse_move(cx.listener(move |t,e: &gpui::MouseMoveEvent,_,c| {
@@ -397,7 +405,7 @@ impl Browser {
                 .child(div().id("gallery-gap-slider").flex().items_center().gap_1()
                     .children([5_u32, 15, 30, 60, 120, 240, 480, 1440].into_iter().map(|minutes| {
                         let active = matches!(self.preset.grouping, Grouping::TimeGap { threshold_minutes } if threshold_minutes >= minutes);
-                        div().id(("gallery-gap-step", minutes as usize)).w(px(24.)).h(px(22.))
+                        div().id(gpui::ElementId::named_usize("gallery-gap-step", minutes as usize)).w(px(24.)).h(px(22.))
                             .flex().items_center().cursor_pointer()
                             .on_click(cx.listener(move |t,_,_,c| t.set_gap_minutes(minutes,c)))
                             .on_mouse_move(cx.listener(move |t,e: &gpui::MouseMoveEvent,_,c| {
@@ -411,7 +419,16 @@ impl Browser {
                     _ => "Choose a gap".into(),
                 })))
             .child(if visible==0 {
-                div().flex_1().flex().items_center().justify_center().text_color(p.muted).child(empty).into_any_element()
+                div().flex_1().flex().items_center().justify_center().px_5()
+                    .child(div().flex().flex_col().items_center().gap_3()
+                        .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child(if self.scanning { "Scanning source…" } else if self.state.source.is_none() { "Start with a source" } else if self.state.filter == MediaFilter::All { "No media found in this source" } else { "No media matches this filter" }))
+                        .child(div().text_sm().text_color(p.muted)
+                            .child(if self.scanning { "Media will appear here as it is found." } else if self.state.source.is_none() { "Open a folder or connect a camera to browse media." } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." }))
+                        .child(if self.state.source.is_none() && !self.scanning {
+                            button("Open folder…", cx.listener(|t, _, w, c| t.open_folder(&OpenFolder, w, c))).into_any_element()
+                        } else { div().into_any_element() }))
+                    .into_any_element()
             } else {
                 uniform_list(("media-grid", columns * 5 + self.ui.thumbnail_size as usize + if grouped { 100 } else { 0 }),row_count,cx.processor(move |t,range:std::ops::Range<usize>,_,cx|range.map(|row| {
                     let GalleryRow { header, ids } = &rows[row];
@@ -431,7 +448,7 @@ impl Browser {
                                 };
                                 let metadata = div().w_full().px_2().py_1().min_w_0()
                                     .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
-                                        .truncate().child(item.source_name.clone()))
+                                        .truncate().child(format!("{}{}", if selected { "✓ " } else { "" }, item.source_name)))
                                     .child(div().flex().items_center().gap_2().min_w_0()
                                         .child(div().px_1().rounded_sm().bg(p.selected).text_color(p.accent)
                                             .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
@@ -491,25 +508,20 @@ impl Browser {
             .min_w_0()
             .flex()
             .flex_col()
-            .child(
-                div()
-                    .px_5()
-                    .py_3()
-                    .border_b_1()
-                    .border_color(p.border)
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child(format!(
-                        "Import preview · {count} items · {blocked} blocked"
-                    )),
-            )
-            .child(div().px_5().py_2().text_sm().child(format!(
-                "Preset: {} · Verification: {:?}",
-                plan.preset_name, plan.verification
-            )))
-            .child(button(
-                "Confirm import",
-                cx.listener(|t, _, w, c| t.import_selected(&ImportSelected, w, c)),
-            ))
+            .child(div().px_5().py_3().border_b_1().border_color(p.border)
+                .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
+                    .child(format!("Import preview · {count} items")))
+                .child(div().text_sm().text_color(p.muted)
+                    .child(if blocked > 0 { format!("{blocked} blocked · Resolve these destinations before importing") } else { "Review the final destination paths below before importing".into() })))
+            .child(div().px_5().py_3().flex().flex_wrap().items_center().gap_3().border_b_1().border_color(p.border)
+                .child(div().text_sm().text_color(p.muted).child(format!(
+                    "Preset: {} · Verification: {:?}", plan.preset_name, plan.verification
+                )))
+                .child(if blocked == 0 && count > 0 && !self.importing && self.last_import_result.is_none() {
+                    primary_button("Confirm import", p, self.ui.dark_mode,
+                        cx.listener(|t, _, w, c| t.import_selected(&ImportSelected, w, c)))
+                        .into_any_element()
+                } else { div().into_any_element() }))
             .child(
                 if self.last_import_result.is_some() && self.filesystem_root.is_some() {
                     div()
@@ -545,10 +557,10 @@ impl Browser {
                                     .iter()
                                     .map(|c| {
                                         format!(
-                                            "{}{} · {:?}",
+                                            "{}{} · {}",
                                             c.final_destination.display(),
                                             if c.required { "" } else { " (optional)" },
-                                            c.status
+                                            plan_status_label(c.status)
                                         )
                                     })
                                     .collect::<Vec<_>>()
@@ -564,8 +576,8 @@ impl Browser {
                                             .text_sm()
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
                                             .child(format!(
-                                                "{} · {:?}",
-                                                item.source_name, item.status
+                                                "{} · {}",
+                                                item.source_name, plan_status_label(item.status)
                                             )),
                                     )
                                     .child(
@@ -741,7 +753,7 @@ impl Browser {
                     ))
                     .child(
                         div()
-                            .id(("clean-partial", index))
+                            .id(gpui::ElementId::named_usize("clean-partial", index))
                             .cursor_pointer()
                             .p_2()
                             .bg(p.danger)
@@ -909,6 +921,49 @@ fn settings_field(label: &'static str, input: gpui::Entity<text_input::TextInput
         .into_any_element()
 }
 
+fn sidebar_nav(
+    label: &'static str,
+    active: bool,
+    palette: Palette,
+    handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
+) -> impl IntoElement {
+    div()
+        .id(label)
+        .min_h(px(36.))
+        .px_3()
+        .py_2()
+        .rounded_md()
+        .cursor_pointer()
+        .text_sm()
+        .font_weight(if active { gpui::FontWeight::SEMIBOLD } else { gpui::FontWeight::NORMAL })
+        .bg(if active { palette.selected } else { palette.panel })
+        .hover(move |style| style.bg(palette.selected))
+        .on_click(handler)
+        .child(label)
+}
+
+fn primary_button(
+    label: &'static str,
+    palette: Palette,
+    dark: bool,
+    handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
+) -> impl IntoElement {
+    div()
+        .id(label)
+        .min_h(px(38.))
+        .px_4()
+        .py_2()
+        .rounded_md()
+        .cursor_pointer()
+        .text_sm()
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .bg(if dark { palette.accent } else { rgb(0x247c66) })
+        .text_color(if dark { palette.canvas } else { rgb(0xffffff) })
+        .hover(move |style| style.bg(if dark { rgb(0xa1e8bf) } else { rgb(0x195d4c) }))
+        .on_click(handler)
+        .child(label)
+}
+
 impl Render for Browser {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = Palette::new(self.ui.dark_mode);
@@ -999,13 +1054,26 @@ impl Render for Browser {
                     .border_color(p.border)
                     .bg(p.card)
                     .text_sm()
-                    .child(status)
-                    .child(format!(
-                        "{} items · {} selected · {}",
-                        self.state.len(),
-                        summary.count,
-                        format_size(summary.bytes)
-                    )),
+                    .child(div().min_w_0().truncate().text_color(p.muted).child(status))
+                    .child(div().flex().items_center().gap_3()
+                        .child(format!(
+                            "{} items · {} selected · {}",
+                            self.state.len(),
+                            summary.count,
+                            format_size(summary.bytes)
+                        ))
+                        .child(if self.page == Page::Browser && summary.count > 0 && !self.importing && !self.planning && self.last_import_result.is_none() {
+                            primary_button("Preview import", p, self.ui.dark_mode,
+                                cx.listener(|t, _, w, c| {
+                                    if t.plan.is_some() {
+                                        t.page = Page::Preview;
+                                        c.notify();
+                                    } else {
+                                        t.import_selected(&ImportSelected, w, c);
+                                    }
+                                }))
+                                .into_any_element()
+                        } else { div().into_any_element() })),
             )
     }
 }

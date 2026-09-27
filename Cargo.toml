@@ -18,3 +18,8 @@ rust-version = "1.88"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+# GPUI 0.2.2 pulls this through stacksafe-macro 0.1.4. The upstream crate is
+# archived; the local copy changes only the proc_macro re-export visibility.
+[patch.crates-io]
+proc-macro-error2 = { path = "third_party/proc-macro-error2" }

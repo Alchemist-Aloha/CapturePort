@@ -2138,6 +2138,7 @@ appearance and thumbnail size are saved separately from import presets in the
 XDG configuration directory.
 
 Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to preview/import, and Escape to clear the visible selection. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
+The browser footer shows the selected count and size with a Preview import action when items are selected. The preview names blocked destinations and only offers Confirm import when every planned item can execute. After an import finishes, the same selection cannot be confirmed again until the selection or settings change and a fresh plan is built.
 
 Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. The screen exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. A blank pair of backup roots disables backup. Camera/card aliases are stored in the catalog and shown when the device reconnects.
 
