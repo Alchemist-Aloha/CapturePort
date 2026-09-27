@@ -123,41 +123,99 @@ impl ImportPlanner {
         let mut generated = HashMap::<PathBuf, usize>::new();
         let mut roots = BTreeMap::<PathBuf, (u64, bool)>::new();
 
-        for (index, (input, time)) in effective.into_iter().enumerate() {
-            let session = sessions[index];
+        // Treat a RAW+JPEG pair as one unit: the RAW is planned first, the JPEG
+        // shares its sequence, and the JPEG is copied beside the RAW with a
+        // `.jpg` extension even when the filename template renames files.
+        let sidecar_of = raw_jpeg_sidecars(&selected);
+        let jpeg_of_raw: HashMap<MediaId, MediaId> =
+            sidecar_of.iter().map(|(jpeg, raw)| (*raw, *jpeg)).collect();
+        let index_of: HashMap<MediaId, usize> = effective
+            .iter()
+            .enumerate()
+            .map(|(index, (input, _))| (input.item.id, index))
+            .collect();
+        let mut handled = HashSet::new();
+        let mut units: Vec<Vec<usize>> = Vec::new();
+        for (index, (input, _)) in effective.iter().enumerate() {
+            if sidecar_of.contains_key(&input.item.id) || !handled.insert(input.item.id) {
+                continue;
+            }
+            let mut unit = vec![index];
+            if let Some(jpeg_id) = jpeg_of_raw.get(&input.item.id)
+                && let Some(&jpeg_index) = index_of.get(jpeg_id)
+            {
+                handled.insert(*jpeg_id);
+                unit.push(jpeg_index);
+            }
+            units.push(unit);
+        }
+
+        for unit in units {
+            let (primary_input, primary_time) = effective[unit[0]];
+            let session = sessions[unit[0]];
             let sequence = {
                 let count = counts.entry(session).or_default();
                 *count += 1;
                 *count
             };
-            let copies = make_copies(
+            let primary_copies = make_copies(
                 source,
-                input,
-                time,
+                primary_input,
+                primary_time,
                 sequence,
                 session,
                 preset,
                 &identity,
                 &mut generated,
                 &mut roots,
+                None,
             );
-            let status = copies
-                .iter()
-                .filter(|copy| copy.required)
-                .map(|copy| copy.status)
-                .find(|status| *status != PlanStatus::Ready)
-                .unwrap_or(PlanStatus::Ready);
-            planned.push(PlannedImport {
-                media_id: input.item.id,
-                source: input.item.locator.clone(),
-                source_name: input.item.source_name.clone(),
-                expected_size: input.item.size,
-                effective_time: time,
-                sequence,
-                session,
-                copies,
-                status,
+            let sidecar = (unit.len() > 1).then(|| {
+                (
+                    primary_copies[0].final_destination.clone(),
+                    primary_copies
+                        .get(1)
+                        .map(|copy| copy.final_destination.clone()),
+                )
             });
+            for (position, &member) in unit.iter().enumerate() {
+                let (input, time) = effective[member];
+                let copies = if position == 0 {
+                    primary_copies.clone()
+                } else {
+                    make_copies(
+                        source,
+                        input,
+                        time,
+                        sequence,
+                        session,
+                        preset,
+                        &identity,
+                        &mut generated,
+                        &mut roots,
+                        sidecar
+                            .as_ref()
+                            .map(|(primary, backup)| (primary.as_path(), backup.as_deref())),
+                    )
+                };
+                let status = copies
+                    .iter()
+                    .filter(|copy| copy.required)
+                    .map(|copy| copy.status)
+                    .find(|status| *status != PlanStatus::Ready)
+                    .unwrap_or(PlanStatus::Ready);
+                planned.push(PlannedImport {
+                    media_id: input.item.id,
+                    source: input.item.locator.clone(),
+                    source_name: input.item.source_name.clone(),
+                    expected_size: input.item.size,
+                    effective_time: time,
+                    sequence,
+                    session,
+                    copies,
+                    status,
+                });
+            }
         }
 
         // Free space is checked after all paths and sizes are known. A root is
@@ -236,6 +294,35 @@ pub fn session_numbers(times: &[DateTime<FixedOffset>], grouping: &Grouping) -> 
     result
 }
 
+/// Map each selected JPEG to the RAW sharing its directory and stem.
+fn raw_jpeg_sidecars(inputs: &[PlanInput]) -> HashMap<MediaId, MediaId> {
+    let items: Vec<MediaItem> = inputs.iter().map(|input| input.item.clone()).collect();
+    let types: HashMap<MediaId, MediaType> = items
+        .iter()
+        .map(|item| (item.id, item.media_type))
+        .collect();
+    let mut sidecars = HashMap::new();
+    for bundle in crate::group_media(&items).bundles {
+        if bundle.bundle_type != crate::BundleType::RawJpeg {
+            continue;
+        }
+        let raw = bundle
+            .members
+            .iter()
+            .copied()
+            .find(|id| types.get(id) == Some(&MediaType::Raw));
+        let jpeg = bundle
+            .members
+            .iter()
+            .copied()
+            .find(|id| types.get(id) == Some(&MediaType::Jpeg));
+        if let (Some(raw), Some(jpeg)) = (raw, jpeg) {
+            sidecars.insert(jpeg, raw);
+        }
+    }
+    sidecars
+}
+
 #[allow(clippy::too_many_arguments)]
 fn make_copies(
     source: &dyn MediaSource,
@@ -247,6 +334,7 @@ fn make_copies(
     identity: &SourceIdentity,
     generated: &mut HashMap<PathBuf, usize>,
     roots: &mut BTreeMap<PathBuf, (u64, bool)>,
+    sidecar: Option<(&Path, Option<&Path>)>,
 ) -> Vec<PlannedCopy> {
     let rule = if input.item.media_type == MediaType::Video {
         &preset.video
@@ -261,6 +349,38 @@ fn make_copies(
             true,
             PlanStatus::UnsupportedSource,
         )];
+    }
+    if let Some((primary_path, backup_path)) = sidecar {
+        let mut copies = vec![plan_copy(
+            source,
+            input,
+            primary_path.with_extension("jpg"),
+            &rule.root,
+            true,
+            preset.collision,
+            generated,
+            roots,
+        )];
+        if let Some(backup) = &preset.backup
+            && let Some(backup_path) = backup_path
+        {
+            let backup_rule = if input.item.media_type == MediaType::Video {
+                &backup.video
+            } else {
+                &backup.photo
+            };
+            copies.push(plan_copy(
+                source,
+                input,
+                backup_path.with_extension("jpg"),
+                &backup_rule.root,
+                backup.required,
+                preset.collision,
+                generated,
+                roots,
+            ));
+        }
+        return copies;
     }
     let camera = identity
         .model
@@ -677,5 +797,39 @@ mod tests {
                 .to_string_lossy()
                 .contains("2024-05-01")
         );
+    }
+
+    #[test]
+    fn raw_jpeg_pair_shares_a_sequence_and_the_jpeg_sits_beside_the_raw() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut preset = ImportPreset::everyday(dir.path());
+        preset.photo.root = dir.path().to_path_buf();
+        preset.photo.folder_template.clear();
+        preset.filename_template = "{date}_{sequence:04}.{extension}".into();
+        let zone = FixedOffset::east_opt(0).unwrap();
+        let time = zone.with_ymd_and_hms(2024, 5, 1, 10, 0, 0).unwrap();
+        let source = FakeMediaSource::new(2);
+        let plan = ImportPlanner::build(
+            &source,
+            vec![input(1, "PAIR.ARW", time), input(2, "PAIR.JPG", time)],
+            &preset,
+        );
+        assert_eq!(plan.items.len(), 2);
+        let raw = plan
+            .items
+            .iter()
+            .find(|item| item.source_name.ends_with("ARW"))
+            .unwrap();
+        let jpeg = plan
+            .items
+            .iter()
+            .find(|item| item.source_name.ends_with("JPG"))
+            .unwrap();
+        assert_eq!(raw.sequence, jpeg.sequence);
+        assert_eq!(
+            jpeg.copies[0].final_destination,
+            raw.copies[0].final_destination.with_extension("jpg")
+        );
+        assert_eq!(raw.copies[0].final_destination.extension().unwrap(), "ARW");
     }
 }

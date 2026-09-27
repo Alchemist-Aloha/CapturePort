@@ -86,6 +86,55 @@ fn media_type_badge(media_type: captureport_core::MediaType) -> &'static str {
     }
 }
 
+fn bundle_type_label(
+    media_types: impl Iterator<Item = captureport_core::MediaType>,
+) -> &'static str {
+    use captureport_core::MediaType;
+    let (mut raw, mut jpeg, mut video, mut sidecar) = (false, false, false, false);
+    for media_type in media_types {
+        match media_type {
+            MediaType::Raw => raw = true,
+            MediaType::Jpeg => jpeg = true,
+            MediaType::Video => video = true,
+            MediaType::Sidecar => sidecar = true,
+            _ => {}
+        }
+    }
+    if raw && jpeg {
+        "RAW+JPEG"
+    } else if video && sidecar {
+        "VIDEO+SIDECAR"
+    } else {
+        "BUNDLE"
+    }
+}
+
+fn group_plan_items(items: &[captureport_ingest::PlannedImport]) -> Vec<Vec<usize>> {
+    let mut groups = Vec::new();
+    let mut index = 0;
+    while index < items.len() {
+        let mut group = vec![index];
+        if let (Some(stem), Some(next)) = (
+            items[index]
+                .copies
+                .first()
+                .map(|copy| copy.final_destination.with_extension("")),
+            items.get(index + 1),
+        ) && next
+            .copies
+            .first()
+            .map(|copy| copy.final_destination.with_extension(""))
+            == Some(stem)
+        {
+            group.push(index + 1);
+            index += 1;
+        }
+        groups.push(group);
+        index += 1;
+    }
+    groups
+}
+
 #[cfg(test)]
 mod thumbnail_layout_tests {
     use super::{media_type_badge, thumbnail_columns, thumbnail_layout};
@@ -467,6 +516,7 @@ impl Browser {
                                 let partly_selected=selected_count>0;
                                 let expanded=t.expanded_bundle==Some(id);
                                 let total_size=members.map_or(item.size, |members| members.iter().filter_map(|member| t.state.item(*member)).map(|item| item.size).sum());
+                                let badge=members.map_or_else(||media_type_badge(item.media_type),|members|bundle_type_label(members.iter().filter_map(|member|t.state.item(*member)).map(|item|item.media_type)));
                                 let timezone=t.preset.time_correction.assumed_utc_offset_seconds;
                                 let modified=t.thumbnail_modified.get(&id).copied().map(|seconds| format!(" · {}", format_file_time(seconds,timezone))).unwrap_or_default();
                                 let picture = if let Some(path)=t.thumbnail_paths.get(&id) {
@@ -488,7 +538,7 @@ impl Browser {
                                     .child(div().flex().items_center().gap_2().min_w_0()
                                         .child(div().px_1().rounded_sm().bg(p.selected).text_color(p.text)
                                             .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
-                                            .child(if members.is_some() { "BUNDLE" } else { media_type_badge(item.media_type) }))
+                                            .child(badge))
                                         .child(div().text_xs().text_color(p.muted).truncate()
                                             .child(if members.is_some() {
                                                 format!("{member_count} files · {}{modified}", format_size(total_size))
@@ -539,9 +589,15 @@ impl Browser {
             return div().into_any_element();
         };
         let p = Palette::new(self.ui.dark_mode);
+        let label = bundle_type_label(
+            members
+                .iter()
+                .filter_map(|member| self.state.item(*member))
+                .map(|item| item.media_type),
+        );
         let title = self.state.item(primary).map_or_else(
             || "Media group".to_string(),
-            |item| format!("Group · {}", item.source_name),
+            |item| format!("{label} · {}", item.source_name),
         );
         let selected_count = members
             .iter()
@@ -655,6 +711,7 @@ impl Browser {
                 .into_any_element();
         };
         let count = plan.items.len();
+        let groups = group_plan_items(&plan.items);
         let blocked = plan
             .items
             .iter()
@@ -709,17 +766,30 @@ impl Browser {
             .child(
                 uniform_list(
                     "preview-list",
-                    count,
+                    groups.len(),
                     cx.processor(move |t, range: std::ops::Range<usize>, _, _| {
                         let Some(plan) = &t.plan else {
                             return Vec::new();
                         };
                         range
                             .map(|index| {
-                                let item = &plan.items[index];
-                                let modified = t
-                                    .thumbnail_modified
-                                    .get(&item.media_id)
+                                let items: Vec<_> = groups[index]
+                                    .iter()
+                                    .map(|&item| &plan.items[item])
+                                    .collect();
+                                let names = items
+                                    .iter()
+                                    .map(|item| item.source_name.clone())
+                                    .collect::<Vec<_>>()
+                                    .join(" + ");
+                                let status = items
+                                    .iter()
+                                    .map(|item| item.status)
+                                    .find(|status| !status.can_execute())
+                                    .unwrap_or(items[0].status);
+                                let modified = items
+                                    .iter()
+                                    .find_map(|item| t.thumbnail_modified.get(&item.media_id))
                                     .copied()
                                     .map(|seconds| {
                                         format!(
@@ -733,9 +803,9 @@ impl Browser {
                                         )
                                     })
                                     .unwrap_or_default();
-                                let destinations = item
-                                    .copies
+                                let destinations = items
                                     .iter()
+                                    .flat_map(|item| &item.copies)
                                     .map(|c| {
                                         format!(
                                             "{}{} · {}",
@@ -757,8 +827,8 @@ impl Browser {
                                             .text_sm()
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
                                             .child(format!(
-                                                "{} · {}{modified}",
-                                                item.source_name, plan_status_label(item.status)
+                                                "{names} · {}{modified}",
+                                                plan_status_label(status)
                                             )),
                                     )
                                     .child(
@@ -865,8 +935,25 @@ impl Browser {
                         detail.imports.len()
                     )),
             );
-            for item in &detail.imports {
-                let modified = std::fs::metadata(&item.destination_path)
+            let mut index = 0;
+            while index < detail.imports.len() {
+                let first = &detail.imports[index];
+                let stem = std::path::Path::new(&first.destination_path).with_extension("");
+                let mut group_end = index + 1;
+                while group_end < detail.imports.len()
+                    && std::path::Path::new(&detail.imports[group_end].destination_path)
+                        .with_extension("")
+                        == stem
+                {
+                    group_end += 1;
+                }
+                let group = &detail.imports[index..group_end];
+                let destinations = group
+                    .iter()
+                    .map(|item| item.destination_path.clone())
+                    .collect::<Vec<_>>()
+                    .join(" + ");
+                let modified = std::fs::metadata(&first.destination_path)
                     .and_then(|metadata| metadata.modified())
                     .ok()
                     .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
@@ -886,14 +973,15 @@ impl Browser {
                         .child(
                             div()
                                 .text_sm()
-                                .child(format!("{} · {:?}", item.destination_path, item.status)),
+                                .child(format!("{destinations} · {:?}", first.status)),
                         )
                         .child(div().text_xs().child(format!(
                             "Modified {modified} · Verification: {} · {}",
-                            item.verification_method.as_deref().unwrap_or("pending"),
-                            item.error.as_deref().unwrap_or("")
+                            first.verification_method.as_deref().unwrap_or("pending"),
+                            first.error.as_deref().unwrap_or("")
                         ))),
                 );
+                index = group_end;
             }
         }
         panel.into_any_element()
