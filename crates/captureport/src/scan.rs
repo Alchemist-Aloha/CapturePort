@@ -54,6 +54,7 @@ struct MetadataJob {
 pub(crate) fn scan_source(
     request: SourceRequest,
     scan: ScanContext,
+    media_rules: captureport_ingest::MediaRules,
     sender: mpsc::Sender<ScanMessage>,
     catalog: CatalogHandle,
 ) {
@@ -113,10 +114,14 @@ pub(crate) fn scan_source(
         }));
     }
 
-    let enumerate_result = source.enumerate(&scan, &mut |item| {
+    let enumerate_result = source.enumerate(&scan, &mut |mut item| {
         if scan.is_cancelled() {
             return Err(SourceError::Cancelled);
         }
+        let Some(media_type) = media_rules.classify(&item.source_path) else {
+            return Ok(());
+        };
+        item.media_type = media_type;
         sender
             .send(ScanMessage::Event(Box::new(AppEvent::MediaDiscovered {
                 generation: scan.generation,

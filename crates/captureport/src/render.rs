@@ -1054,6 +1054,30 @@ impl Browser {
                             .on_click(cx.listener(|t, _, _, c| t.cycle_collision(c))),
                     ),
             )
+            .child(settings_field(
+                "Additional photo extensions (comma separated)",
+                self.settings.include_photo.clone(),
+                p,
+                cx,
+            ))
+            .child(settings_field(
+                "Additional video extensions (comma separated)",
+                self.settings.include_video.clone(),
+                p,
+                cx,
+            ))
+            .child(settings_field(
+                "Excluded extensions (comma separated)",
+                self.settings.exclude_extensions.clone(),
+                p,
+                cx,
+            ))
+            .child(settings_field(
+                "Ignored media types (raw, photo, video, sidecar, unknown)",
+                self.settings.ignore_types.clone(),
+                p,
+                cx,
+            ))
             .child(settings_section("Capture time", p))
             .child(settings_field(
                 "Clock correction (seconds)",

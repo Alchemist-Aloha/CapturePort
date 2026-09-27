@@ -109,6 +109,10 @@ struct SettingsInputs {
     backup_photo_root: Entity<text_input::TextInput>,
     backup_video_root: Entity<text_input::TextInput>,
     source_alias: Entity<text_input::TextInput>,
+    include_photo: Entity<text_input::TextInput>,
+    include_video: Entity<text_input::TextInput>,
+    exclude_extensions: Entity<text_input::TextInput>,
+    ignore_types: Entity<text_input::TextInput>,
 }
 struct Startup {
     catalog: CatalogHandle,
@@ -202,6 +206,10 @@ impl SettingsInputs {
                 cx,
             ),
             source_alias: field(String::new(), cx),
+            include_photo: field(preset.media_rules.include_photo.join(", "), cx),
+            include_video: field(preset.media_rules.include_video.join(", "), cx),
+            exclude_extensions: field(preset.media_rules.exclude.join(", "), cx),
+            ignore_types: field(preset.media_rules.ignore.join(", "), cx),
         }
     }
     fn sync(&self, preset: &ImportPreset, cx: &mut Context<Browser>) {
@@ -261,6 +269,18 @@ impl SettingsInputs {
                     .unwrap_or_default(),
                 cx,
             )
+        });
+        self.include_photo.update(cx, |input, cx| {
+            input.set_value(preset.media_rules.include_photo.join(", "), cx)
+        });
+        self.include_video.update(cx, |input, cx| {
+            input.set_value(preset.media_rules.include_video.join(", "), cx)
+        });
+        self.exclude_extensions.update(cx, |input, cx| {
+            input.set_value(preset.media_rules.exclude.join(", "), cx)
+        });
+        self.ignore_types.update(cx, |input, cx| {
+            input.set_value(preset.media_rules.ignore.join(", "), cx)
         });
     }
     fn read(
@@ -347,6 +367,19 @@ impl SettingsInputs {
             preset.grouping = Grouping::TimeGap { threshold_minutes };
         }
         preset.backup = backup;
+        let split = |value: String| -> Vec<String> {
+            value
+                .split(',')
+                .map(|entry| entry.trim().to_string())
+                .filter(|entry| !entry.is_empty())
+                .collect()
+        };
+        preset.media_rules = captureport_ingest::MediaRules {
+            include_photo: split(self.include_photo.read(cx).value()),
+            include_video: split(self.include_video.read(cx).value()),
+            exclude: split(self.exclude_extensions.read(cx).value()),
+            ignore: split(self.ignore_types.read(cx).value()),
+        };
         Ok(preset)
     }
 }
@@ -1050,7 +1083,8 @@ impl Browser {
         let (tx, rx) = mpsc::channel();
         self.receiver = Some(rx);
         let cat = self.catalog.clone();
-        thread::spawn(move || scan_source(request, scan, tx, cat));
+        let media_rules = self.preset.media_rules.clone();
+        thread::spawn(move || scan_source(request, scan, media_rules, tx, cat));
         cx.notify();
     }
     fn open_folder(&mut self, _: &OpenFolder, _: &mut Window, cx: &mut Context<Self>) {
@@ -1170,6 +1204,12 @@ impl Browser {
             .state
             .items()
             .filter(|item| self.state.is_selected(item.id))
+            .filter(|item| {
+                self.preset
+                    .media_rules
+                    .classify(&item.source_path)
+                    .is_some()
+            })
             .cloned()
             .map(|item| PlanInput {
                 capture_time: capture_time(&item),
@@ -2242,6 +2282,52 @@ mod integration_tests {
     }
 
     #[test]
+    fn scan_media_rules_drop_non_media_and_allow_odd_extensions() {
+        let source_dir = tempfile::tempdir().unwrap();
+        fs::write(source_dir.path().join("SHOT.JPG"), b"photo").unwrap();
+        fs::write(source_dir.path().join("NOTES.TXT"), b"notes").unwrap();
+        let catalog = CatalogHandle::open(captureport_catalog::CatalogPath::Memory).unwrap();
+        let scan_names = |rules: captureport_ingest::MediaRules, catalog: CatalogHandle| {
+            let (tx, rx) = mpsc::channel();
+            scan_source(
+                SourceRequest::Filesystem(source_dir.path().to_path_buf()),
+                ScanContext::new(ScanGeneration(1), CancellationToken::new()),
+                rules,
+                tx,
+                catalog,
+            );
+            let mut state = AppState::new();
+            for message in rx {
+                match message {
+                    ScanMessage::Event(event) => {
+                        state.apply_event(*event);
+                    }
+                    ScanMessage::Finished(result) => {
+                        result.unwrap();
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            let mut names: Vec<_> = state.items().map(|item| item.source_name.clone()).collect();
+            names.sort();
+            names
+        };
+        assert_eq!(
+            scan_names(captureport_ingest::MediaRules::default(), catalog.clone()),
+            vec!["SHOT.JPG"]
+        );
+        let include_txt = captureport_ingest::MediaRules {
+            include_photo: vec!["TXT".into()],
+            ..Default::default()
+        };
+        assert_eq!(
+            scan_names(include_txt, catalog),
+            vec!["NOTES.TXT", "SHOT.JPG"]
+        );
+    }
+
+    #[test]
     fn individual_and_whole_bundle_selection_control_plan_and_history() {
         let source_dir = tempfile::tempdir().unwrap();
         let destination_dir = tempfile::tempdir().unwrap();
@@ -2252,6 +2338,7 @@ mod integration_tests {
         scan_source(
             SourceRequest::Filesystem(source_dir.path().to_path_buf()),
             ScanContext::new(ScanGeneration(1), CancellationToken::new()),
+            captureport_ingest::MediaRules::default(),
             tx,
             catalog.clone(),
         );
@@ -2378,6 +2465,7 @@ mod integration_tests {
         scan_source(
             SourceRequest::Filesystem(source_dir.path().to_path_buf()),
             ScanContext::new(ScanGeneration(1), CancellationToken::new()),
+            captureport_ingest::MediaRules::default(),
             tx,
             catalog.clone(),
         );
@@ -2457,6 +2545,7 @@ mod integration_tests {
         scan_source(
             SourceRequest::Filesystem(source_dir.path().to_path_buf()),
             ScanContext::new(ScanGeneration(2), CancellationToken::new()),
+            captureport_ingest::MediaRules::default(),
             tx,
             catalog,
         );

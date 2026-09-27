@@ -31,7 +31,7 @@ pub use planner::{
     effective_time, session_numbers,
 };
 pub use preset::{
-    BackupRule, BundlePolicy, CollisionPolicy, DestinationRule, Grouping, ImportPreset,
+    BackupRule, BundlePolicy, CollisionPolicy, DestinationRule, Grouping, ImportPreset, MediaRules,
     TimeCorrection, VerificationMode,
 };
 pub use reconcile::{

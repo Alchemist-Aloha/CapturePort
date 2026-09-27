@@ -252,15 +252,16 @@ MOV
 MTS/M2TS where practical
 ```
 
-Unknown files should not automatically be discarded.
-
-They may appear under:
-
-```text
-Other files
-```
-
-and can be included through user-defined rules.
+Files whose extensions are not recognized as image, RAW, or video are excluded
+from the browser by default; sidecar and unknown media are the default ignored
+types. Import settings expose comma-separated **additional photo extensions**,
+**additional video extensions**, **excluded extensions**, and **ignored media
+types** (`raw`, `photo`, `video`, `sidecar`, `unknown`). Odd extensions listed
+under the additional photo or video fields are imported as stills or video,
+extensions listed under excluded are dropped outright, and listed media types
+are dropped. These rules persist with the preset across sessions, are applied
+while scanning, and are re-applied when building an import plan, so the preview
+and history contain only files the rules allow.
 
 ---
 
@@ -2140,7 +2141,7 @@ Everything else should support that workflow rather than compete with it.
 
 The application opens to an empty source browser. Users can choose a local directory with **Open folder**. A **Demo · 10,000 items** source is available for exercising selection and scrolling without a camera. Deterministic `--demo` modes cover empty, camera, importing, errors, and 10,000-item states for UI review.
 
-Filesystem scanning is recursive and read-only. Hidden entries and common system folders are skipped by default, symbolic links are not followed, and files with unrecognized extensions appear as unknown media. The selected source's relative paths are preserved. Changing sources cancels the previous scan and discards its late results.
+Filesystem scanning is recursive and read-only. Hidden entries and common system folders are skipped by default, symbolic links are not followed, and files rejected by the active media rules (see section 8) are omitted. The selected source's relative paths are preserved. Changing sources cancels the previous scan and discards its late results.
 
 Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions regardless of folder, including media under `Pictures/`, `Movies/`, or `DCIM/`. It skips non-media files (including sidecars) before showing them in the browser. Folder traversal remains recursive so camera media outside `DCIM/` is not lost. Explicitly opened ordinary filesystem folders retain the broader unknown-file behavior above.
 
