@@ -1,0 +1,20 @@
+[workspace]
+members = [
+    "crates/captureport",
+    "crates/captureport-core",
+    "crates/captureport-media",
+    "crates/captureport-ingest",
+    "crates/captureport-catalog",
+    "crates/captureport-metadata",
+    "crates/captureport-gphoto",
+    "crates/captureport-bench",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+rust-version = "1.88"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

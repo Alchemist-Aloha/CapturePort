@@ -1,0 +1,26 @@
+[package]
+name = "captureport"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+captureport-core = { path = "../captureport-core" }
+captureport-media = { path = "../captureport-media" }
+captureport-catalog = { path = "../captureport-catalog" }
+captureport-ingest = { path = "../captureport-ingest" }
+captureport-metadata = { path = "../captureport-metadata" }
+captureport-gphoto = { path = "../captureport-gphoto" }
+gpui = "0.2.2"
+chrono = { version = "0.4", features = ["clock"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile = "3"

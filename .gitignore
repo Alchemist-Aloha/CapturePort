@@ -1,0 +1,12 @@
+# Rust build output
+/target/
+
+# Release artifacts produced by the packaging scripts
+/dist/
+
+# Local editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp

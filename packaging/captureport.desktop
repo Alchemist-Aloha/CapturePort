@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=CapturePort
+Comment=Import photos and videos from cameras and removable storage
+Exec=captureport %U
+Terminal=false
+Categories=Graphics;Photography;Utility;
+MimeType=x-content/image-dcf;

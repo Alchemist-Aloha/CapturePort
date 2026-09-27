@@ -1,0 +1,14 @@
+[package]
+name = "captureport-gphoto"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+rust-version = "1.88"
+
+[dependencies]
+captureport-core = { path = "../captureport-core" }
+
+[build-dependencies]
+
+[lints.rust]
+unsafe_code = "allow"

@@ -1,0 +1,14 @@
+Source: captureport
+Section: graphics
+Priority: optional
+Maintainer: CapturePort contributors <maintainers@example.invalid>
+Build-Depends: debhelper-compat (= 13), cargo, rustc
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: captureport
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Linux photo and video ingest application
+ CapturePort discovers photos and videos on cameras and removable storage,
+ then previews and imports them safely.
