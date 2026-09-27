@@ -952,7 +952,7 @@ impl Browser {
                     .gallery_names
                     .get(&key)
                     .cloned()
-                    .unwrap_or_else(|| format!("Session {}", sessions[index]));
+                    .unwrap_or_else(|| times[index].format("%Y-%m-%d").to_string());
                 self.gallery_groups.push(GalleryGroup {
                     key,
                     title,
