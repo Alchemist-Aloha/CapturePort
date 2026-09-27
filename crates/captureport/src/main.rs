@@ -958,6 +958,17 @@ impl Browser {
             self.toggle_bundle_member(id, cx);
         }
     }
+    /// Clicking a group name selects every member, or clears them when all are selected.
+    fn toggle_group_selection(&mut self, id: MediaId, cx: &mut Context<Self>) {
+        if self.bundles.contains_key(&id) {
+            let all_selected = self.bundles.get(&id).is_some_and(|members| {
+                members.iter().all(|member| self.state.is_selected(*member))
+            });
+            self.select_bundle_members(id, !all_selected, cx);
+        } else {
+            self.toggle_bundle_member(id, cx);
+        }
+    }
     fn toggle_bundle_member(&mut self, id: MediaId, cx: &mut Context<Self>) {
         let selected = !self.state.is_selected(id);
         self.state.select(id, selected);

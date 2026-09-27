@@ -404,6 +404,8 @@ impl Element for TextElement {
 impl Render for TextInput {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
+            .w_full()
+            .min_w_0()
             .key_context("CapturePortTextInput")
             .track_focus(&self.focus_handle(cx))
             .cursor(CursorStyle::IBeam)

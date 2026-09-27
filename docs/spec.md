@@ -305,12 +305,14 @@ live-photo-style pairs
 ```
 
 The source browser displays a bundle as one parent capture in the virtualized
-grid. Clicking the parent expands a tree panel in the same browser, with each
-source file as an indented child. Children can be selected independently. The
-tree provides Select all in group and Deselect all in group actions; the parent
-shows the selected-member count, including partial selections. Expanding and
-collapsing never changes selection. A bundle remains visible under a filter if
-any member matches it, while its expanded tree shows all members.
+grid. Clicking the parent's card expands a tree panel in the same browser, with
+each source file as an indented child. Clicking the group name instead selects
+all members, or clears them when every member is already selected. Children can
+be selected independently. The tree provides Select all in group and Deselect
+all in group actions; the parent shows the selected-member count, including
+partial selections. Expanding and collapsing never changes selection. A bundle
+remains visible under a filter if any member matches it, while its expanded tree
+shows all members.
 
 Explicit member and group selections take precedence over RAW-only/JPEG-only
 preset policy for those selected members. Untouched bundles continue to follow

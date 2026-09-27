@@ -476,8 +476,13 @@ impl Browser {
                                         .text_color(p.muted).child(if item.media_type==captureport_core::MediaType::Video {"VIDEO"} else {"PHOTO"}).into_any_element()
                                 };
                                 let metadata = div().w_full().px_2().py_1().min_w_0()
-                                    .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
-                                        .truncate().child(item.source_name.clone()))
+                                    .child(div().id(("media-name", id.0)).min_w_0().cursor_pointer()
+                                        .on_click(cx.listener(move |t, _, _, c| {
+                                            c.stop_propagation();
+                                            t.toggle_group_selection(id, c);
+                                        }))
+                                        .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .truncate().child(item.source_name.clone())))
                                     .child(div().flex().items_center().gap_2().min_w_0()
                                         .child(div().px_1().rounded_sm().bg(p.selected).text_color(p.text)
                                             .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
@@ -502,17 +507,18 @@ impl Browser {
                             }
                         } else { cards=cards.child(div().flex_1()); }
                     }
-                    let mut view=div().w_full().h(px(image_height + 82. + if grouped { 34. } else { 0. })).flex().flex_col().px_5().py_2();
+                    let mut view=div().w_full().h(px(image_height + 82. + if grouped { 42. } else { 0. })).flex().flex_col().px_5().py_2();
                     if grouped {
                         let heading = if let Some((key, title)) = header {
                             if t.gallery_edit_key.as_ref() == Some(key) {
-                                div().h(px(30.)).flex().items_center().gap_2()
-                                    .child(themed_input(t.gallery_edit_input.clone(), p, cx))
+                                div().w_full().min_h(px(30.)).flex().items_center().gap_2()
+                                    .child(div().flex_1().min_w_0()
+                                        .child(themed_input(t.gallery_edit_input.clone(), p, cx)))
                                     .child(button("Save", cx.listener(|t,_,_,c| t.save_gallery_name(c))))
                             } else {
                                 let key = key.clone();
-                                div().h(px(30.)).flex().items_center().gap_2()
-                                    .child(div().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(title.clone()))
+                                div().w_full().min_h(px(30.)).flex().items_center().gap_2()
+                                    .child(div().flex_1().min_w_0().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(title.clone()))
                                     .child(button("Rename", cx.listener(move |t,_,_,c| t.edit_gallery(key.clone(),c))))
                             }
                         } else { div().h(px(30.)) };
@@ -556,10 +562,12 @@ impl Browser {
                     .items_center()
                     .justify_between()
                     .gap_2()
-                    .child(div().font_weight(gpui::FontWeight::SEMIBOLD).child(format!(
-                        "{title} · {selected_count}/{} selected",
-                        members.len()
-                    )))
+                    .child(div().id(("group-name", primary.0)).font_weight(gpui::FontWeight::SEMIBOLD).cursor_pointer()
+                        .on_click(cx.listener(move |t, _, _, c| t.toggle_group_selection(primary, c)))
+                        .child(format!(
+                            "{title} · {selected_count}/{} selected",
+                            members.len()
+                        )))
                     .child(button(
                         "Collapse group",
                         cx.listener(move |t, _, _, c| t.toggle_bundle(primary, c)),
@@ -1123,11 +1131,14 @@ fn themed_input(
 ) -> AnyElement {
     let focus = input.read(cx).focus_handle(cx);
     div()
+        .w_full()
+        .min_w_0()
         .track_focus(&focus)
         .border_1()
         .border_color(palette.border)
         .focus(move |style| style.border_color(palette.accent))
         .rounded_md()
+        .overflow_hidden()
         .bg(palette.card)
         .text_color(palette.text)
         .child(input)
