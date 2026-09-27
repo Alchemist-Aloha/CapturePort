@@ -10,7 +10,7 @@ use gpui::{
     App, Bounds, Context, CursorStyle, Element, ElementId, ElementInputHandler, Entity,
     EntityInputHandler, FocusHandle, Focusable, GlobalElementId, LayoutId, MouseButton,
     MouseDownEvent, PaintQuad, Pixels, Point, ShapedLine, SharedString, Style, TextRun,
-    UTF16Selection, Window, actions, div, fill, point, prelude::*, relative, rgba,
+    UTF16Selection, Window, actions, div, fill, point, prelude::*, relative,
 };
 
 actions!(
@@ -310,7 +310,7 @@ impl Element for TextElement {
         };
         let color = if input.content.is_empty() {
             let mut color = window.text_style().color;
-            color.a *= 0.6;
+            color.a *= 0.65;
             color
         } else {
             window.text_style().color
@@ -330,6 +330,8 @@ impl Element for TextElement {
             None,
         );
         let cursor_pos = line.x_for_index(input.cursor());
+        let mut selection_color = window.text_style().color;
+        selection_color.a *= 0.25;
         let (selection, cursor) = if input.selection.is_empty() {
             (
                 None,
@@ -338,7 +340,7 @@ impl Element for TextElement {
                         point(bounds.left() + cursor_pos, bounds.top()),
                         gpui::size(gpui::px(2.), bounds.bottom() - bounds.top()),
                     ),
-                    gpui::blue(),
+                    window.text_style().color,
                 )),
             )
         } else {
@@ -354,7 +356,7 @@ impl Element for TextElement {
                             bounds.bottom(),
                         ),
                     ),
-                    rgba(0x3311ff30),
+                    selection_color,
                 )),
                 None,
             )
@@ -414,7 +416,6 @@ impl Render for TextInput {
             .on_action(cx.listener(Self::select_all))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .p_2()
-            .bg(gpui::white())
             .child(TextElement { input: cx.entity() })
     }
 }

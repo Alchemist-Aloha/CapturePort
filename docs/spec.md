@@ -2136,6 +2136,8 @@ in the grid while sidebar action labels remain fully visible. A header
 toggle switches between light and dark appearance across all views. Both
 appearance and thumbnail size are saved separately from import presets in the
 XDG configuration directory.
+Editable text fields in import settings and gallery names use the active light
+or dark palette for their surface, text, border, selection, and focus state.
 
 Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to preview/import, and Escape to clear the visible selection. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
 The browser footer shows the selected count and size with a Preview import action when items are selected. The preview names blocked destinations and only offers Confirm import when every planned item can execute. After an import finishes, the same selection cannot be confirmed again until the selection or settings change and a fresh plan is built.

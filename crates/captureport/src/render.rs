@@ -472,7 +472,7 @@ impl Browser {
                         let heading = if let Some((key, title)) = header {
                             if t.gallery_edit_key.as_ref() == Some(key) {
                                 div().h(px(30.)).flex().items_center().gap_2()
-                                    .child(t.gallery_edit_input.clone())
+                                    .child(themed_input(t.gallery_edit_input.clone(), p, cx))
                                     .child(button("Save", cx.listener(|t,_,_,c| t.save_gallery_name(c))))
                             } else {
                                 let key = key.clone();
@@ -785,6 +785,8 @@ impl Browser {
             .child(settings_field(
                 "Current source alias (blank uses device name)",
                 self.settings.source_alias.clone(),
+                p,
+                cx,
             ))
             .child(button(
                 "Save source alias",
@@ -806,22 +808,32 @@ impl Browser {
             .child(settings_field(
                 "Photo destination",
                 self.settings.photo_root.clone(),
+                p,
+                cx,
             ))
             .child(settings_field(
                 "Photo folder template",
                 self.settings.photo_folder.clone(),
+                p,
+                cx,
             ))
             .child(settings_field(
                 "Video destination",
                 self.settings.video_root.clone(),
+                p,
+                cx,
             ))
             .child(settings_field(
                 "Video folder template",
                 self.settings.video_folder.clone(),
+                p,
+                cx,
             ))
             .child(settings_field(
                 "Filename template",
                 self.settings.filename.clone(),
+                p,
+                cx,
             ))
             .child(
                 div()
@@ -872,22 +884,32 @@ impl Browser {
             .child(settings_field(
                 "Clock correction (seconds)",
                 self.settings.clock_seconds.clone(),
+                p,
+                cx,
             ))
             .child(settings_field(
                 "Assumed timezone (seconds east of UTC; blank keeps metadata timezone)",
                 self.settings.timezone_seconds.clone(),
+                p,
+                cx,
             ))
             .child(settings_field(
                 "Time-gap session threshold (minutes)",
                 self.settings.gap_minutes.clone(),
+                p,
+                cx,
             ))
             .child(settings_field(
                 "Backup photo root (blank disables backup)",
                 self.settings.backup_photo_root.clone(),
+                p,
+                cx,
             ))
             .child(settings_field(
                 "Backup video root (blank disables backup)",
                 self.settings.backup_video_root.clone(),
+                p,
+                cx,
             ))
             .child(
                 div()
@@ -905,19 +927,36 @@ impl Browser {
             .into_any_element()
     }
 }
-fn settings_field(label: &'static str, input: gpui::Entity<text_input::TextInput>) -> AnyElement {
+fn settings_field(
+    label: &'static str,
+    input: gpui::Entity<text_input::TextInput>,
+    palette: Palette,
+    cx: &Context<Browser>,
+) -> AnyElement {
     div()
         .flex()
         .flex_col()
         .gap_1()
-        .child(div().text_xs().child(label))
-        .child(
-            div()
-                .border_1()
-                .border_color(gpui::rgba(0x8a9a8a88))
-                .rounded_md()
-                .child(input),
-        )
+        .child(div().text_xs().text_color(palette.muted).child(label))
+        .child(themed_input(input, palette, cx))
+        .into_any_element()
+}
+
+fn themed_input(
+    input: gpui::Entity<text_input::TextInput>,
+    palette: Palette,
+    cx: &Context<Browser>,
+) -> AnyElement {
+    let focus = input.read(cx).focus_handle(cx);
+    div()
+        .track_focus(&focus)
+        .border_1()
+        .border_color(palette.border)
+        .focus(move |style| style.border_color(palette.accent))
+        .rounded_md()
+        .bg(palette.card)
+        .text_color(palette.text)
+        .child(input)
         .into_any_element()
 }
 
