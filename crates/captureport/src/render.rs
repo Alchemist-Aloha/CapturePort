@@ -1086,11 +1086,84 @@ impl Browser {
                 cx,
             ))
             .child(settings_field(
-                "Assumed timezone (seconds east of UTC; blank keeps metadata timezone)",
-                self.settings.timezone_seconds.clone(),
+                "Time-gap session threshold (minutes)",
+                self.settings.gap_minutes.clone(),
                 p,
                 cx,
             ))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(p.muted)
+                            .child("Timezone applied to capture times"),
+                    )
+                    .child(button(
+                        format!(
+                            "Timezone: {}",
+                            timezone_label(
+                                self.settings
+                                    .timezone_seconds
+                                    .read(cx)
+                                    .value()
+                                    .trim()
+                                    .parse::<i32>()
+                                    .ok()
+                            )
+                        ),
+                        cx.listener(|t, _, _, c| {
+                            t.timezone_menu_open = !t.timezone_menu_open;
+                            c.notify()
+                        }),
+                    ))
+                    .child(if self.timezone_menu_open {
+                        div()
+                            .id("timezone-menu")
+                            .max_h(px(200.))
+                            .overflow_y_scroll()
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .child(timezone_choice(
+                                "Capture metadata".into(),
+                                self.settings.timezone_seconds.read(cx).value().trim().is_empty(),
+                                u64::MAX,
+                                p,
+                                cx.listener(|t, _, _, c| t.set_timezone_offset(None, c)),
+                            ))
+                            .children(TIMEZONE_CHOICES.iter().map(|(label, seconds)| {
+                                timezone_choice(
+                                    (*label).to_string(),
+                                    self.settings
+                                        .timezone_seconds
+                                        .read(cx)
+                                        .value()
+                                        .trim()
+                                        .parse::<i32>()
+                                        .ok()
+                                        == Some(*seconds),
+                                    (*seconds + 50_400) as u64,
+                                    p,
+                                    cx.listener(move |t, _, _, c| {
+                                        t.set_timezone_offset(Some(*seconds), c)
+                                    }),
+                                )
+                            }))
+                            .into_any_element()
+                    } else {
+                        div().into_any_element()
+                    })
+                    .child(settings_field(
+                        "Custom offset (seconds east of UTC; blank keeps metadata timezone)",
+                        self.settings.timezone_seconds.clone(),
+                        p,
+                        cx,
+                    )),
+            )
             .child(settings_field(
                 "Time-gap session threshold (minutes)",
                 self.settings.gap_minutes.clone(),
@@ -1129,6 +1202,26 @@ impl Browser {
             .into_any_element()
     }
 }
+fn timezone_choice(
+    label: String,
+    active: bool,
+    id: u64,
+    palette: Palette,
+    handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
+) -> impl IntoElement {
+    div()
+        .id(("timezone-choice", id))
+        .cursor_pointer()
+        .px_3()
+        .py_2()
+        .rounded_md()
+        .text_sm()
+        .bg(if active { palette.selected } else { palette.card })
+        .hover(move |style| style.bg(palette.selected))
+        .on_click(handler)
+        .child(label)
+}
+
 fn settings_section(label: &'static str, palette: Palette) -> impl IntoElement {
     div().mt_5().pb_1().border_b_1().border_color(palette.border)
         .text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child(label)

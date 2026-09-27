@@ -415,7 +415,12 @@ displayed corrected capture time
 
 It should not silently modify source-file metadata.
 
-Timezone interpretation should also be configurable where metadata lacks timezone information.
+Timezone interpretation should also be configurable where metadata lacks timezone information. Import settings present a timezone selection menu of common UTC offsets plus a
+Capture metadata option and a custom seconds field; the chosen offset is stored
+with the preset, persists across sessions, and is applied to grouping,
+destination paths, generated filenames, and displayed corrected capture times.
+Import history therefore reflects the timezone through the recorded
+destinations and times.
 
 ---
 

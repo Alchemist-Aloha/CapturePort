@@ -148,6 +148,63 @@ fn visible_capture_ids(
         .filter(|id| seen.insert(*id))
         .collect()
 }
+
+/// Common UTC offsets offered by the timezone menu.
+const TIMEZONE_CHOICES: &[(&str, i32)] = &[
+    ("UTC-12:00", -43_200),
+    ("UTC-11:00", -39_600),
+    ("UTC-10:00", -36_000),
+    ("UTC-09:30", -34_200),
+    ("UTC-09:00", -32_400),
+    ("UTC-08:00", -28_800),
+    ("UTC-07:00", -25_200),
+    ("UTC-06:00", -21_600),
+    ("UTC-05:00", -18_000),
+    ("UTC-04:00", -14_400),
+    ("UTC-03:30", -12_600),
+    ("UTC-03:00", -10_800),
+    ("UTC-02:00", -7_200),
+    ("UTC-01:00", -3_600),
+    ("UTC+00:00", 0),
+    ("UTC+01:00", 3_600),
+    ("UTC+02:00", 7_200),
+    ("UTC+03:00", 10_800),
+    ("UTC+03:30", 12_600),
+    ("UTC+04:00", 14_400),
+    ("UTC+04:30", 16_200),
+    ("UTC+05:00", 18_000),
+    ("UTC+05:30", 19_800),
+    ("UTC+05:45", 20_700),
+    ("UTC+06:00", 21_600),
+    ("UTC+06:30", 23_400),
+    ("UTC+07:00", 25_200),
+    ("UTC+08:00", 28_800),
+    ("UTC+08:45", 31_500),
+    ("UTC+09:00", 32_400),
+    ("UTC+09:30", 34_200),
+    ("UTC+10:00", 36_000),
+    ("UTC+10:30", 37_800),
+    ("UTC+11:00", 39_600),
+    ("UTC+12:00", 43_200),
+    ("UTC+12:45", 45_900),
+    ("UTC+13:00", 46_800),
+    ("UTC+14:00", 50_400),
+];
+
+fn timezone_label(offset: Option<i32>) -> String {
+    match offset {
+        None => "Capture metadata".into(),
+        Some(seconds) => {
+            let sign = if seconds < 0 { '-' } else { '+' };
+            let absolute = seconds.abs();
+            format!(
+                "UTC{sign}{:02}:{:02}",
+                absolute / 3600,
+                (absolute % 3600) / 60
+            )
+        }
+    }
+}
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(default)]
 struct UiPreferences {
@@ -397,6 +454,7 @@ struct Browser {
     bundle_owner: HashMap<MediaId, MediaId>,
     expanded_bundle: Option<MediaId>,
     show_view_options: bool,
+    timezone_menu_open: bool,
     explicit_bundle_selection: HashSet<MediaId>,
     receiver: Option<Receiver<ScanMessage>>,
     work_receivers: Vec<Receiver<WorkMessage>>,
@@ -567,6 +625,7 @@ impl Browser {
             bundle_owner: HashMap::new(),
             expanded_bundle: None,
             show_view_options: false,
+            timezone_menu_open: false,
             explicit_bundle_selection: HashSet::new(),
             receiver: None,
             work_receivers: vec![recovery_rx],
@@ -1516,6 +1575,17 @@ impl Browser {
         self.invalidate_plan();
         cx.notify();
     }
+    fn set_timezone_offset(&mut self, offset: Option<i32>, cx: &mut Context<Self>) {
+        self.settings.timezone_seconds.update(cx, |input, cx| {
+            input.set_value(
+                offset.map(|value| value.to_string()).unwrap_or_default(),
+                cx,
+            )
+        });
+        self.timezone_menu_open = false;
+        self.invalidate_plan();
+        cx.notify();
+    }
     fn apply_settings(&mut self, cx: &mut Context<Self>) {
         let preset = match self
             .settings
@@ -1638,11 +1708,12 @@ impl Focusable for Browser {
 include!("render.rs");
 
 fn button(
-    label: &'static str,
+    label: impl Into<gpui::SharedString>,
     handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
+    let label = label.into();
     div()
-        .id(label)
+        .id(label.clone())
         .cursor_pointer()
         .rounded_md()
         .px_3()

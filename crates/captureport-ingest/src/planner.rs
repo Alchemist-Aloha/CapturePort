@@ -644,4 +644,38 @@ mod tests {
                 .contains("2026-W53")
         );
     }
+
+    #[test]
+    fn assumed_timezone_reinterprets_capture_time_and_destination() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut preset = ImportPreset::everyday(dir.path());
+        preset.photo.root = dir.path().to_path_buf();
+        preset.photo.folder_template = "{year}-{month}-{day}".into();
+        preset.time_correction.assumed_utc_offset_seconds = Some(2 * 3600);
+        let zone = FixedOffset::east_opt(0).unwrap();
+        let source = FakeMediaSource::new(1);
+        let plan = ImportPlanner::build(
+            &source,
+            vec![input(
+                1,
+                "a.JPG",
+                zone.with_ymd_and_hms(2024, 5, 1, 10, 0, 0).unwrap(),
+            )],
+            &preset,
+        );
+        assert_eq!(
+            plan.items[0].effective_time.offset().local_minus_utc(),
+            7200
+        );
+        assert_eq!(
+            plan.items[0].effective_time.naive_local().to_string(),
+            "2024-05-01 10:00:00"
+        );
+        assert!(
+            plan.items[0].copies[0]
+                .final_destination
+                .to_string_lossy()
+                .contains("2024-05-01")
+        );
+    }
 }
