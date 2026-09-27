@@ -321,6 +321,18 @@ impl Browser {
             sidebar_width,
             self.ui.thumbnail_size,
         );
+        let grouped = matches!(self.preset.grouping, Grouping::TimeGap { .. });
+        let rows: Vec<GalleryRow> = if grouped {
+            self.gallery_groups.iter().flat_map(|group| {
+                group.ids.chunks(columns).enumerate().map(|(index, ids)| GalleryRow {
+                    header: (index == 0).then(|| (group.key.clone(), group.title.clone())), ids: ids.to_vec()
+                }).collect::<Vec<_>>()
+            }).collect()
+        } else {
+            self.visible_ids.chunks(columns).map(|ids| GalleryRow { header: None, ids: ids.to_vec() }).collect()
+        };
+        let row_count = rows.len();
+        let rows = std::sync::Arc::new(rows);
         let empty = if self.scanning {
             "Scanning source…"
         } else {
@@ -359,13 +371,32 @@ impl Browser {
                                 .rounded_full().bg(if active { p.accent } else { p.border }))
                     })))
                 .child(div().text_xs().text_color(p.muted).child(format!("{} px", image_height.round() as u32))))
+            .child(div().px_5().py_2().flex().flex_wrap().items_center().gap_3().border_b_1().border_color(p.border)
+                .child(div().text_xs().text_color(p.muted).child("Gallery time gap"))
+                .child(div().id("gallery-gap-slider").flex().items_center().gap_1()
+                    .children([5_u32, 15, 30, 60, 120, 240, 480, 1440].into_iter().map(|minutes| {
+                        let active = matches!(self.preset.grouping, Grouping::TimeGap { threshold_minutes } if threshold_minutes >= minutes);
+                        div().id(("gallery-gap-step", minutes as usize)).w(px(24.)).h(px(22.))
+                            .flex().items_center().cursor_pointer()
+                            .on_click(cx.listener(move |t,_,_,c| t.set_gap_minutes(minutes,c)))
+                            .on_mouse_move(cx.listener(move |t,e: &gpui::MouseMoveEvent,_,c| {
+                                if e.dragging() { t.set_gap_minutes(minutes,c); }
+                            }))
+                            .child(div().w_full().h(px(if active { 6. } else { 4. })).rounded_full()
+                                .bg(if active { p.accent } else { p.border }))
+                    })))
+                .child(div().text_xs().text_color(p.muted).child(match self.preset.grouping {
+                    Grouping::TimeGap { threshold_minutes } => format!("{} min", threshold_minutes),
+                    _ => "Choose a gap".into(),
+                })))
             .child(if visible==0 {
                 div().flex_1().flex().items_center().justify_center().text_color(p.muted).child(empty).into_any_element()
             } else {
-                uniform_list(("media-grid", columns * 5 + self.ui.thumbnail_size as usize),visible.div_ceil(columns),cx.processor(move |t,range:std::ops::Range<usize>,_,cx|range.map(|row| {
-                    let mut view=div().w_full().h(px(image_height + 82.)).flex().gap_3().px_5().py_2();
+                uniform_list(("media-grid", columns * 5 + self.ui.thumbnail_size as usize + if grouped { 100 } else { 0 }),row_count,cx.processor(move |t,range:std::ops::Range<usize>,_,cx|range.map(|row| {
+                    let GalleryRow { header, ids } = &rows[row];
+                    let mut cards=div().w_full().flex().gap_3();
                     for column in 0..columns {
-                        if let Some(&id)=t.visible_ids.get(row*columns+column) {
+                        if let Some(&id)=ids.get(column) {
                             t.request_thumbnail(id);
                             if let Some(item)=t.state.item(id) {
                                 let selected=t.state.is_selected(id);
@@ -385,16 +416,32 @@ impl Browser {
                                             t.bundles.get(&id).map_or(1, Vec::len))))
                                     .child(div().text_xs().text_color(p.muted)
                                         .child(import_status_label(&item.import_status)));
-                                view=view.child(div().id(("media",id.0)).flex_1().min_w_0()
+                                cards=cards.child(div().id(("media",id.0)).flex_1().min_w_0()
                                     .overflow_hidden().rounded_md().border_1()
                                     .border_color(if selected{p.accent}else{p.border})
                                     .bg(if selected{p.selected}else{p.card}).cursor_pointer()
                                     .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                     .child(picture).child(metadata));
                             }
-                        } else { view=view.child(div().flex_1()); }
+                        } else { cards=cards.child(div().flex_1()); }
                     }
-                    view
+                    let mut view=div().w_full().h(px(image_height + 82. + if grouped { 34. } else { 0. })).flex().flex_col().px_5().py_2();
+                    if grouped {
+                        let heading = if let Some((key, title)) = header {
+                            if t.gallery_edit_key.as_ref() == Some(key) {
+                                div().h(px(30.)).flex().items_center().gap_2()
+                                    .child(t.gallery_edit_input.clone())
+                                    .child(button("Save", cx.listener(|t,_,_,c| t.save_gallery_name(c))))
+                            } else {
+                                let key = key.clone();
+                                div().h(px(30.)).flex().items_center().gap_2()
+                                    .child(div().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(title.clone()))
+                                    .child(button("Rename", cx.listener(move |t,_,_,c| t.edit_gallery(key.clone(),c))))
+                            }
+                        } else { div().h(px(30.)) };
+                        view=view.child(heading);
+                    }
+                    view.child(cards)
                 }).collect())).flex_1().into_any_element()
             }).into_any_element()
     }

@@ -15,7 +15,7 @@ use captureport_core::{
 use captureport_ingest::{
     BackupRule, BundlePolicy, CollisionPolicy, CopyDigest, DestinationRule, Grouping, ImportEngine,
     ImportPlan, ImportPlanner, ImportPreset, ImportRecorder, PlanInput, PlannedCopy, PlannedImport,
-    Template, VerificationMode,
+    Template, VerificationMode, effective_time, session_numbers,
 };
 use captureport_metadata::{ThumbnailPipeline, ThumbnailRequest, ThumbnailState};
 use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc};
@@ -115,10 +115,22 @@ struct Startup {
     cache_dir: PathBuf,
     config_path: PathBuf,
     ui_path: PathBuf,
+    gallery_names_path: PathBuf,
     ui: UiPreferences,
     preset: ImportPreset,
     initial_source: Option<SourceRequest>,
     demo_importing: bool,
+}
+#[derive(Clone)]
+struct GalleryGroup {
+    key: String,
+    title: String,
+    session: u32,
+    ids: Vec<MediaId>,
+}
+struct GalleryRow {
+    header: Option<(String, String)>,
+    ids: Vec<MediaId>,
 }
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(default)]
@@ -330,6 +342,11 @@ impl SettingsInputs {
 struct Browser {
     state: AppState,
     visible_ids: Vec<MediaId>,
+    gallery_groups: Vec<GalleryGroup>,
+    gallery_names: HashMap<String, String>,
+    gallery_names_path: PathBuf,
+    gallery_edit_key: Option<String>,
+    gallery_edit_input: Entity<text_input::TextInput>,
     bundles: HashMap<MediaId, Vec<MediaId>>,
     bundle_members: HashSet<MediaId>,
     receiver: Option<Receiver<ScanMessage>>,
@@ -390,6 +407,7 @@ impl Browser {
             cache_dir,
             config_path,
             ui_path,
+            gallery_names_path,
             ui,
             preset,
             initial_source,
@@ -398,6 +416,12 @@ impl Browser {
         let focus = cx.focus_handle();
         window.focus(&focus);
         let settings = SettingsInputs::new(&preset, cx);
+        let gallery_names = std::fs::read(&gallery_names_path)
+            .ok()
+            .and_then(|data| serde_json::from_slice(&data).ok())
+            .unwrap_or_default();
+        let gallery_edit_input =
+            cx.new(|cx| text_input::TextInput::new(String::new(), "Gallery name", cx));
         let (camera_preview_sender, camera_preview_jobs) =
             mpsc::sync_channel::<CameraPreviewJob>(32);
         let (camera_preview_results, camera_preview_receiver) = mpsc::channel();
@@ -484,6 +508,11 @@ impl Browser {
         let mut browser = Self {
             state: AppState::new(),
             visible_ids: Vec::new(),
+            gallery_groups: Vec::new(),
+            gallery_names,
+            gallery_names_path,
+            gallery_edit_key: None,
+            gallery_edit_input,
             bundles: HashMap::new(),
             bundle_members: HashSet::new(),
             receiver: None,
@@ -745,6 +774,127 @@ impl Browser {
             .map(|i| i.id)
             .filter(|id| !self.bundle_members.contains(id))
             .collect();
+        self.rebuild_gallery_groups();
+    }
+    fn rebuild_gallery_groups(&mut self) {
+        self.gallery_groups.clear();
+        let Grouping::TimeGap { .. } = self.preset.grouping else {
+            return;
+        };
+        let Some(source) = &self.source else {
+            return;
+        };
+        let identity = source.identity();
+        let source_key = identity
+            .stable_id
+            .or(identity.volume_uuid)
+            .or(identity.display_name)
+            .unwrap_or_else(|| format!("{:?}", identity.source_type));
+        let mut items = self
+            .state
+            .items()
+            .filter(|item| !self.bundle_members.contains(&item.id))
+            .collect::<Vec<_>>();
+        items.sort_by(|a, b| {
+            effective_time(capture_time(a), &self.preset)
+                .cmp(&effective_time(capture_time(b), &self.preset))
+                .then_with(|| a.source_name.cmp(&b.source_name))
+                .then_with(|| a.source_path.cmp(&b.source_path))
+                .then_with(|| a.id.cmp(&b.id))
+        });
+        let times = items
+            .iter()
+            .map(|item| effective_time(capture_time(item), &self.preset))
+            .collect::<Vec<_>>();
+        let sessions = session_numbers(&times, &self.preset.grouping);
+        let visible = self.visible_ids.iter().copied().collect::<HashSet<_>>();
+        for (index, item) in items.into_iter().enumerate() {
+            if self
+                .gallery_groups
+                .last()
+                .is_none_or(|group| group.session != sessions[index])
+            {
+                let key = format!("{}|{}|{}", source_key, item.source_path, sessions[index]);
+                let title = self
+                    .gallery_names
+                    .get(&key)
+                    .cloned()
+                    .unwrap_or_else(|| format!("Session {}", sessions[index]));
+                self.gallery_groups.push(GalleryGroup {
+                    key,
+                    title,
+                    session: sessions[index],
+                    ids: Vec::new(),
+                });
+            }
+            if visible.contains(&item.id) {
+                self.gallery_groups
+                    .last_mut()
+                    .expect("group exists")
+                    .ids
+                    .push(item.id);
+            }
+        }
+        self.gallery_groups.retain(|group| !group.ids.is_empty());
+    }
+    fn set_gap_minutes(&mut self, minutes: u32, cx: &mut Context<Self>) {
+        self.preset.grouping = Grouping::TimeGap {
+            threshold_minutes: minutes,
+        };
+        self.settings
+            .gap_minutes
+            .update(cx, |input, cx| input.set_value(minutes.to_string(), cx));
+        self.invalidate_plan();
+        self.rebuild_gallery_groups();
+        self.save_preset();
+        cx.notify();
+    }
+    fn save_preset(&mut self) {
+        let result = serde_json::to_vec_pretty(&self.preset)
+            .map_err(|e| e.to_string())
+            .and_then(|data| {
+                let temporary = self.config_path.with_extension("json.tmp");
+                std::fs::write(&temporary, data).map_err(|e| e.to_string())?;
+                std::fs::rename(temporary, &self.config_path).map_err(|e| e.to_string())
+            });
+        if let Err(error) = result {
+            self.message = Some(format!("Settings: {error}"));
+        }
+    }
+    fn edit_gallery(&mut self, key: String, cx: &mut Context<Self>) {
+        let title = self
+            .gallery_groups
+            .iter()
+            .find(|group| group.key == key)
+            .map(|group| group.title.clone())
+            .unwrap_or_default();
+        self.gallery_edit_input
+            .update(cx, |input, cx| input.set_value(title, cx));
+        self.gallery_edit_key = Some(key);
+        cx.notify();
+    }
+    fn save_gallery_name(&mut self, cx: &mut Context<Self>) {
+        let Some(key) = self.gallery_edit_key.take() else {
+            return;
+        };
+        let name = self.gallery_edit_input.read(cx).value().trim().to_string();
+        if name.is_empty() {
+            self.gallery_names.remove(&key);
+        } else {
+            self.gallery_names.insert(key, name);
+        }
+        let result = serde_json::to_vec_pretty(&self.gallery_names)
+            .map_err(|e| e.to_string())
+            .and_then(|data| {
+                let temporary = self.gallery_names_path.with_extension("json.tmp");
+                std::fs::write(&temporary, data).map_err(|e| e.to_string())?;
+                std::fs::rename(temporary, &self.gallery_names_path).map_err(|e| e.to_string())
+            });
+        if let Err(error) = result {
+            self.message = Some(format!("Gallery name: {error}"));
+        }
+        self.rebuild_gallery_groups();
+        cx.notify();
     }
     fn invalidate_plan(&mut self) {
         self.plan_revision = self.plan_revision.wrapping_add(1);
@@ -808,6 +958,8 @@ impl Browser {
             source_id: SourceId(0),
         });
         self.visible_ids.clear();
+        self.gallery_groups.clear();
+        self.gallery_edit_key = None;
         self.bundles.clear();
         self.bundle_members.clear();
         self.source = None;
@@ -1235,6 +1387,7 @@ impl Browser {
             Grouping::TimeGap { .. } => Grouping::None,
         };
         self.invalidate_plan();
+        self.rebuild_gallery_groups();
         cx.notify();
     }
     fn cycle_collision(&mut self, cx: &mut Context<Self>) {
@@ -1266,6 +1419,7 @@ impl Browser {
         };
         let replan = self.plan.is_some() || self.planning;
         self.preset = preset.clone();
+        self.rebuild_gallery_groups();
         self.invalidate_plan();
         self.page = Page::Browser;
         self.message = Some("Import settings saved; build a new preview".into());
@@ -1906,6 +2060,7 @@ fn main() {
     let cache_dir = p.cache.clone();
     let config_path = p.config.join("preset.json");
     let ui_path = p.config.join("ui.json");
+    let gallery_names_path = p.config.join("gallery_names.json");
     let mut ui = std::fs::read(&ui_path)
         .ok()
         .and_then(|data| serde_json::from_slice::<UiPreferences>(&data).ok())
@@ -1975,6 +2130,7 @@ fn main() {
                             cache_dir,
                             config_path,
                             ui_path,
+                            gallery_names_path,
                             ui,
                             preset,
                             initial_source,

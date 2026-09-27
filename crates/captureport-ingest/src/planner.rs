@@ -101,7 +101,10 @@ impl ImportPlanner {
             .iter()
             .map(|input| (input, effective_time(input.capture_time, preset)))
             .collect();
-        let sessions = session_numbers(&effective, &preset.grouping);
+        let sessions = session_numbers(
+            &effective.iter().map(|(_, time)| *time).collect::<Vec<_>>(),
+            &preset.grouping,
+        );
         let mut counts = HashMap::<u32, u64>::new();
         let mut planned = Vec::with_capacity(selected.len());
         let mut generated = HashMap::<PathBuf, usize>::new();
@@ -176,7 +179,7 @@ impl ImportPlanner {
     }
 }
 
-fn effective_time(time: DateTime<FixedOffset>, preset: &ImportPreset) -> DateTime<FixedOffset> {
+pub fn effective_time(time: DateTime<FixedOffset>, preset: &ImportPreset) -> DateTime<FixedOffset> {
     let interpreted = preset
         .time_correction
         .assumed_utc_offset_seconds
@@ -188,14 +191,14 @@ fn effective_time(time: DateTime<FixedOffset>, preset: &ImportPreset) -> DateTim
         .unwrap_or(interpreted)
 }
 
-fn session_numbers(items: &[(&PlanInput, DateTime<FixedOffset>)], grouping: &Grouping) -> Vec<u32> {
-    if items.is_empty() {
+pub fn session_numbers(times: &[DateTime<FixedOffset>], grouping: &Grouping) -> Vec<u32> {
+    if times.is_empty() {
         return Vec::new();
     }
-    let mut result = Vec::with_capacity(items.len());
+    let mut result = Vec::with_capacity(times.len());
     let mut session = 1u32;
-    let mut previous = items[0].1;
-    for (_, time) in items {
+    let mut previous = times[0];
+    for time in times {
         if !result.is_empty() {
             let split = match grouping {
                 Grouping::None => false,
@@ -554,6 +557,25 @@ mod tests {
         assert_ne!(
             plan.items[0].copies[0].final_destination,
             plan.items[1].copies[0].final_destination
+        );
+    }
+    #[test]
+    fn time_gap_splits_only_after_threshold() {
+        let zone = FixedOffset::east_opt(0).unwrap();
+        let start = zone.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap();
+        let times = [
+            start,
+            start + Duration::minutes(30),
+            start + Duration::minutes(61),
+        ];
+        assert_eq!(
+            session_numbers(
+                &times,
+                &Grouping::TimeGap {
+                    threshold_minutes: 30
+                }
+            ),
+            vec![1, 1, 2]
         );
     }
     #[test]

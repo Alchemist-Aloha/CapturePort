@@ -28,6 +28,7 @@ pub use importer::{
 };
 pub use planner::{
     ImportPlan, ImportPlanner, PlanInput, PlanStatus, PlannedCopy, PlannedImport, PlannerError,
+    effective_time, session_numbers,
 };
 pub use preset::{
     BackupRule, BundlePolicy, CollisionPolicy, DestinationRule, Grouping, ImportPreset,
