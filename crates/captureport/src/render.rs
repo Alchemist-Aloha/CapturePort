@@ -53,7 +53,7 @@ fn import_status_label(status: &captureport_core::ImportStatus) -> &'static str 
         captureport_core::ImportStatus::Checking => "Checking…",
         captureport_core::ImportStatus::New => "New",
         captureport_core::ImportStatus::Imported => "✓ Imported",
-        captureport_core::ImportStatus::PossibleDuplicate => "! Possible duplicate",
+        captureport_core::ImportStatus::PossibleDuplicate => "Imported",
         captureport_core::ImportStatus::Unknown => "? Unknown",
     }
 }
@@ -518,16 +518,27 @@ impl Browser {
                                 let total_size=members.map_or(item.size, |members| members.iter().filter_map(|member| t.state.item(*member)).map(|item| item.size).sum());
                                 let badge=members.map_or_else(||media_type_badge(item.media_type),|members|bundle_type_label(members.iter().filter_map(|member|t.state.item(*member)).map(|item|item.media_type)));
                                 let timezone=t.preset.time_correction.assumed_utc_offset_seconds;
-                                let modified=t.thumbnail_modified.get(&id).copied().map(|seconds| format!(" · {}", format_file_time(seconds,timezone))).unwrap_or_default();
-                                let picture = if let Some(path)=t.thumbnail_paths.get(&id) {
-                                    div().id(("media-open", id.0)).w_full().h(px(image_height)).overflow_hidden().cursor_pointer()
+                                let size_label=format_size(total_size);
+                                let time_label=t.thumbnail_modified.get(&id).copied().map(|seconds| format_file_time_compact(seconds,timezone)).unwrap_or_default();
+                                let picture = {
+                                    let base = if let Some(path)=t.thumbnail_paths.get(&id) {
+                                        div().w_full().h(px(image_height)).overflow_hidden()
+                                            .child(img(path.clone()).size_full().object_fit(ObjectFit::Cover))
+                                    } else {
+                                        div().w_full().h(px(image_height)).bg(p.placeholder)
+                                    };
+                                    div().id(("media-open", id.0)).w_full().cursor_pointer()
                                         .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
-                                        .child(img(path.clone()).size_full().object_fit(ObjectFit::Cover))
+                                        .child(base)
+                                        .child(div().absolute().top_1().right_1().px_1().rounded_sm()
+                                            .bg(gpui::rgba(0x00000099)).text_color(rgb(0xffffff))
+                                            .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .child(badge))
+                                        .child(div().absolute().bottom_1().left_1().px_1().rounded_sm()
+                                            .bg(gpui::rgba(0x00000099)).text_color(rgb(0xffffff))
+                                            .text_xs()
+                                            .child(size_label))
                                         .into_any_element()
-                                } else {
-                                    div().id(("media-open", id.0)).w_full().h(px(image_height)).flex().items_center().justify_center().bg(p.placeholder)
-                                        .cursor_pointer().on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
-                                        .text_color(p.muted).child(if item.media_type==captureport_core::MediaType::Video {"VIDEO"} else {"PHOTO"}).into_any_element()
                                 };
                                 let metadata = div().w_full().px_2().py_1().min_w_0()
                                     .child(div().id(("media-name", id.0)).min_w_0().cursor_pointer().rounded_sm()
@@ -538,22 +549,15 @@ impl Browser {
                                         .hover(move |style| style.bg(p.selected))
                                         .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
                                             .truncate().child(item.source_name.clone())))
-                                    .child(div().flex().items_center().gap_2().min_w_0()
-                                        .child(div().px_1().rounded_sm().bg(p.selected).text_color(p.text)
-                                            .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
-                                            .child(badge))
-                                        .child(div().text_xs().text_color(p.muted).truncate()
-                                            .child(if members.is_some() {
-                                                format!("{member_count} files · {}{modified}", format_size(total_size))
-                                            } else { format!("{}{modified}", format_size(item.size)) })))
+                                    .child(div().text_xs().text_color(p.muted).truncate().child(time_label))
                                     .child(div().id(("media-status", id.0)).text_xs().font_weight(gpui::FontWeight::SEMIBOLD).cursor_pointer()
                                         .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .text_color(if partly_selected { p.text } else { p.muted })
                                         .child(if members.is_some() {
-                                            format!("{selected_count}/{member_count} selected · {}", if expanded { "Hide files" } else { "View files" })
-                                        } else if selected {
-                                            format!("Selected · {}", import_status_label(&item.import_status))
-                                        } else { import_status_label(&item.import_status).to_string() }));
+                                            if expanded { "Hide files" } else { "View files" }.to_string()
+                                        } else {
+                                            import_status_label(&item.import_status).to_string()
+                                        }));
                                 cards=cards.child(div().id(("media",id.0)).flex_1().min_w_0()
                                     .overflow_hidden().rounded_md().border_1()
                                     .border_color(if partly_selected || expanded {p.accent}else{p.border})

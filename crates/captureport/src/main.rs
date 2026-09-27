@@ -217,6 +217,18 @@ fn format_file_time(seconds: u64, offset: Option<i32>) -> String {
     };
     time.format("%Y-%m-%d %H:%M").to_string()
 }
+
+/// Compact modification time for media cards.
+fn format_file_time_compact(seconds: u64, offset: Option<i32>) -> String {
+    let Some(utc) = Utc.timestamp_opt(seconds as i64, 0).single() else {
+        return String::new();
+    };
+    let time = match offset.and_then(FixedOffset::east_opt) {
+        Some(offset) => utc.with_timezone(&offset),
+        None => utc.with_timezone(&Local).fixed_offset(),
+    };
+    time.format("%y-%m-%d %H:%M").to_string()
+}
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(default)]
 struct UiPreferences {
