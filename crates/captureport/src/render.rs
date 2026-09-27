@@ -520,19 +520,22 @@ impl Browser {
                                 let timezone=t.preset.time_correction.assumed_utc_offset_seconds;
                                 let modified=t.thumbnail_modified.get(&id).copied().map(|seconds| format!(" · {}", format_file_time(seconds,timezone))).unwrap_or_default();
                                 let picture = if let Some(path)=t.thumbnail_paths.get(&id) {
-                                    div().w_full().h(px(image_height)).overflow_hidden()
+                                    div().id(("media-open", id.0)).w_full().h(px(image_height)).overflow_hidden().cursor_pointer()
+                                        .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .child(img(path.clone()).size_full().object_fit(ObjectFit::Cover))
                                         .into_any_element()
                                 } else {
-                                    div().w_full().h(px(image_height)).flex().items_center().justify_center().bg(p.placeholder)
+                                    div().id(("media-open", id.0)).w_full().h(px(image_height)).flex().items_center().justify_center().bg(p.placeholder)
+                                        .cursor_pointer().on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .text_color(p.muted).child(if item.media_type==captureport_core::MediaType::Video {"VIDEO"} else {"PHOTO"}).into_any_element()
                                 };
                                 let metadata = div().w_full().px_2().py_1().min_w_0()
-                                    .child(div().id(("media-name", id.0)).min_w_0().cursor_pointer()
+                                    .child(div().id(("media-name", id.0)).min_w_0().cursor_pointer().rounded_sm()
                                         .on_click(cx.listener(move |t, _, _, c| {
                                             c.stop_propagation();
                                             t.toggle_group_selection(id, c);
                                         }))
+                                        .hover(move |style| style.bg(p.selected))
                                         .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
                                             .truncate().child(item.source_name.clone())))
                                     .child(div().flex().items_center().gap_2().min_w_0()
@@ -543,7 +546,8 @@ impl Browser {
                                             .child(if members.is_some() {
                                                 format!("{member_count} files · {}{modified}", format_size(total_size))
                                             } else { format!("{}{modified}", format_size(item.size)) })))
-                                    .child(div().text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .child(div().id(("media-status", id.0)).text_xs().font_weight(gpui::FontWeight::SEMIBOLD).cursor_pointer()
+                                        .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .text_color(if partly_selected { p.text } else { p.muted })
                                         .child(if members.is_some() {
                                             format!("{selected_count}/{member_count} selected · {}", if expanded { "Hide files" } else { "View files" })
@@ -553,8 +557,7 @@ impl Browser {
                                 cards=cards.child(div().id(("media",id.0)).flex_1().min_w_0()
                                     .overflow_hidden().rounded_md().border_1()
                                     .border_color(if partly_selected || expanded {p.accent}else{p.border})
-                                    .bg(if selected{p.selected}else{p.card}).cursor_pointer()
-                                    .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
+                                    .bg(if selected{p.selected}else{p.card})
                                     .child(picture).child(metadata));
                             }
                         } else { cards=cards.child(div().flex_1()); }
