@@ -1,7 +1,7 @@
 use crate::ffi;
 use captureport_core::{
-    CancellationToken, MediaId, MediaItem, MediaLocator, MediaSource, ScanContext, SourceError,
-    SourceId, SourceIdentity, SourceType,
+    classify_path, CancellationToken, MediaId, MediaItem, MediaLocator, MediaSource, MediaType,
+    ScanContext, SourceError, SourceId, SourceIdentity, SourceType,
 };
 use std::{
     collections::HashMap,
@@ -536,6 +536,9 @@ impl CameraWorker {
                 }
                 let name = ffi::text(name);
                 let path = join_path(folder, &name);
+                if !is_camera_media_path(&path) {
+                    continue;
+                }
                 let cfile = CString::new(name.as_str()).map_err(|_| err(-1, "file name"))?;
                 let mut info = std::mem::zeroed();
                 let _ = ffi::gp_camera_file_get_info(
@@ -738,6 +741,9 @@ fn split_path(path: &str) -> (&str, &str) {
         .map(|(f, n)| (if f.is_empty() { "/" } else { f }, n))
         .unwrap_or(("/", path))
 }
+fn is_camera_media_path(path: &str) -> bool {
+    !matches!(classify_path(path), MediaType::Sidecar | MediaType::Unknown)
+}
 fn join_path(folder: &str, name: &str) -> String {
     if folder == "/" {
         format!("/{name}")
@@ -803,5 +809,25 @@ mod tests {
     fn paths_split_at_last_separator() {
         assert_eq!(split_path("/DCIM/100/file.JPG"), ("/DCIM/100", "file.JPG"));
         assert_eq!(split_path("/file.JPG"), ("/", "file.JPG"));
+    }
+    #[test]
+    fn camera_media_filter_uses_type_not_dcim_location() {
+        for path in [
+            "/DCIM/100/IMG.JPG",
+            "/Pictures/Screenshots/shot.PNG",
+            "/Movies/clip.MP4",
+            "/Movies/old.3GP",
+            "/Download/raw.DNG",
+        ] {
+            assert!(is_camera_media_path(path), "{path}");
+        }
+        for path in [
+            "/DCIM/100/readme.txt",
+            "/Documents/report.pdf",
+            "/Pictures/metadata.XMP",
+            "/Download/archive.zip",
+        ] {
+            assert!(!is_camera_media_path(path), "{path}");
+        }
     }
 }

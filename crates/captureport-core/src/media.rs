@@ -39,7 +39,7 @@ pub fn classify_path(path: impl AsRef<Path>) -> MediaType {
         "heif" | "heic" | "hif" => MediaType::Heif,
         "png" => MediaType::Png,
         "tif" | "tiff" => MediaType::Tiff,
-        "mp4" | "mov" | "mts" | "m2ts" | "mkv" | "avi" => MediaType::Video,
+        "mp4" | "mov" | "mts" | "m2ts" | "mkv" | "avi" | "3gp" | "3g2" | "webm" => MediaType::Video,
         "xmp" | "xml" | "aae" | "thm" | "json" => MediaType::Sidecar,
         _ => MediaType::Unknown,
     }
