@@ -572,8 +572,19 @@ impl Browser {
                                     .child(button("Save", cx.listener(|t,_,_,c| t.save_gallery_name(c))))
                             } else {
                                 let key = key.clone();
+                                let name_key = key.clone();
                                 div().w_full().min_h(px(30.)).flex().items_center().gap_2()
-                                    .child(div().flex_1().min_w_0().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(title.clone()))
+                                    .child(
+                                        div()
+                                            .id(gpui::ElementId::Name(format!("gallery-name-{key}").into()))
+                                            .flex_1().min_w_0().font_weight(gpui::FontWeight::SEMIBOLD).truncate()
+                                            .cursor_pointer().rounded_sm()
+                                            .hover(move |style| style.bg(p.selected))
+                                            .on_click(cx.listener(move |t, _, _, c| {
+                                                t.toggle_gallery_selection(&name_key, c)
+                                            }))
+                                            .child(title.clone()),
+                                    )
                                     .child(button("Rename", cx.listener(move |t,_,_,c| t.edit_gallery(key.clone(),c))))
                             }
                         } else { div().h(px(30.)) };

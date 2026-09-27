@@ -982,6 +982,46 @@ impl Browser {
             self.message = Some(format!("Settings: {error}"));
         }
     }
+    fn gallery_member_ids(&self, key: &str) -> Vec<MediaId> {
+        let mut ids = Vec::new();
+        let mut seen = HashSet::new();
+        if let Some(group) = self.gallery_groups.iter().find(|group| group.key == key) {
+            for &id in &group.ids {
+                if let Some(members) = self.bundles.get(&id) {
+                    for &member in members {
+                        if seen.insert(member) {
+                            ids.push(member);
+                        }
+                    }
+                } else if seen.insert(id) {
+                    ids.push(id);
+                }
+            }
+        }
+        ids
+    }
+    /// Clicking a session name selects every visible item in it, or clears them.
+    fn toggle_gallery_selection(&mut self, key: &str, cx: &mut Context<Self>) {
+        let ids = self.gallery_member_ids(key);
+        if ids.is_empty() {
+            return;
+        }
+        let all_selected = ids.iter().all(|id| self.state.is_selected(*id));
+        for &id in &ids {
+            self.state.select(id, !all_selected);
+            if !self.bundle_owner.contains_key(&id) {
+                continue;
+            }
+            if all_selected {
+                self.explicit_bundle_selection.remove(&id);
+            } else {
+                self.explicit_bundle_selection.insert(id);
+            }
+        }
+        self.invalidate_plan();
+        self.page = Page::Browser;
+        cx.notify();
+    }
     fn edit_gallery(&mut self, key: String, cx: &mut Context<Self>) {
         let title = self
             .gallery_groups
