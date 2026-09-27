@@ -449,6 +449,9 @@ partial imports
 ```
 
 Instead, every successfully imported source item is recorded individually.
+The history detail shows each recorded copy with its destination file's
+modification time formatted in the selected timezone, so changing the timezone
+setting changes how history times are displayed.
 
 ---
 
@@ -2150,7 +2153,7 @@ Filesystem scanning is recursive and read-only. Hidden entries and common system
 
 Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions regardless of folder, including media under `Pictures/`, `Movies/`, or `DCIM/`. It skips non-media files (including sidecars) before showing them in the browser. Folder traversal remains recursive so camera media outside `DCIM/` is not lost. Explicitly opened ordinary filesystem folders retain the broader unknown-file behavior above.
 
-The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
+The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. Each tile and bundle member reports the source file's modification time formatted in the selected timezone; camera items without a local file omit it. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
 
 The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Display names never enter destination templates; actual output folders continue to come from the import preset's photo/video destination rules and their date/time/session variables. Import previews remain authoritative for the exact paths and session numbers of the selected import subset.
 

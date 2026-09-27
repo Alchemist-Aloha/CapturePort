@@ -467,6 +467,8 @@ impl Browser {
                                 let partly_selected=selected_count>0;
                                 let expanded=t.expanded_bundle==Some(id);
                                 let total_size=members.map_or(item.size, |members| members.iter().filter_map(|member| t.state.item(*member)).map(|item| item.size).sum());
+                                let timezone=t.preset.time_correction.assumed_utc_offset_seconds;
+                                let modified=t.thumbnail_modified.get(&id).copied().map(|seconds| format!(" · {}", format_file_time(seconds,timezone))).unwrap_or_default();
                                 let picture = if let Some(path)=t.thumbnail_paths.get(&id) {
                                     div().w_full().h(px(image_height)).overflow_hidden()
                                         .child(img(path.clone()).size_full().object_fit(ObjectFit::Cover))
@@ -489,8 +491,8 @@ impl Browser {
                                             .child(if members.is_some() { "BUNDLE" } else { media_type_badge(item.media_type) }))
                                         .child(div().text_xs().text_color(p.muted).truncate()
                                             .child(if members.is_some() {
-                                                format!("{member_count} files · {}", format_size(total_size))
-                                            } else { format_size(item.size) })))
+                                                format!("{member_count} files · {}{modified}", format_size(total_size))
+                                            } else { format!("{}{modified}", format_size(item.size)) })))
                                     .child(div().text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
                                         .text_color(if partly_selected { p.text } else { p.muted })
                                         .child(if members.is_some() {
@@ -591,6 +593,20 @@ impl Browser {
         for &id in members {
             let Some(item) = self.state.item(id) else { continue };
             let selected = self.state.is_selected(id);
+            let modified = self
+                .thumbnail_modified
+                .get(&id)
+                .copied()
+                .map(|seconds| {
+                    format!(
+                        " · {}",
+                        format_file_time(
+                            seconds,
+                            self.preset.time_correction.assumed_utc_offset_seconds
+                        )
+                    )
+                })
+                .unwrap_or_default();
             panel = panel.child(
                 div()
                     .id(("bundle-member", id.0))
@@ -615,7 +631,7 @@ impl Browser {
                             .flex_col()
                             .child(div().text_sm().truncate().child(item.source_name.clone()))
                             .child(div().text_xs().text_color(p.muted).child(format!(
-                                "{} · {} · {}",
+                                "{} · {} · {}{modified}",
                                 media_type_badge(item.media_type),
                                 format_size(item.size),
                                 import_status_label(&item.import_status)
@@ -701,6 +717,22 @@ impl Browser {
                         range
                             .map(|index| {
                                 let item = &plan.items[index];
+                                let modified = t
+                                    .thumbnail_modified
+                                    .get(&item.media_id)
+                                    .copied()
+                                    .map(|seconds| {
+                                        format!(
+                                            " · Modified {}",
+                                            format_file_time(
+                                                seconds,
+                                                t.preset
+                                                    .time_correction
+                                                    .assumed_utc_offset_seconds
+                                            )
+                                        )
+                                    })
+                                    .unwrap_or_default();
                                 let destinations = item
                                     .copies
                                     .iter()
@@ -725,7 +757,7 @@ impl Browser {
                                             .text_sm()
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
                                             .child(format!(
-                                                "{} · {}",
+                                                "{} · {}{modified}",
                                                 item.source_name, plan_status_label(item.status)
                                             )),
                                     )
@@ -834,6 +866,17 @@ impl Browser {
                     )),
             );
             for item in &detail.imports {
+                let modified = std::fs::metadata(&item.destination_path)
+                    .and_then(|metadata| metadata.modified())
+                    .ok()
+                    .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+                    .map(|duration| {
+                        format_file_time(
+                            duration.as_secs(),
+                            self.preset.time_correction.assumed_utc_offset_seconds,
+                        )
+                    })
+                    .unwrap_or_else(|| "unknown".into());
                 panel = panel.child(
                     div()
                         .px_5()
@@ -846,7 +889,7 @@ impl Browser {
                                 .child(format!("{} · {:?}", item.destination_path, item.status)),
                         )
                         .child(div().text_xs().child(format!(
-                            "Verification: {} · {}",
+                            "Modified {modified} · Verification: {} · {}",
                             item.verification_method.as_deref().unwrap_or("pending"),
                             item.error.as_deref().unwrap_or("")
                         ))),

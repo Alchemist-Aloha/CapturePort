@@ -18,7 +18,7 @@ use captureport_ingest::{
     Template, VerificationMode, effective_time, session_numbers,
 };
 use captureport_metadata::{ThumbnailPipeline, ThumbnailRequest, ThumbnailState};
-use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, TimeZone, Utc};
 use gpui::{
     App, Application, Bounds, Context, Entity, FocusHandle, Focusable, KeyBinding,
     PathPromptOptions, Timer, Window, WindowBounds, WindowOptions, actions, div, img, prelude::*,
@@ -204,6 +204,18 @@ fn timezone_label(offset: Option<i32>) -> String {
             )
         }
     }
+}
+
+/// Format a source file's modification time in the selected timezone.
+fn format_file_time(seconds: u64, offset: Option<i32>) -> String {
+    let Some(utc) = Utc.timestamp_opt(seconds as i64, 0).single() else {
+        return String::new();
+    };
+    let time = match offset.and_then(FixedOffset::east_opt) {
+        Some(offset) => utc.with_timezone(&offset),
+        None => utc.with_timezone(&Local).fixed_offset(),
+    };
+    time.format("%Y-%m-%d %H:%M").to_string()
 }
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(default)]
@@ -2341,6 +2353,15 @@ mod integration_tests {
     use super::*;
     use captureport_ingest::PlanStatus;
     use std::fs;
+
+    #[test]
+    fn modification_time_is_displayed_in_the_selected_timezone() {
+        // 2024-05-01T10:00:00Z
+        let epoch = 1_714_557_600;
+        assert_eq!(format_file_time(epoch, Some(0)), "2024-05-01 10:00");
+        assert_eq!(format_file_time(epoch, Some(2 * 3600)), "2024-05-01 12:00");
+        assert_eq!(format_file_time(epoch, Some(-5 * 3600)), "2024-05-01 05:00");
+    }
 
     #[test]
     fn a_group_remains_visible_when_only_its_child_matches_a_filter() {
