@@ -772,6 +772,7 @@ dependencies = [
  "chrono",
  "gpui",
  "image",
+ "serde",
  "serde_json",
  "tempfile",
  "tracing",

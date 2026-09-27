@@ -1,4 +1,94 @@
-use gpui::{AnyElement, ObjectFit, StyledImage};
+use gpui::{AnyElement, ObjectFit, Rgba, StyledImage};
+
+#[derive(Clone, Copy)]
+struct Palette {
+    canvas: Rgba,
+    panel: Rgba,
+    card: Rgba,
+    border: Rgba,
+    muted: Rgba,
+    placeholder: Rgba,
+    selected: Rgba,
+    accent: Rgba,
+    danger: Rgba,
+    text: Rgba,
+}
+impl Palette {
+    fn new(dark: bool) -> Self {
+        if dark {
+            Self {
+                canvas: rgb(0x101816), panel: rgb(0x17221f), card: rgb(0x20302b),
+                border: rgb(0x344a42), muted: rgb(0xa8c0b4), placeholder: rgb(0x293b34),
+                selected: rgb(0x224a3c), accent: rgb(0x7bd6a7), danger: rgb(0x51312e),
+                text: rgb(0xe8f1ea),
+            }
+        } else {
+            Self {
+                canvas: rgb(0xf7f8f7), panel: rgb(0xf0f3f0), card: rgb(0xffffff),
+                border: rgb(0xd5e0d8), muted: rgb(0x52645b), placeholder: rgb(0xe8eeea),
+                selected: rgb(0xe9f3ec), accent: rgb(0x44856d), danger: rgb(0xf3e6e2),
+                text: rgb(0x202b27),
+            }
+        }
+    }
+}
+
+fn thumbnail_columns(available: f32, target: f32) -> usize {
+    ((available + 12.) / (target + 12.)).round().max(1.) as usize
+}
+
+fn thumbnail_layout(window_width: f32, window_height: f32, sidebar_width: f32, size: u8) -> (usize, f32) {
+    let available = (window_width - sidebar_width - 40.).max(1.);
+    let target = [172., 210., 250., 300., 360.][size.min(4) as usize];
+    let columns = thumbnail_columns(available, target);
+    let card_width = ((available - 12. * (columns - 1) as f32) / columns as f32).max(1.);
+    let viewport_height = (window_height - 58. - 42. - 150. - 82.).max(1.);
+    let image_height = (card_width - 2.).max(1.).min(target).min(viewport_height);
+    (columns, image_height)
+}
+
+fn import_status_label(status: &captureport_core::ImportStatus) -> &'static str {
+    match status {
+        captureport_core::ImportStatus::Checking => "Checking…",
+        captureport_core::ImportStatus::New => "New",
+        captureport_core::ImportStatus::Imported => "Imported",
+        captureport_core::ImportStatus::PossibleDuplicate => "Possible duplicate",
+        captureport_core::ImportStatus::Unknown => "Unknown",
+    }
+}
+
+#[cfg(test)]
+mod thumbnail_layout_tests {
+    use super::{thumbnail_columns, thumbnail_layout};
+
+    #[test]
+    fn grid_reflows_without_reserving_more_than_available_width() {
+        for available in [120., 180., 320., 580., 900.] {
+            for target in [172., 210., 250., 300., 360.] {
+                let columns = thumbnail_columns(available, target);
+                assert!(columns >= 1);
+                let card_width =
+                    (available - (columns - 1) as f32 * 12.) / columns as f32;
+                assert!(card_width > 0.);
+            }
+        }
+        assert_eq!(thumbnail_columns(180., 250.), 1);
+        assert_eq!(thumbnail_columns(900., 250.), 3);
+        assert_eq!(thumbnail_columns(665., 360.), 2);
+        assert_eq!(thumbnail_columns(665., 250.), 3);
+    }
+
+    #[test]
+    fn thumbnails_shrink_with_both_window_dimensions() {
+        let (_, normal) = thumbnail_layout(1180., 760., 238., 2);
+        let (narrow_columns, narrow) = thumbnail_layout(600., 760., 238., 2);
+        let (_, short) = thumbnail_layout(1180., 450., 238., 2);
+        assert_eq!(normal, 250.);
+        assert_eq!(narrow_columns, 1);
+        assert!(narrow <= normal);
+        assert!(short < normal);
+    }
+}
 
 impl Browser {
     fn request_thumbnail(&mut self, id: MediaId) {
@@ -73,15 +163,17 @@ impl Browser {
         }
     }
 
-    fn sidebar(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    fn sidebar(&mut self, sidebar_width: f32, cx: &mut Context<Self>) -> AnyElement {
+        let p = Palette::new(self.ui.dark_mode);
         let mut panel = div()
             .id("sidebar")
-            .w(px(238.))
+            .w(px(sidebar_width))
+            .flex_shrink_0()
             .h_full()
             .p_4()
             .border_r_1()
-            .border_color(rgb(0xdfe5df))
-            .bg(rgb(0xf0f3f0))
+            .border_color(p.border)
+            .bg(p.panel)
             .flex()
             .flex_col()
             .gap_2()
@@ -90,6 +182,7 @@ impl Browser {
                 div()
                     .text_sm()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .flex_shrink_0()
                     .child("Sources"),
             )
             .child(button(
@@ -128,9 +221,12 @@ impl Browser {
                     .id(("source", index))
                     .cursor_pointer()
                     .p_2()
+                    .min_h(px(34.))
+                    .flex_shrink_0()
                     .rounded_md()
-                    .bg(rgb(0xffffff))
+                    .bg(p.card)
                     .on_click(cx.listener(move |t, _, _, c| t.open_discovered(index, c)))
+                    .truncate()
                     .child(name),
             );
         }
@@ -148,13 +244,16 @@ impl Browser {
             .child(
                 div()
                     .mt_2()
+                    .flex_shrink_0()
                     .text_sm()
-                    .text_color(rgb(0x52645b))
+                    .text_color(p.muted)
+                    .truncate()
                     .child(source),
             )
             .child(
                 div()
                     .mt_3()
+                    .flex_shrink_0()
                     .text_sm()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child("Workflow"),
@@ -205,62 +304,93 @@ impl Browser {
             .child(
                 div()
                     .mt_2()
+                    .flex_shrink_0()
                     .text_xs()
-                    .text_color(rgb(0x52645b))
+                    .text_color(p.muted)
                     .child(format!("Preset: {}", self.preset.name)),
             )
             .into_any_element()
     }
 
-    fn browser_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    fn browser_panel(&mut self, window: &mut Window, sidebar_width: f32, cx: &mut Context<Self>) -> AnyElement {
+        let p = Palette::new(self.ui.dark_mode);
         let visible = self.visible_ids.len();
+        let (columns, image_height) = thumbnail_layout(
+            f32::from(window.bounds().size.width),
+            f32::from(window.bounds().size.height),
+            sidebar_width,
+            self.ui.thumbnail_size,
+        );
         let empty = if self.scanning {
             "Scanning source…"
         } else {
             "Choose a source to browse media"
         };
-        div().flex_1().min_w_0().flex().flex_col()
-            .child(div().px_5().py_3().flex().items_center().justify_between().border_b_1().border_color(rgb(0xdfe5df))
-                .child(div().font_weight(gpui::FontWeight::SEMIBOLD).child(format!("Media · {visible}")))
-                .child(div().flex().gap_2()
+        div().flex_1().min_w_0().min_h_0().flex().flex_col()
+            .child(div().px_5().py_3().flex().flex_wrap().items_center().gap_2().border_b_1().border_color(p.border)
+                .child(div().mr_3().font_weight(gpui::FontWeight::SEMIBOLD).child(format!("Media · {visible}")))
+                .child(div().flex().flex_wrap().gap_2()
                     .child(chip("All",self.state.filter==MediaFilter::All,cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
                     .child(chip("Photos",self.state.filter==MediaFilter::Photos,cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
                     .child(chip("Videos",self.state.filter==MediaFilter::Videos,cx.listener(|t,_,_,c|t.filter(MediaFilter::Videos,c))))
                     .child(chip("New",self.state.filter==MediaFilter::New,cx.listener(|t,_,_,c|t.filter(MediaFilter::New,c))))
                     .child(chip("Imported",self.state.filter==MediaFilter::Imported,cx.listener(|t,_,_,c|t.filter(MediaFilter::Imported,c))))
                     .child(chip("Possible",self.state.filter==MediaFilter::PossibleDuplicates,cx.listener(|t,_,_,c|t.filter(MediaFilter::PossibleDuplicates,c))))))
-            .child(div().px_5().py_2().flex().items_center().justify_between()
-                .child(div().flex().gap_2()
+            .child(div().px_5().py_2().flex().flex_wrap().items_center().gap_2()
+                .child(div().flex().flex_wrap().gap_2()
                     .child(button("Select all",cx.listener(|t,_,w,c|t.select_all(&SelectAll,w,c))))
                     .child(button("Select new",cx.listener(|t,_,w,c|t.select_new(&SelectAllNew,w,c))))
                     .child(button("Clear",cx.listener(|t,_,w,c|t.select_none(&SelectNone,w,c)))))
                 .child(div().flex().gap_2()
                     .child(chip("Time",self.state.sort==MediaSort::CaptureTime,cx.listener(|t,_,_,c|t.sort(MediaSort::CaptureTime,c))))
                     .child(chip("Name",self.state.sort==MediaSort::Name,cx.listener(|t,_,_,c|t.sort(MediaSort::Name,c))))))
+            .child(div().px_5().py_2().flex().flex_wrap().items_center().gap_3()
+                .child(div().text_xs().text_color(p.muted).child("Thumbnail size"))
+                .child(div().id("thumbnail-size-slider").flex().items_center().gap_1()
+                    .children((0..=4).map(|step| {
+                        let active = step <= self.ui.thumbnail_size;
+                        div().id(("thumbnail-size-step", step as usize)).w(px(30.)).h(px(22.))
+                            .flex().items_center().cursor_pointer()
+                            .on_click(cx.listener(move |t,_,_,c| t.set_thumbnail_size(step,c)))
+                            .on_mouse_move(cx.listener(move |t,e: &gpui::MouseMoveEvent,_,c| {
+                                if e.dragging() { t.set_thumbnail_size(step,c); }
+                            }))
+                            .child(div().w_full().h(px(if active { 6. } else { 4. }))
+                                .rounded_full().bg(if active { p.accent } else { p.border }))
+                    })))
+                .child(div().text_xs().text_color(p.muted).child(format!("{} px", image_height.round() as u32))))
             .child(if visible==0 {
-                div().flex_1().flex().items_center().justify_center().text_color(rgb(0x52645b)).child(empty).into_any_element()
+                div().flex_1().flex().items_center().justify_center().text_color(p.muted).child(empty).into_any_element()
             } else {
-                uniform_list("media-grid",visible.div_ceil(3),cx.processor(|t,range:std::ops::Range<usize>,_,cx|range.map(|row| {
-                    let mut view=div().h(px(154.)).flex().gap_3().px_5().py_2();
-                    for column in 0..3 {
-                        if let Some(&id)=t.visible_ids.get(row*3+column) {
+                uniform_list(("media-grid", columns * 5 + self.ui.thumbnail_size as usize),visible.div_ceil(columns),cx.processor(move |t,range:std::ops::Range<usize>,_,cx|range.map(|row| {
+                    let mut view=div().w_full().h(px(image_height + 82.)).flex().gap_3().px_5().py_2();
+                    for column in 0..columns {
+                        if let Some(&id)=t.visible_ids.get(row*columns+column) {
                             t.request_thumbnail(id);
                             if let Some(item)=t.state.item(id) {
                                 let selected=t.state.is_selected(id);
                                 let picture = if let Some(path)=t.thumbnail_paths.get(&id) {
-                                    img(path.clone()).w(px(84.)).h(px(84.)).object_fit(ObjectFit::Cover).into_any_element()
+                                    div().w_full().h(px(image_height)).overflow_hidden()
+                                        .child(img(path.clone()).size_full().object_fit(ObjectFit::Cover))
+                                        .into_any_element()
                                 } else {
-                                    div().w(px(84.)).h(px(84.)).flex().items_center().justify_center().bg(rgb(0xe8eeea))
-                                        .text_color(rgb(0x52645b)).child(if item.media_type==captureport_core::MediaType::Video {"VIDEO"} else {"PHOTO"}).into_any_element()
+                                    div().w_full().h(px(image_height)).flex().items_center().justify_center().bg(p.placeholder)
+                                        .text_color(p.muted).child(if item.media_type==captureport_core::MediaType::Video {"VIDEO"} else {"PHOTO"}).into_any_element()
                                 };
-                                view=view.child(div().id(("media",id.0)).flex_1().min_w_0().p_2().rounded_md().border_1()
-                                    .border_color(if selected{rgb(0x44856d)}else{rgb(0xdfe5df)})
-                                    .bg(if selected{rgb(0xe9f3ec)}else{rgb(0xffffff)}).cursor_pointer()
+                                let metadata = div().w_full().px_2().py_1().min_w_0()
+                                    .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
+                                        .truncate().child(item.source_name.clone()))
+                                    .child(div().text_xs().text_color(p.muted).truncate()
+                                        .child(format!("{} · {} file(s)", format_size(item.size),
+                                            t.bundles.get(&id).map_or(1, Vec::len))))
+                                    .child(div().text_xs().text_color(p.muted)
+                                        .child(import_status_label(&item.import_status)));
+                                view=view.child(div().id(("media",id.0)).flex_1().min_w_0()
+                                    .overflow_hidden().rounded_md().border_1()
+                                    .border_color(if selected{p.accent}else{p.border})
+                                    .bg(if selected{p.selected}else{p.card}).cursor_pointer()
                                     .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
-                                    .child(div().flex().gap_2().child(picture).child(div().flex_1().min_w_0()
-                                        .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD).overflow_hidden().child(item.source_name.clone()))
-                                        .child(div().mt_2().text_xs().child(format!("{} · {} file(s)",format_size(item.size),t.bundles.get(&id).map_or(1,Vec::len))))
-                                        .child(div().mt_1().text_xs().text_color(rgb(0x52645b)).child(format!("{:?}",item.import_status))))));
+                                    .child(picture).child(metadata));
                             }
                         } else { view=view.child(div().flex_1()); }
                     }
@@ -270,6 +400,7 @@ impl Browser {
     }
 
     fn preview_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let p = Palette::new(self.ui.dark_mode);
         let Some(plan) = &self.plan else {
             return div()
                 .flex_1()
@@ -293,7 +424,7 @@ impl Browser {
                     .px_5()
                     .py_3()
                     .border_b_1()
-                    .border_color(rgb(0xdfe5df))
+                    .border_color(p.border)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child(format!(
                         "Import preview · {count} items · {blocked} blocked"
@@ -313,7 +444,7 @@ impl Browser {
                         .id("delete-verified-sources")
                         .cursor_pointer()
                         .p_2()
-                        .bg(rgb(0xf3e6e2))
+                        .bg(p.danger)
                         .rounded_md()
                         .on_click(cx.listener(|t, _, _, c| t.delete_sources(c)))
                         .child(if self.deletion_armed {
@@ -330,7 +461,7 @@ impl Browser {
                 uniform_list(
                     "preview-list",
                     count,
-                    cx.processor(|t, range: std::ops::Range<usize>, _, _| {
+                    cx.processor(move |t, range: std::ops::Range<usize>, _, _| {
                         let Some(plan) = &t.plan else {
                             return Vec::new();
                         };
@@ -355,7 +486,7 @@ impl Browser {
                                     .px_5()
                                     .py_2()
                                     .border_b_1()
-                                    .border_color(rgb(0xdfe5df))
+                                    .border_color(p.border)
                                     .child(
                                         div()
                                             .text_sm()
@@ -368,7 +499,7 @@ impl Browser {
                                     .child(
                                         div()
                                             .text_xs()
-                                            .text_color(rgb(0x52645b))
+                                            .text_color(p.muted)
                                             .child(destinations),
                                     )
                             })
@@ -381,6 +512,7 @@ impl Browser {
     }
 
     fn history_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let p = Palette::new(self.ui.dark_mode);
         let mut panel = div()
             .id("history-panel")
             .flex_1()
@@ -393,7 +525,7 @@ impl Browser {
                     .px_5()
                     .py_3()
                     .border_b_1()
-                    .border_color(rgb(0xdfe5df))
+                    .border_color(p.border)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child(format!("Import history · {} sessions", self.history.len())),
             );
@@ -434,7 +566,7 @@ impl Browser {
                     .px_5()
                     .py_3()
                     .border_b_1()
-                    .border_color(rgb(0xdfe5df))
+                    .border_color(p.border)
                     .on_click(cx.listener(move |t, _, _, c| t.inspect_session(id, c)))
                     .child(
                         div()
@@ -469,7 +601,7 @@ impl Browser {
                         .px_5()
                         .py_2()
                         .border_b_1()
-                        .border_color(rgb(0xdfe5df))
+                        .border_color(p.border)
                         .child(
                             div()
                                 .text_sm()
@@ -486,6 +618,7 @@ impl Browser {
         panel.into_any_element()
     }
     fn recovery_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let p = Palette::new(self.ui.dark_mode);
         let mut panel = div()
             .id("recovery-panel")
             .flex_1()
@@ -507,7 +640,7 @@ impl Browser {
                 self.partial_files.len()
             )));
         for session in &self.incomplete_sessions {
-            panel = panel.child(div().p_3().bg(rgb(0xffffff)).rounded_md().child(format!(
+            panel = panel.child(div().p_3().bg(p.card).rounded_md().child(format!(
                 "Session {} · started {} · {} recorded copies",
                 session.session.id,
                 session.session.started_at,
@@ -524,7 +657,7 @@ impl Browser {
             panel = panel.child(
                 div()
                     .p_3()
-                    .bg(rgb(0xffffff))
+                    .bg(p.card)
                     .rounded_md()
                     .flex()
                     .items_center()
@@ -539,7 +672,7 @@ impl Browser {
                             .id(("clean-partial", index))
                             .cursor_pointer()
                             .p_2()
-                            .bg(rgb(0xf3e6e2))
+                            .bg(p.danger)
                             .rounded_md()
                             .on_click(cx.listener(move |t, _, _, c| t.clean_partial(index, c)))
                             .child("Clean incomplete file"),
@@ -549,6 +682,7 @@ impl Browser {
         panel.into_any_element()
     }
     fn settings_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let p = Palette::new(self.ui.dark_mode);
         div()
             .id("settings-panel")
             .flex_1()
@@ -614,7 +748,7 @@ impl Browser {
                             .id("verification")
                             .cursor_pointer()
                             .p_2()
-                            .bg(rgb(0xe8eeea))
+                            .bg(p.placeholder)
                             .child(format!("Verification: {:?}", self.preset.verification))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_verification(c))),
                     )
@@ -623,7 +757,7 @@ impl Browser {
                             .id("bundle-policy")
                             .cursor_pointer()
                             .p_2()
-                            .bg(rgb(0xe8eeea))
+                            .bg(p.placeholder)
                             .child(format!("Bundles: {:?}", self.preset.bundle_policy))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_bundle_policy(c))),
                     ),
@@ -637,7 +771,7 @@ impl Browser {
                             .id("grouping")
                             .cursor_pointer()
                             .p_2()
-                            .bg(rgb(0xe8eeea))
+                            .bg(p.placeholder)
                             .child(format!("Grouping: {:?}", self.preset.grouping))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_grouping(c))),
                     )
@@ -646,7 +780,7 @@ impl Browser {
                             .id("collision")
                             .cursor_pointer()
                             .p_2()
-                            .bg(rgb(0xe8eeea))
+                            .bg(p.placeholder)
                             .child(format!("Collision: {:?}", self.preset.collision))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_collision(c))),
                     ),
@@ -676,7 +810,7 @@ impl Browser {
                     .id("backup-required")
                     .cursor_pointer()
                     .p_2()
-                    .bg(rgb(0xe8eeea))
+                    .bg(p.placeholder)
                     .child(format!("Backup required: {}", self.backup_required_choice))
                     .on_click(cx.listener(|t, _, _, c| t.toggle_backup_required(c))),
             )
@@ -692,11 +826,11 @@ fn settings_field(label: &'static str, input: gpui::Entity<text_input::TextInput
         .flex()
         .flex_col()
         .gap_1()
-        .child(div().text_xs().text_color(rgb(0x52645b)).child(label))
+        .child(div().text_xs().child(label))
         .child(
             div()
                 .border_1()
-                .border_color(rgb(0xdfe5df))
+                .border_color(gpui::rgba(0x8a9a8a88))
                 .rounded_md()
                 .child(input),
         )
@@ -704,7 +838,9 @@ fn settings_field(label: &'static str, input: gpui::Entity<text_input::TextInput
 }
 
 impl Render for Browser {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = Palette::new(self.ui.dark_mode);
+        let sidebar_width = if f32::from(window.bounds().size.width) < 760. { 200. } else { 238. };
         let summary = self.state.selection_summary();
         let status = self.message.clone().unwrap_or_else(|| {
             if self.importing {
@@ -726,7 +862,7 @@ impl Render for Browser {
             }
         });
         let content = match self.page {
-            Page::Browser => self.browser_panel(cx),
+            Page::Browser => self.browser_panel(window, sidebar_width, cx),
             Page::Preview => self.preview_panel(cx),
             Page::History => self.history_panel(cx),
             Page::Recovery => self.recovery_panel(cx),
@@ -736,8 +872,8 @@ impl Render for Browser {
             .size_full()
             .flex()
             .flex_col()
-            .bg(rgb(0xf7f8f7))
-            .text_color(rgb(0x202b27))
+            .bg(p.canvas)
+            .text_color(p.text)
             .track_focus(&self.focus_handle(cx))
             .on_action(cx.listener(Self::open_folder))
             .on_action(cx.listener(Self::open_demo))
@@ -766,26 +902,30 @@ impl Render for Browser {
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child("CapturePort"),
                     )
-                    .child(div().text_sm().child("Safe ingest workspace")),
+                    .child(button(
+                        if self.ui.dark_mode { "Light mode" } else { "Dark mode" },
+                        cx.listener(|t, _, _, c| t.toggle_dark_mode(c)),
+                    )),
             )
             .child(
                 div()
                     .flex_1()
                     .min_h_0()
                     .flex()
-                    .child(self.sidebar(cx))
+                    .child(self.sidebar(sidebar_width, cx))
                     .child(content),
             )
             .child(
                 div()
-                    .h(px(42.))
+                    .min_h(px(42.))
                     .px_5()
                     .flex()
                     .items_center()
                     .justify_between()
+                    .flex_wrap()
                     .border_t_1()
-                    .border_color(rgb(0xdfe5df))
-                    .bg(rgb(0xffffff))
+                    .border_color(p.border)
+                    .bg(p.card)
                     .text_sm()
                     .child(status)
                     .child(format!(

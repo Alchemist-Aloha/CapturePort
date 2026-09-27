@@ -24,6 +24,7 @@ use gpui::{
     PathPromptOptions, Timer, Window, WindowBounds, WindowOptions, actions, div, img, prelude::*,
     px, rgb, size, uniform_list,
 };
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -113,9 +114,25 @@ struct Startup {
     catalog: CatalogHandle,
     cache_dir: PathBuf,
     config_path: PathBuf,
+    ui_path: PathBuf,
+    ui: UiPreferences,
     preset: ImportPreset,
     initial_source: Option<SourceRequest>,
     demo_importing: bool,
+}
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(default)]
+struct UiPreferences {
+    dark_mode: bool,
+    thumbnail_size: u8,
+}
+impl Default for UiPreferences {
+    fn default() -> Self {
+        Self {
+            dark_mode: false,
+            thumbnail_size: 2,
+        }
+    }
 }
 impl SettingsInputs {
     fn new(preset: &ImportPreset, cx: &mut Context<Browser>) -> Self {
@@ -332,6 +349,8 @@ struct Browser {
     backup_required_choice: bool,
     settings: SettingsInputs,
     config_path: PathBuf,
+    ui_path: PathBuf,
+    ui: UiPreferences,
     plan: Option<ImportPlan>,
     plan_revision: u64,
     page: Page,
@@ -370,6 +389,8 @@ impl Browser {
             catalog,
             cache_dir,
             config_path,
+            ui_path,
+            ui,
             preset,
             initial_source,
             demo_importing,
@@ -482,6 +503,8 @@ impl Browser {
             backup_required_choice,
             settings,
             config_path,
+            ui_path,
+            ui,
             plan: None,
             plan_revision: 0,
             page: Page::Browser,
@@ -525,6 +548,31 @@ impl Browser {
             });
         }
         browser
+    }
+    fn save_ui(&mut self) {
+        let result = (|| -> Result<(), String> {
+            let data = serde_json::to_vec_pretty(&self.ui).map_err(|e| e.to_string())?;
+            let temporary = self.ui_path.with_extension("json.tmp");
+            std::fs::write(&temporary, data).map_err(|e| e.to_string())?;
+            std::fs::rename(temporary, &self.ui_path).map_err(|e| e.to_string())?;
+            Ok(())
+        })();
+        if let Err(error) = result {
+            self.message = Some(format!("Appearance: {error}"));
+        }
+    }
+    fn set_thumbnail_size(&mut self, size: u8, cx: &mut Context<Self>) {
+        let size = size.min(4);
+        if self.ui.thumbnail_size != size {
+            self.ui.thumbnail_size = size;
+            self.save_ui();
+            cx.notify();
+        }
+    }
+    fn toggle_dark_mode(&mut self, cx: &mut Context<Self>) {
+        self.ui.dark_mode = !self.ui.dark_mode;
+        self.save_ui();
+        cx.notify();
     }
     fn drain(&mut self, cx: &mut Context<Self>) {
         let mut changed = false;
@@ -1332,8 +1380,13 @@ fn button(
         .id(label)
         .cursor_pointer()
         .rounded_md()
-        .p_2()
-        .bg(rgb(0xffffff))
+        .px_3()
+        .py_2()
+        .min_h(px(34.))
+        .flex_shrink_0()
+        .text_sm()
+        .bg(gpui::rgba(0x8a9a8a33))
+        .hover(|style| style.bg(gpui::rgba(0x8a9a8a55)))
         .on_click(handler)
         .child(label)
 }
@@ -1342,17 +1395,25 @@ fn chip(
     active: bool,
     handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
-    div()
+    let chip = div()
         .id(label)
         .cursor_pointer()
         .rounded_md()
         .px_3()
         .py_1()
         .text_sm()
-        .bg(if active { rgb(0x193c34) } else { rgb(0xe8eeea) })
-        .text_color(if active { rgb(0xffffff) } else { rgb(0x202b27) })
+        .bg(if active {
+            rgb(0x247c66)
+        } else {
+            gpui::rgba(0x8a9a8a22)
+        })
         .on_click(handler)
-        .child(label)
+        .child(label);
+    if active {
+        chip.text_color(rgb(0xffffff))
+    } else {
+        chip
+    }
 }
 fn capture_time(item: &captureport_core::MediaItem) -> DateTime<FixedOffset> {
     if let captureport_core::MetadataState::Ready(m) = &item.metadata {
@@ -1844,6 +1905,12 @@ fn main() {
         CatalogHandle::open(p.data.join("catalog.sqlite3")).expect("could not open catalog");
     let cache_dir = p.cache.clone();
     let config_path = p.config.join("preset.json");
+    let ui_path = p.config.join("ui.json");
+    let mut ui = std::fs::read(&ui_path)
+        .ok()
+        .and_then(|data| serde_json::from_slice::<UiPreferences>(&data).ok())
+        .unwrap_or_default();
+    ui.thumbnail_size = ui.thumbnail_size.min(4);
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| p.data.clone());
@@ -1907,6 +1974,8 @@ fn main() {
                             catalog,
                             cache_dir,
                             config_path,
+                            ui_path,
+                            ui,
                             preset,
                             initial_source,
                             demo_importing,

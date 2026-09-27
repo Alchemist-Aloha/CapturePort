@@ -10,7 +10,7 @@ use gpui::{
     App, Bounds, Context, CursorStyle, Element, ElementId, ElementInputHandler, Entity,
     EntityInputHandler, FocusHandle, Focusable, GlobalElementId, LayoutId, MouseButton,
     MouseDownEvent, PaintQuad, Pixels, Point, ShapedLine, SharedString, Style, TextRun,
-    UTF16Selection, Window, actions, div, fill, hsla, point, prelude::*, relative, rgba,
+    UTF16Selection, Window, actions, div, fill, point, prelude::*, relative, rgba,
 };
 
 actions!(
@@ -309,7 +309,9 @@ impl Element for TextElement {
             input.content.clone()
         };
         let color = if input.content.is_empty() {
-            hsla(0., 0., 0., 0.35)
+            let mut color = window.text_style().color;
+            color.a *= 0.6;
+            color
         } else {
             window.text_style().color
         };

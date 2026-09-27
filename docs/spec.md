@@ -2117,6 +2117,16 @@ Filesystem scanning is recursive and read-only. Hidden entries and common system
 
 The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one selectable capture. New items are selected by default. The user can toggle a tile, select all visible items, select all visible new items, or clear the visible selection. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
 
+The thumbnail grid adapts its column count to the available window width and
+keeps image previews and labels within their tiles. Card image height also
+shrinks with shorter windows, leaving room for the card's filename and status.
+A five-step slider in the browser changes the preferred thumbnail size; the
+actual displayed size adjusts to fit the window. Long filenames are truncated
+in the grid while sidebar action labels remain fully visible. A header
+toggle switches between light and dark appearance across all views. Both
+appearance and thumbnail size are saved separately from import presets in the
+XDG configuration directory.
+
 Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to preview/import, and Escape to clear the visible selection. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
 
 Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. The screen exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. A blank pair of backup roots disables backup. Camera/card aliases are stored in the catalog and shown when the device reconnects.
