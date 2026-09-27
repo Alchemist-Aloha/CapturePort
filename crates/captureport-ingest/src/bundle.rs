@@ -6,7 +6,7 @@
 
 use crate::{BundlePolicy, PlanInput};
 use captureport_core::{BundleId, MediaId, MediaItem, MediaType};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BundleType {
@@ -120,6 +120,15 @@ pub fn bundle_media(items: &[MediaItem]) -> BundleResult {
 
 /// Apply a preset to paired captures while retaining standalone files.
 pub fn apply_bundle_policy(inputs: Vec<PlanInput>, policy: BundlePolicy) -> Vec<PlanInput> {
+    apply_bundle_policy_with_overrides(inputs, policy, &HashSet::new())
+}
+
+/// Explicitly selected members take precedence over the preset's bundle policy.
+pub fn apply_bundle_policy_with_overrides(
+    inputs: Vec<PlanInput>,
+    policy: BundlePolicy,
+    explicit_members: &HashSet<MediaId>,
+) -> Vec<PlanInput> {
     if policy == BundlePolicy::KeepAll {
         return inputs;
     }
@@ -131,6 +140,9 @@ pub fn apply_bundle_policy(inputs: Vec<PlanInput>, policy: BundlePolicy) -> Vec<
         .filter(|bundle| bundle.bundle_type == BundleType::RawJpeg)
         .flat_map(|bundle| bundle.members.iter().copied())
         .filter(|id| {
+            if explicit_members.contains(id) {
+                return false;
+            }
             media
                 .iter()
                 .find(|item| item.id == *id)
@@ -206,6 +218,36 @@ mod tests {
         assert_eq!(
             result.iter().map(|entry| entry.item.id).collect::<Vec<_>>(),
             vec![MediaId(1), MediaId(3)]
+        );
+    }
+
+    #[test]
+    fn explicit_group_selection_overrides_policy_only_for_chosen_member() {
+        use chrono::TimeZone;
+        let time = chrono::FixedOffset::east_opt(0)
+            .unwrap()
+            .timestamp_opt(0, 0)
+            .unwrap();
+        let inputs = [
+            item(1, "first.ARW"),
+            item(2, "first.JPG"),
+            item(3, "second.ARW"),
+            item(4, "second.JPG"),
+        ]
+        .into_iter()
+        .map(|item| PlanInput {
+            item,
+            capture_time: time,
+        })
+        .collect();
+        let result = apply_bundle_policy_with_overrides(
+            inputs,
+            BundlePolicy::RawOnly,
+            &HashSet::from([MediaId(2)]),
+        );
+        assert_eq!(
+            result.iter().map(|entry| entry.item.id).collect::<Vec<_>>(),
+            vec![MediaId(1), MediaId(2), MediaId(3)]
         );
     }
 }

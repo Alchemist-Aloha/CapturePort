@@ -1252,7 +1252,10 @@ MediaBundle {
 }
 ```
 
-UI should primarily select bundles.
+UI should primarily show bundles as parent captures and let users expand them
+into a tree of individually selectable source files. Group-level select-all and
+deselect-all controls should coexist with member selection; preview and history
+must reflect the final selected file set.
 
 Preset policy:
 

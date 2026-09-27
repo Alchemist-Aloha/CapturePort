@@ -304,9 +304,18 @@ photo + auxiliary metadata
 live-photo-style pairs
 ```
 
-The user should normally select/deselect the entire bundle.
+The source browser displays a bundle as one parent capture in the virtualized
+grid. Clicking the parent expands a tree panel in the same browser, with each
+source file as an indented child. Children can be selected independently. The
+tree provides Select all in group and Deselect all in group actions; the parent
+shows the selected-member count, including partial selections. Expanding and
+collapsing never changes selection. A bundle remains visible under a filter if
+any member matches it, while its expanded tree shows all members.
 
-Advanced mode may expose individual bundle members.
+Explicit member and group selections take precedence over RAW-only/JPEG-only
+preset policy for those selected members. Untouched bundles continue to follow
+the preset. The exact selected files drive the deterministic import preview and
+execution; import history records only files actually attempted by that plan.
 
 Import rules can specify:
 
@@ -1246,6 +1255,18 @@ Suggested layout:
 
 The application should emphasize the media, not configuration chrome.
 
+The browser keeps source choice, media filters, and selection actions visible.
+Secondary gallery controls (sort order, thumbnail size, and session gap) live
+under **View options** so they do not crowd out the media. Bundle cards show the
+number of selected files and open a separate member-selection panel; expanding
+a bundle never selects it.
+
+The workspace navigation exposes **Review import** once a plan exists. That
+view shows the planned destinations, a ready/blocked summary, and a visible
+reason when confirmation is unavailable. Settings group destination, naming,
+import-rule, capture-time, and backup controls so their effects are easier to
+find. Empty browser, history, and recovery views explain the next useful action.
+
 ---
 
 # 35. Default Selection
@@ -2121,7 +2142,7 @@ Filesystem scanning is recursive and read-only. Hidden entries and common system
 
 Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions regardless of folder, including media under `Pictures/`, `Movies/`, or `DCIM/`. It skips non-media files (including sidecars) before showing them in the browser. Folder traversal remains recursive so camera media outside `DCIM/` is not lost. Explicitly opened ordinary filesystem folders retain the broader unknown-file behavior above.
 
-The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one selectable capture. New items are selected by default. The user can toggle a tile, select all visible items, select all visible new items, or clear the visible selection. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
+The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
 
 The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Display names never enter destination templates; actual output folders continue to come from the import preset's photo/video destination rules and their date/time/session variables. Import previews remain authoritative for the exact paths and session numbers of the selected import subset.
 

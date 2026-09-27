@@ -4,7 +4,7 @@ use crate::{CollisionPolicy, Grouping, ImportPreset, Template, TemplateContext, 
 use captureport_core::{MediaId, MediaItem, MediaLocator, MediaSource, MediaType, SourceIdentity};
 use chrono::{DateTime, Datelike, Duration, FixedOffset};
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
 };
@@ -87,8 +87,21 @@ impl ImportPlanner {
         selected: Vec<PlanInput>,
         preset: &ImportPreset,
     ) -> ImportPlan {
+        Self::build_with_explicit_members(source, selected, preset, &HashSet::new())
+    }
+
+    pub fn build_with_explicit_members(
+        source: &dyn MediaSource,
+        selected: Vec<PlanInput>,
+        preset: &ImportPreset,
+        explicit_members: &HashSet<MediaId>,
+    ) -> ImportPlan {
         let identity = source.identity();
-        let mut selected = crate::bundle::apply_bundle_policy(selected, preset.bundle_policy);
+        let mut selected = crate::bundle::apply_bundle_policy_with_overrides(
+            selected,
+            preset.bundle_policy,
+            explicit_members,
+        );
         selected.sort_by(|a, b| {
             effective_time(a.capture_time, preset)
                 .cmp(&effective_time(b.capture_time, preset))

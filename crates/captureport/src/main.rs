@@ -132,6 +132,18 @@ struct GalleryRow {
     header: Option<(String, String)>,
     ids: Vec<MediaId>,
 }
+
+fn visible_capture_ids(
+    visible_members: impl IntoIterator<Item = MediaId>,
+    bundle_owner: &HashMap<MediaId, MediaId>,
+) -> Vec<MediaId> {
+    let mut seen = HashSet::new();
+    visible_members
+        .into_iter()
+        .map(|id| bundle_owner.get(&id).copied().unwrap_or(id))
+        .filter(|id| seen.insert(*id))
+        .collect()
+}
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(default)]
 struct UiPreferences {
@@ -349,6 +361,10 @@ struct Browser {
     gallery_edit_input: Entity<text_input::TextInput>,
     bundles: HashMap<MediaId, Vec<MediaId>>,
     bundle_members: HashSet<MediaId>,
+    bundle_owner: HashMap<MediaId, MediaId>,
+    expanded_bundle: Option<MediaId>,
+    show_view_options: bool,
+    explicit_bundle_selection: HashSet<MediaId>,
     receiver: Option<Receiver<ScanMessage>>,
     work_receivers: Vec<Receiver<WorkMessage>>,
     cancellation: Option<CancellationToken>,
@@ -515,6 +531,10 @@ impl Browser {
             gallery_edit_input,
             bundles: HashMap::new(),
             bundle_members: HashSet::new(),
+            bundle_owner: HashMap::new(),
+            expanded_bundle: None,
+            show_view_options: false,
+            explicit_bundle_selection: HashSet::new(),
             receiver: None,
             work_receivers: vec![recovery_rx],
             cancellation: None,
@@ -767,13 +787,10 @@ impl Browser {
         }
     }
     fn refresh(&mut self) {
-        self.visible_ids = self
-            .state
-            .visible_items()
-            .into_iter()
-            .map(|i| i.id)
-            .filter(|id| !self.bundle_members.contains(id))
-            .collect();
+        self.visible_ids = visible_capture_ids(
+            self.state.visible_items().into_iter().map(|item| item.id),
+            &self.bundle_owner,
+        );
         self.rebuild_gallery_groups();
     }
     fn rebuild_gallery_groups(&mut self) {
@@ -906,6 +923,7 @@ impl Browser {
     fn rebuild_bundles(&mut self) {
         self.bundles.clear();
         self.bundle_members.clear();
+        self.bundle_owner.clear();
         let items = self.state.items().cloned().collect::<Vec<_>>();
         let grouped = captureport_ingest::group_media(&items);
         for bundle in grouped
@@ -913,6 +931,9 @@ impl Browser {
             .into_iter()
             .filter(|bundle| bundle.members.len() > 1)
         {
+            for member in &bundle.members {
+                self.bundle_owner.insert(*member, bundle.primary);
+            }
             self.bundle_members.extend(
                 bundle
                     .members
@@ -922,19 +943,48 @@ impl Browser {
             );
             self.bundles.insert(bundle.primary, bundle.members);
         }
+        if self
+            .expanded_bundle
+            .is_some_and(|id| !self.bundles.contains_key(&id))
+        {
+            self.expanded_bundle = None;
+        }
     }
     fn toggle_bundle(&mut self, id: MediaId, cx: &mut Context<Self>) {
-        let selected = !self.state.is_selected(id);
-        if let Some(members) = self.bundles.get(&id) {
-            for member in members {
-                self.state.select(*member, selected);
-            }
+        if self.bundles.contains_key(&id) {
+            self.expanded_bundle = (self.expanded_bundle != Some(id)).then_some(id);
+            cx.notify();
         } else {
-            self.state.select(id, selected);
+            self.toggle_bundle_member(id, cx);
+        }
+    }
+    fn toggle_bundle_member(&mut self, id: MediaId, cx: &mut Context<Self>) {
+        let selected = !self.state.is_selected(id);
+        self.state.select(id, selected);
+        if self.bundle_owner.contains_key(&id) {
+            if selected {
+                self.explicit_bundle_selection.insert(id);
+            } else {
+                self.explicit_bundle_selection.remove(&id);
+            }
         }
         self.invalidate_plan();
-        self.last_import_result = None;
-        self.deletion_armed = false;
+        self.page = Page::Browser;
+        cx.notify();
+    }
+    fn select_bundle_members(&mut self, primary: MediaId, selected: bool, cx: &mut Context<Self>) {
+        let Some(members) = self.bundles.get(&primary) else {
+            return;
+        };
+        for &member in members {
+            self.state.select(member, selected);
+            if selected {
+                self.explicit_bundle_selection.insert(member);
+            } else {
+                self.explicit_bundle_selection.remove(&member);
+            }
+        }
+        self.invalidate_plan();
         self.page = Page::Browser;
         cx.notify();
     }
@@ -962,6 +1012,9 @@ impl Browser {
         self.gallery_edit_key = None;
         self.bundles.clear();
         self.bundle_members.clear();
+        self.bundle_owner.clear();
+        self.expanded_bundle = None;
+        self.explicit_bundle_selection.clear();
         self.source = None;
         self.source_alias = None;
         self.filesystem_root = match &request {
@@ -1040,6 +1093,7 @@ impl Browser {
     }
     fn select_none(&mut self, _: &SelectNone, _: &mut Window, cx: &mut Context<Self>) {
         self.state.select_all(false);
+        self.explicit_bundle_selection.clear();
         self.invalidate_plan();
         self.page = Page::Browser;
         cx.notify()
@@ -1117,6 +1171,7 @@ impl Browser {
             return;
         }
         let preset = self.preset.clone();
+        let explicit_members = self.explicit_bundle_selection.clone();
         self.plan_revision = self.plan_revision.wrapping_add(1);
         let revision = self.plan_revision;
         let (tx, rx) = mpsc::channel();
@@ -1124,7 +1179,12 @@ impl Browser {
         self.planning = true;
         self.message = Some("Building import preview…".into());
         thread::spawn(move || {
-            let plan = ImportPlanner::build(source.as_ref(), inputs, &preset);
+            let plan = ImportPlanner::build_with_explicit_members(
+                source.as_ref(),
+                inputs,
+                &preset,
+                &explicit_members,
+            );
             let _ = tx.send(WorkMessage::Plan(revision, plan));
         });
         cx.notify();
@@ -1536,11 +1596,13 @@ fn button(
         .rounded_md()
         .px_3()
         .py_2()
-        .min_h(px(34.))
+        .min_h(px(36.))
         .flex_shrink_0()
         .text_sm()
-        .bg(gpui::rgba(0x8a9a8a33))
-        .hover(|style| style.bg(gpui::rgba(0x8a9a8a55)))
+        .border_1()
+        .border_color(gpui::rgba(0x57856d66))
+        .bg(gpui::rgba(0x50836b22))
+        .hover(|style| style.bg(gpui::rgba(0x50836b44)))
         .on_click(handler)
         .child(label)
 }
@@ -1559,7 +1621,14 @@ fn chip(
         .bg(if active {
             rgb(0x247c66)
         } else {
-            gpui::rgba(0x8a9a8a22)
+            gpui::rgba(0x50836b22)
+        })
+        .hover(move |style| {
+            style.bg(if active {
+                rgb(0x195d4c)
+            } else {
+                gpui::rgba(0x50836b55)
+            })
         })
         .on_click(handler)
         .child(label);
@@ -2150,6 +2219,139 @@ mod integration_tests {
     use super::*;
     use captureport_ingest::PlanStatus;
     use std::fs;
+
+    #[test]
+    fn a_group_remains_visible_when_only_its_child_matches_a_filter() {
+        let owners = HashMap::from([(MediaId(2), MediaId(1))]);
+        assert_eq!(visible_capture_ids([MediaId(2)], &owners), vec![MediaId(1)]);
+        assert_eq!(
+            visible_capture_ids([MediaId(2), MediaId(1), MediaId(3)], &owners),
+            vec![MediaId(1), MediaId(3)]
+        );
+    }
+
+    #[test]
+    fn individual_and_whole_bundle_selection_control_plan_and_history() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let destination_dir = tempfile::tempdir().unwrap();
+        fs::write(source_dir.path().join("PAIR.ARW"), b"raw capture").unwrap();
+        fs::write(source_dir.path().join("PAIR.JPG"), b"jpeg capture").unwrap();
+        let catalog = CatalogHandle::open(captureport_catalog::CatalogPath::Memory).unwrap();
+        let (tx, rx) = mpsc::channel();
+        scan_source(
+            SourceRequest::Filesystem(source_dir.path().to_path_buf()),
+            ScanContext::new(ScanGeneration(1), CancellationToken::new()),
+            tx,
+            catalog.clone(),
+        );
+        let mut state = AppState::new();
+        let mut source = None;
+        let mut catalog_ids = HashMap::new();
+        for message in rx {
+            match message {
+                ScanMessage::Source(found, _, _) => source = Some(found),
+                ScanMessage::CatalogMedia(id, catalog_id) => {
+                    catalog_ids.insert(id, catalog_id);
+                }
+                ScanMessage::Event(event) => {
+                    state.apply_event(*event);
+                }
+                ScanMessage::Finished(result) => {
+                    result.unwrap();
+                    break;
+                }
+                ScanMessage::ThumbnailInfo(..) => {}
+            }
+        }
+        let source = source.unwrap();
+        let jpeg = state
+            .items()
+            .find(|item| item.source_name == "PAIR.JPG")
+            .unwrap()
+            .id;
+        let inputs = state
+            .items()
+            .filter(|item| item.id == jpeg)
+            .cloned()
+            .map(|item| PlanInput {
+                capture_time: capture_time(&item),
+                item,
+            })
+            .collect();
+        let mut preset = ImportPreset::everyday(destination_dir.path());
+        preset.photo.root = destination_dir.path().to_path_buf();
+        preset.photo.folder_template.clear();
+        preset.bundle_policy = BundlePolicy::RawOnly;
+        let plan = ImportPlanner::build(source.as_ref(), inputs, &preset);
+        assert_eq!(plan.items.len(), 1);
+        assert_eq!(plan.items[0].media_id, jpeg);
+        let (tx, rx) = mpsc::channel();
+        run_import(
+            source.clone(),
+            plan,
+            CancellationToken::new(),
+            catalog.clone(),
+            Some(1),
+            catalog_ids.clone(),
+            ScanGeneration(1),
+            tx,
+        );
+        for message in rx {
+            if let WorkMessage::ImportDone(result) = message {
+                result.unwrap();
+                break;
+            }
+        }
+        let session = catalog.list_sessions(10).unwrap().remove(0);
+        let history = catalog.session_detail(session.id).unwrap();
+        assert_eq!(history.imports.len(), 1);
+        assert_eq!(history.imports[0].media_id, catalog_ids[&jpeg]);
+
+        let second_destination = tempfile::tempdir().unwrap();
+        preset.photo.root = second_destination.path().to_path_buf();
+        let selected = state
+            .items()
+            .cloned()
+            .map(|item| PlanInput {
+                capture_time: capture_time(&item),
+                item,
+            })
+            .collect();
+        let explicit_members = state.items().map(|item| item.id).collect();
+        let plan = ImportPlanner::build_with_explicit_members(
+            source.as_ref(),
+            selected,
+            &preset,
+            &explicit_members,
+        );
+        assert_eq!(plan.items.len(), 2);
+        let (tx, rx) = mpsc::channel();
+        run_import(
+            source,
+            plan,
+            CancellationToken::new(),
+            catalog.clone(),
+            Some(1),
+            catalog_ids.clone(),
+            ScanGeneration(1),
+            tx,
+        );
+        for message in rx {
+            if let WorkMessage::ImportDone(result) = message {
+                result.unwrap();
+                break;
+            }
+        }
+        let latest_session = catalog.list_sessions(10).unwrap().remove(0);
+        let history = catalog.session_detail(latest_session.id).unwrap();
+        let recorded = history
+            .imports
+            .iter()
+            .map(|item| item.media_id)
+            .collect::<HashSet<_>>();
+        assert_eq!(recorded.len(), 2);
+        assert_eq!(recorded, catalog_ids.values().copied().collect());
+    }
 
     #[test]
     fn filesystem_scan_plan_import_and_repeat_scan_match_history() {
