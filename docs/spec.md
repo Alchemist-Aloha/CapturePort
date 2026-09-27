@@ -2126,6 +2126,8 @@ The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 mi
 The thumbnail grid adapts its column count to the available window width and
 keeps image previews and labels within their tiles. Card image height also
 shrinks with shorter windows, leaving room for the card's filename and status.
+Every card keeps a visible media-type badge beside its size even after its
+thumbnail loads; video and still formats are clearly distinguished.
 A five-step slider in the browser changes the preferred thumbnail size; the
 actual displayed size adjusts to fit the window. Long filenames are truncated
 in the grid while sidebar action labels remain fully visible. A header

@@ -57,9 +57,23 @@ fn import_status_label(status: &captureport_core::ImportStatus) -> &'static str 
     }
 }
 
+fn media_type_badge(media_type: captureport_core::MediaType) -> &'static str {
+    use captureport_core::MediaType;
+    match media_type {
+        MediaType::Video => "▶ VIDEO",
+        MediaType::Raw => "▣ RAW",
+        MediaType::Jpeg => "▣ JPEG",
+        MediaType::Heif => "▣ HEIF",
+        MediaType::Png => "▣ PNG",
+        MediaType::Tiff => "▣ TIFF",
+        MediaType::Sidecar => "◇ SIDECAR",
+        MediaType::Unknown => "◇ FILE",
+    }
+}
+
 #[cfg(test)]
 mod thumbnail_layout_tests {
-    use super::{thumbnail_columns, thumbnail_layout};
+    use super::{media_type_badge, thumbnail_columns, thumbnail_layout};
 
     #[test]
     fn grid_reflows_without_reserving_more_than_available_width() {
@@ -87,6 +101,13 @@ mod thumbnail_layout_tests {
         assert_eq!(narrow_columns, 1);
         assert!(narrow <= normal);
         assert!(short < normal);
+    }
+    #[test]
+    fn media_badges_distinguish_video_and_stills() {
+        use captureport_core::MediaType;
+        assert_eq!(media_type_badge(MediaType::Video), "▶ VIDEO");
+        assert_eq!(media_type_badge(MediaType::Raw), "▣ RAW");
+        assert_eq!(media_type_badge(MediaType::Jpeg), "▣ JPEG");
     }
 }
 
@@ -411,9 +432,13 @@ impl Browser {
                                 let metadata = div().w_full().px_2().py_1().min_w_0()
                                     .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
                                         .truncate().child(item.source_name.clone()))
-                                    .child(div().text_xs().text_color(p.muted).truncate()
-                                        .child(format!("{} · {} file(s)", format_size(item.size),
-                                            t.bundles.get(&id).map_or(1, Vec::len))))
+                                    .child(div().flex().items_center().gap_2().min_w_0()
+                                        .child(div().px_1().rounded_sm().bg(p.selected).text_color(p.accent)
+                                            .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .child(media_type_badge(item.media_type)))
+                                        .child(div().text_xs().text_color(p.muted).truncate()
+                                            .child(format!("{} · {} file(s)", format_size(item.size),
+                                                t.bundles.get(&id).map_or(1, Vec::len)))))
                                     .child(div().text_xs().text_color(p.muted)
                                         .child(import_status_label(&item.import_status)));
                                 cards=cards.child(div().id(("media",id.0)).flex_1().min_w_0()
