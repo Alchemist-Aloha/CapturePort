@@ -1472,7 +1472,7 @@ Sources
 ● Sony A7C II
   SD Card 128 GB
 
-○ /mnt/camera-card
+○ /run/media/user/camera-card
 ```
 
 Remember aliases for stable devices.

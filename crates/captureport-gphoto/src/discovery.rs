@@ -164,7 +164,7 @@ fn unescape_mount(value: &str) -> PathBuf {
 }
 fn likely_removable_mount(path: &Path) -> bool {
     let value = path.to_string_lossy();
-    value.starts_with("/media/") || value.starts_with("/mnt/") || value.starts_with("/run/media/")
+    value.starts_with("/media/") || value.starts_with("/run/media/")
 }
 
 #[cfg(test)]
@@ -179,6 +179,13 @@ mod tests {
     #[test]
     fn ignores_system_mounts() {
         assert!(parse_mount_line("proc /proc proc rw 0 0").is_none());
+    }
+    #[test]
+    fn only_automatically_lists_media_mount_roots() {
+        assert!(likely_removable_mount(Path::new("/media/Card")));
+        assert!(likely_removable_mount(Path::new("/run/media/user/Card")));
+        assert!(!likely_removable_mount(Path::new("/mnt/photos")));
+        assert!(!likely_removable_mount(Path::new("/home/user/Pictures")));
     }
     #[test]
     fn source_ids_are_unique() {

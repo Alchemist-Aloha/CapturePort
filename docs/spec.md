@@ -223,6 +223,10 @@ resolve import-history status incrementally
 
 A card containing thousands of items should therefore become interactive almost immediately.
 
+Automatic mounted-source discovery lists volumes under `/media/` and
+`/run/media/`. Mounts under `/mnt/` are not added to the Sources sidebar
+automatically; users can still choose them with **Open folder**.
+
 ---
 
 # 8. Supported Media
