@@ -232,7 +232,7 @@ fn process_job(job: MetadataJob) {
         // must not make every new item appear to be a duplicate.
         let existing = catalog.lookup_media(media.clone()).ok().flatten();
         let imported_by_identity = catalog.lookup_imported(media.clone()).unwrap_or(false);
-        let record = catalog
+        let catalog_media_id = catalog
             .execute(CatalogCommand::UpsertMedia {
                 media: media.clone(),
                 media_type,
@@ -240,7 +240,11 @@ fn process_job(job: MetadataJob) {
                 quick_fingerprint: quick.as_ref().map(|fp| fp.hex.clone()),
                 content_hash: None,
             })
-            .ok();
+            .ok()
+            .and_then(|response| match response {
+                captureport_catalog::CatalogResponse::Media(record) => Some(record.id),
+                _ => None,
+            });
         let mut status = captureport_core::ImportStatus::New;
         let mut prior_import = None;
         if let Some(fingerprint) = &quick {
@@ -263,6 +267,11 @@ fn process_job(job: MetadataJob) {
         {
             prior_import = Some(prior_import_from(found));
         }
+        let manually_imported = status != captureport_core::ImportStatus::Imported
+            // A cached fingerprint must not stand in for a failed fresh read.
+            && (filesystem_path.is_none() || quick.is_some())
+            && catalog_media_id
+                .is_some_and(|id| catalog.lookup_manually_imported(id).unwrap_or(false));
         let _ = sender.send(ScanMessage::Event(Box::new(
             AppEvent::ImportStatusChanged {
                 generation,
@@ -271,10 +280,15 @@ fn process_job(job: MetadataJob) {
                 prior_import,
             },
         )));
-        record.and_then(|response| match response {
-            captureport_catalog::CatalogResponse::Media(record) => Some(record.id),
-            _ => None,
-        })
+        // A user declaration is distinct from a completed-copy match. Prefer
+        // real import evidence when available; otherwise restore the marker.
+        if manually_imported {
+            let _ = sender.send(ScanMessage::Event(Box::new(AppEvent::ManualImportMarked {
+                generation,
+                media_id: item.id,
+            })));
+        }
+        catalog_media_id
     });
     if let Some(catalog_media_id) = catalog_media_id {
         let _ = sender.send(ScanMessage::CatalogMedia(item.id, catalog_media_id));

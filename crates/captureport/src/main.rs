@@ -1,6 +1,7 @@
 mod logging;
 mod paths;
 mod scan;
+mod template_help;
 mod text_input;
 
 use captureport_catalog::{
@@ -15,7 +16,7 @@ use captureport_core::{
 use captureport_ingest::{
     BackupRule, BundlePolicy, CollisionPolicy, CopyDigest, DestinationRule, Grouping, ImportEngine,
     ImportPlan, ImportPlanner, ImportPreset, ImportRecorder, PlanInput, PlannedCopy, PlannedImport,
-    Template, VerificationMode, effective_time, session_numbers,
+    VerificationMode, effective_time, session_numbers,
 };
 use captureport_metadata::{ThumbnailPipeline, ThumbnailRequest, ThumbnailState};
 use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, TimeZone, Utc};
@@ -45,6 +46,7 @@ actions!(
         SelectAll,
         SelectAllNew,
         SelectNone,
+        MarkSelectedImported,
         ImportSelected,
         CancelImport,
         ShowHistory,
@@ -68,6 +70,11 @@ enum WorkMessage {
     ImportResult(captureport_ingest::ImportResult),
     CacheCleared(usize),
     SourceAlias(Option<String>),
+    MarkedImported {
+        generation: ScanGeneration,
+        media_ids: Vec<MediaId>,
+        result: Result<(), String>,
+    },
     ImportDone(Result<String, String>),
     ReconcileDone(Result<String, String>),
     Done(Result<String, String>),
@@ -409,8 +416,13 @@ impl SettingsInputs {
         let photo_folder = self.photo_folder.read(cx).value();
         let video_folder = self.video_folder.read(cx).value();
         let filename = self.filename.read(cx).value();
-        for template in [&photo_folder, &video_folder, &filename] {
-            Template::parse(template).map_err(|e| e.to_string())?;
+        for (label, template, is_filename, video) in [
+            ("Photo folder", &photo_folder, false, false),
+            ("Video folder", &video_folder, false, true),
+            ("Filename", &filename, true, false),
+        ] {
+            template_help::example(template, is_filename, video)
+                .map_err(|error| format!("{label}: {error}"))?;
         }
         let clock_seconds = self
             .clock_seconds
@@ -526,6 +538,7 @@ struct Browser {
     preset: ImportPreset,
     backup_required_choice: bool,
     settings: SettingsInputs,
+    template_segment_target: Option<Entity<text_input::TextInput>>,
     config_path: PathBuf,
     ui_path: PathBuf,
     ui: UiPreferences,
@@ -557,6 +570,7 @@ struct Browser {
     generation: u64,
     scanning: bool,
     importing: bool,
+    marking_imported: bool,
     progress: Option<captureport_core::ImportProgress>,
     message: Option<String>,
     focus: FocusHandle,
@@ -577,6 +591,13 @@ impl Browser {
         let focus = cx.focus_handle();
         window.focus(&focus);
         let settings = SettingsInputs::new(&preset, cx);
+        for input in [
+            &settings.photo_folder,
+            &settings.video_folder,
+            &settings.filename,
+        ] {
+            cx.observe(input, |_, _, cx| cx.notify()).detach();
+        }
         let gallery_names = std::fs::read(&gallery_names_path)
             .ok()
             .and_then(|data| serde_json::from_slice(&data).ok())
@@ -698,6 +719,7 @@ impl Browser {
             preset,
             backup_required_choice,
             settings,
+            template_segment_target: None,
             config_path,
             ui_path,
             ui,
@@ -727,6 +749,7 @@ impl Browser {
             generation: 0,
             scanning: false,
             importing: false,
+            marking_imported: false,
             progress: None,
             message: None,
             focus,
@@ -882,6 +905,37 @@ impl Browser {
                     Ok(WorkMessage::SourceAlias(alias)) => {
                         self.source_alias = alias;
                         self.message = Some("Source alias saved".into());
+                        changed = true;
+                    }
+                    Ok(WorkMessage::MarkedImported {
+                        generation,
+                        media_ids,
+                        result,
+                    }) => {
+                        self.marking_imported = false;
+                        if generation == self.state.generation {
+                            match result {
+                                Ok(()) => {
+                                    for id in &media_ids {
+                                        self.state.apply_event(AppEvent::ManualImportMarked {
+                                            generation,
+                                            media_id: *id,
+                                        });
+                                        self.explicit_bundle_selection.remove(id);
+                                    }
+                                    self.invalidate_plan();
+                                    self.message = Some(format!(
+                                        "Marked {} file(s) as imported manually",
+                                        media_ids.len()
+                                    ));
+                                }
+                                Err(error) => {
+                                    self.message = Some(format!(
+                                        "Could not mark selected files as imported: {error}"
+                                    ))
+                                }
+                            }
+                        }
                         changed = true;
                     }
                     Ok(WorkMessage::Done(v)) => {
@@ -1310,6 +1364,56 @@ impl Browser {
         self.page = Page::Browser;
         cx.notify()
     }
+    fn can_mark_selected_imported(&self) -> bool {
+        !self.scanning
+            && !self.importing
+            && !self.planning
+            && !self.marking_imported
+            && self.state.items().any(|item| {
+                self.state.is_selected(item.id)
+                    && item.import_status != captureport_core::ImportStatus::Imported
+            })
+    }
+    fn mark_selected_imported(
+        &mut self,
+        _: &MarkSelectedImported,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.can_mark_selected_imported() {
+            return;
+        }
+        let selected = match manual_mark_selection(&self.state, &self.catalog_media_ids) {
+            Ok(selected) => selected,
+            Err(error) => {
+                self.message = Some(error);
+                cx.notify();
+                return;
+            }
+        };
+        let generation = self.state.generation;
+        let catalog = self.catalog.clone();
+        let (tx, rx) = mpsc::channel();
+        self.work_receivers.push(rx);
+        self.marking_imported = true;
+        self.invalidate_plan();
+        self.message = Some(format!(
+            "Marking {} selected file(s) as imported…",
+            selected.len()
+        ));
+        thread::spawn(move || {
+            let catalog_ids = selected.iter().map(|(_, catalog_id)| *catalog_id).collect();
+            let result = catalog
+                .mark_manually_imported(catalog_ids, now())
+                .map_err(|error| error.to_string());
+            let _ = tx.send(WorkMessage::MarkedImported {
+                generation,
+                media_ids: selected.into_iter().map(|(id, _)| id).collect(),
+                result,
+            });
+        });
+        cx.notify();
+    }
     fn filter(&mut self, f: MediaFilter, cx: &mut Context<Self>) {
         self.state.filter = f;
         self.invalidate_plan();
@@ -1323,7 +1427,7 @@ impl Browser {
         cx.notify()
     }
     fn import_selected(&mut self, _: &ImportSelected, _: &mut Window, cx: &mut Context<Self>) {
-        if self.importing || self.planning {
+        if self.importing || self.planning || self.marking_imported {
             return;
         }
         if self.scanning {
@@ -1362,6 +1466,9 @@ impl Browser {
         cx.notify();
     }
     fn start_plan(&mut self, cx: &mut Context<Self>) {
+        if self.marking_imported {
+            return;
+        }
         let Some(source) = self.source.clone() else {
             self.message = Some("Open a source first".into());
             cx.notify();
@@ -2382,6 +2489,25 @@ fn aliases_for_sources(
         })
         .collect()
 }
+/// Use the complete selection, including hidden items and selected bundle
+/// members, while keeping genuine imported-history matches intact.
+fn manual_mark_selection(
+    state: &AppState,
+    catalog_ids: &HashMap<MediaId, i64>,
+) -> Result<Vec<(MediaId, i64)>, String> {
+    state.items()
+        .filter(|item| state.is_selected(item.id)
+            && item.import_status != captureport_core::ImportStatus::Imported)
+        .map(|item| {
+            catalog_ids.get(&item.id).copied().map(|catalog_id| (item.id, catalog_id))
+                .ok_or_else(|| format!(
+                    "Cannot mark {} yet: its catalog record is unavailable. Rescan the source and try again.",
+                    item.source_name
+                ))
+        })
+        .collect()
+}
+
 fn now() -> String {
     Utc::now().to_rfc3339()
 }
@@ -2529,6 +2655,122 @@ mod integration_tests {
     use super::*;
     use captureport_ingest::PlanStatus;
     use std::fs;
+
+    #[test]
+    fn selected_manual_import_marks_survive_scan_and_detect_changed_content() {
+        let source_dir = tempfile::tempdir().unwrap();
+        for (name, bytes) in [
+            ("PAIR.ARW", b"manual raw frame".as_slice()),
+            ("PAIR.JPG", b"manual jpeg frame".as_slice()),
+            ("KEEP.JPG", b"unmarked frame".as_slice()),
+        ] {
+            fs::write(source_dir.path().join(name), bytes).unwrap();
+        }
+        let catalog = CatalogHandle::open(captureport_catalog::CatalogPath::Memory).unwrap();
+        let scan = |generation| {
+            let (tx, rx) = mpsc::channel();
+            scan_source(
+                SourceRequest::Filesystem(source_dir.path().into()),
+                ScanContext::new(ScanGeneration(generation), CancellationToken::new()),
+                captureport_ingest::MediaRules::default(),
+                tx,
+                catalog.clone(),
+            );
+            let mut state = AppState::new();
+            let mut catalog_ids = HashMap::new();
+            for message in rx {
+                match message {
+                    ScanMessage::Event(event) => {
+                        state.apply_event(*event);
+                    }
+                    ScanMessage::CatalogMedia(id, catalog_id) => {
+                        catalog_ids.insert(id, catalog_id);
+                    }
+                    ScanMessage::Finished(result) => {
+                        result.unwrap();
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            (state, catalog_ids)
+        };
+        let (mut state, catalog_ids) = scan(1);
+        let ids: Vec<_> = state
+            .items()
+            .map(|item| (item.id, item.source_name.clone()))
+            .collect();
+        for (id, name) in &ids {
+            state.select(*id, name.starts_with("PAIR."));
+        }
+        // The action uses selected files even when the current filter hides them.
+        state.filter = MediaFilter::Videos;
+        assert!(state.visible_items().is_empty());
+        let selected = manual_mark_selection(&state, &catalog_ids).unwrap();
+        assert_eq!(selected.len(), 2);
+        // Missing one catalog row must prevent a partial optimistic update.
+        let mut incomplete_ids = catalog_ids.clone();
+        incomplete_ids.remove(&selected[0].0);
+        assert!(manual_mark_selection(&state, &incomplete_ids).is_err());
+        assert_eq!(state.selected_count(), 2);
+        catalog
+            .mark_manually_imported(selected.iter().map(|(_, id)| *id).collect(), now())
+            .unwrap();
+        for (id, _) in selected {
+            state.apply_event(AppEvent::ManualImportMarked {
+                generation: ScanGeneration(1),
+                media_id: id,
+            });
+            assert_eq!(
+                import_status_line(state.item(id).unwrap()),
+                "✓ Imported · marked manually"
+            );
+        }
+        assert_eq!(state.selected_count(), 0);
+        assert!(catalog.list_sessions(10).unwrap().is_empty());
+        assert_eq!(
+            fs::read(source_dir.path().join("PAIR.JPG")).unwrap(),
+            b"manual jpeg frame"
+        );
+        assert_eq!(fs::read_dir(source_dir.path()).unwrap().count(), 3);
+
+        fs::write(source_dir.path().join("NEW.JPG"), b"new frame").unwrap();
+        let (mut restored, _) = scan(2);
+        restored.filter = MediaFilter::Imported;
+        assert_eq!(restored.visible_items().len(), 2);
+        assert!(
+            restored
+                .visible_items()
+                .iter()
+                .all(|item| item.manually_marked_imported)
+        );
+        restored.filter = MediaFilter::All;
+        restored.select_all_new();
+        assert_eq!(restored.selected_count(), 1); // Only NEW.JPG was auto-selected.
+        assert!(
+            restored
+                .items()
+                .filter(|item| item.manually_marked_imported)
+                .all(|item| !restored.is_selected(item.id))
+        );
+
+        // The same path and size with changed contents must not inherit the declaration.
+        let mut changed = b"manual jpeg frame".to_vec();
+        *changed.last_mut().unwrap() = b'X';
+        fs::write(source_dir.path().join("PAIR.JPG"), changed).unwrap();
+        let (rescanned, _) = scan(3);
+        let jpeg = rescanned
+            .items()
+            .find(|item| item.source_name == "PAIR.JPG")
+            .unwrap();
+        assert!(!jpeg.manually_marked_imported);
+        assert_ne!(jpeg.import_status, captureport_core::ImportStatus::Imported);
+        let raw = rescanned
+            .items()
+            .find(|item| item.source_name == "PAIR.ARW")
+            .unwrap();
+        assert!(raw.manually_marked_imported);
+    }
 
     #[test]
     fn modification_time_is_displayed_in_the_selected_timezone() {

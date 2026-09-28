@@ -1,7 +1,9 @@
 //! Deterministic, side effect free import planning.
 
 use crate::{CollisionPolicy, Grouping, ImportPreset, Template, TemplateContext, VerificationMode};
-use captureport_core::{MediaId, MediaItem, MediaLocator, MediaSource, MediaType, SourceIdentity};
+use captureport_core::{
+    MediaId, MediaItem, MediaLocator, MediaSource, MediaType, MetadataState, SourceIdentity,
+};
 use chrono::{DateTime, Datelike, Duration, FixedOffset};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -382,18 +384,32 @@ fn make_copies(
         }
         return copies;
     }
-    let camera = identity
-        .model
-        .as_deref()
+    let metadata = match &input.item.metadata {
+        MetadataState::Ready(metadata) => Some(metadata),
+        _ => None,
+    };
+    let camera_model = metadata
+        .and_then(|m| m.camera_model.as_deref())
+        .filter(|v| !v.is_empty())
+        .or(identity.model.as_deref());
+    let camera = camera_model
         .or(identity.display_name.as_deref())
         .unwrap_or("");
     let (stem, extension) = split_name(&input.item.source_name);
     let context = TemplateContext {
         timestamp: time,
         camera,
-        camera_make: identity.manufacturer.as_deref().unwrap_or(""),
-        camera_model: identity.model.as_deref().unwrap_or(""),
-        camera_serial: identity.serial.as_deref().unwrap_or(""),
+        camera_make: metadata
+            .and_then(|m| m.camera_make.as_deref())
+            .filter(|v| !v.is_empty())
+            .or(identity.manufacturer.as_deref())
+            .unwrap_or(""),
+        camera_model: camera_model.unwrap_or(""),
+        camera_serial: metadata
+            .and_then(|m| m.camera_serial.as_deref())
+            .filter(|v| !v.is_empty())
+            .or(identity.serial.as_deref())
+            .unwrap_or(""),
         original_name: &input.item.source_name,
         original_stem: stem,
         extension,
@@ -404,6 +420,9 @@ fn make_copies(
         },
         sequence,
         session,
+        metadata,
+        file_size: input.item.size,
+        source_name: identity.display_name.as_deref().unwrap_or(""),
     };
     let folder = match Template::parse(&rule.folder_template)
         .and_then(|t| t.render_relative_path(&context))
@@ -435,7 +454,7 @@ fn make_copies(
     };
     let primary = rule
         .root
-        .join(grouped_folder(&folder, &preset.grouping, time, session))
+        .join(grouped_folder(&folder, &preset.grouping, time))
         .join(filename);
     let mut copies = vec![plan_copy(
         source,
@@ -459,7 +478,7 @@ fn make_copies(
             Template::parse(&preset.filename_template).and_then(|t| t.render_filename(&context));
         let copy = match (backup_folder, backup_name) {
             (Ok(folder), Ok(name)) => {
-                let folder = grouped_folder(&folder, &preset.grouping, time, session);
+                let folder = grouped_folder(&folder, &preset.grouping, time);
                 plan_copy(
                     source,
                     input,
@@ -484,15 +503,12 @@ fn make_copies(
     copies
 }
 
-fn grouped_folder(
-    folder: &str,
-    grouping: &Grouping,
-    time: DateTime<FixedOffset>,
-    session: u32,
-) -> PathBuf {
+fn grouped_folder(folder: &str, grouping: &Grouping, time: DateTime<FixedOffset>) -> PathBuf {
     let mut path = PathBuf::from(folder);
     match grouping {
-        Grouping::None => {}
+        // Time-gap sessions affect numbering; their folders are opt-in through
+        // {session} in the template, so the browser's gap slider adds no layer.
+        Grouping::None | Grouping::TimeGap { .. } => {}
         Grouping::Day => path.push(time.format("%Y%m%d").to_string()),
         Grouping::Week => path.push(format!(
             "{}-W{:02}",
@@ -501,7 +517,6 @@ fn grouped_folder(
         )),
         Grouping::Month => path.push(time.format("%Y%m").to_string()),
         Grouping::Year => path.push(time.format("%Y").to_string()),
-        Grouping::TimeGap { .. } => path.push(format!("{}_{session:02}", time.format("%Y%m%d"))),
     }
     path
 }
@@ -692,6 +707,53 @@ mod tests {
             plan.items[1].copies[0].final_destination
         );
     }
+
+    #[test]
+    fn embedded_metadata_drives_primary_and_backup_destination_templates() {
+        let dir = tempfile::tempdir().unwrap();
+        let backup = tempfile::tempdir().unwrap();
+        let mut preset = ImportPreset::organized(dir.path());
+        preset.photo.root = dir.path().into();
+        preset.photo.folder_template =
+            "{date:%Y-%m-%d}/{camera_make}/{camera_model}/{lens}/{dimensions}".into();
+        preset.filename_template = "{camera}_{camera_serial}_{sequence:04}.{extension}".into();
+        preset.backup = Some(crate::BackupRule {
+            photo: crate::DestinationRule {
+                root: backup.path().into(),
+                folder_template: preset.photo.folder_template.clone(),
+            },
+            video: preset.video.clone(),
+            required: true,
+        });
+        let zone = FixedOffset::east_opt(0).unwrap();
+        let mut selected = input(
+            1,
+            "a.JPG",
+            zone.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap(),
+        );
+        selected.item.metadata = MetadataState::Ready(captureport_core::MediaMetadata {
+            camera_make: Some("Sony".into()),
+            camera_model: Some("A7C/II".into()),
+            camera_serial: Some("123".into()),
+            lens: Some("FE 24/70".into()),
+            width: Some(6000),
+            height: Some(4000),
+            ..Default::default()
+        });
+        let source = FakeMediaSource::new(1);
+        let plan = ImportPlanner::build(&source, vec![selected], &preset);
+        assert_eq!(plan.items[0].status, PlanStatus::Ready);
+        let relative = "2026-01-01/Sony/A7C_II/FE 24_70/6000x4000/A7C_II_123_0001.JPG";
+        assert_eq!(
+            plan.items[0].copies[0].final_destination,
+            dir.path().join(relative)
+        );
+        assert_eq!(
+            plan.items[0].copies[1].final_destination,
+            backup.path().join(relative)
+        );
+    }
+
     #[test]
     fn time_gap_splits_only_after_threshold() {
         let zone = FixedOffset::east_opt(0).unwrap();
@@ -709,6 +771,58 @@ mod tests {
                 }
             ),
             vec![1, 1, 2]
+        );
+    }
+
+    #[test]
+    fn time_gap_folders_are_controlled_by_primary_and_backup_templates() {
+        let primary = tempfile::tempdir().unwrap();
+        let backup = tempfile::tempdir().unwrap();
+        let mut preset = ImportPreset::everyday(primary.path());
+        preset.photo.root = primary.path().into();
+        preset.photo.folder_template = "{year}/{date}".into();
+        preset.grouping = Grouping::TimeGap {
+            threshold_minutes: 30,
+        };
+        preset.backup = Some(crate::BackupRule {
+            photo: crate::DestinationRule {
+                root: backup.path().into(),
+                folder_template: String::new(),
+            },
+            video: preset.video.clone(),
+            required: true,
+        });
+        let start = FixedOffset::east_opt(0)
+            .unwrap()
+            .with_ymd_and_hms(2022, 12, 24, 12, 0, 0)
+            .unwrap();
+        let source = FakeMediaSource::new(2);
+        let selected = vec![
+            input(1, "a.JPG", start),
+            input(2, "b.JPG", start + Duration::minutes(31)),
+        ];
+        let plan = ImportPlanner::build(&source, selected.clone(), &preset);
+        for (index, name) in ["a.JPG", "b.JPG"].iter().enumerate() {
+            let item = &plan.items[index];
+            assert_eq!(item.status, PlanStatus::Ready);
+            assert_eq!(item.session, index as u32 + 1);
+            assert_eq!(item.sequence, 1);
+            assert_eq!(
+                item.copies[0].final_destination,
+                primary.path().join("2022/20221224").join(name)
+            );
+            assert_eq!(item.copies[1].final_destination, backup.path().join(name));
+        }
+
+        preset.photo.folder_template = "{year}/{date}_{session}".into();
+        let plan = ImportPlanner::build(&source, selected, &preset);
+        assert_eq!(
+            plan.items[0].copies[0].final_destination,
+            primary.path().join("2022/20221224_01/a.JPG")
+        );
+        assert_eq!(
+            plan.items[1].copies[0].final_destination,
+            primary.path().join("2022/20221224_02/b.JPG")
         );
     }
     #[test]

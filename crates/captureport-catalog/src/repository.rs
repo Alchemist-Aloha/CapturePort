@@ -301,6 +301,36 @@ pub(crate) fn imported_match(c: &Connection, m: &MediaIdentity) -> Result<bool, 
     Ok(imported.is_some())
 }
 
+pub(crate) fn mark_manually_imported(
+    c: &Connection,
+    media_ids: &[i64],
+    marked_at: &str,
+) -> Result<(), CatalogError> {
+    let tx = c.unchecked_transaction()?;
+    for media_id in media_ids {
+        let changed = tx.execute(
+            "INSERT INTO manual_import_marks(media_id,marked_at,quick_fingerprint) SELECT id,?2,quick_fingerprint FROM media WHERE id=?1 ON CONFLICT(media_id) DO UPDATE SET marked_at=excluded.marked_at,quick_fingerprint=excluded.quick_fingerprint",
+            params![media_id, marked_at],
+        )?;
+        if changed == 0 {
+            return Err(CatalogError::Request(format!(
+                "media row {media_id} does not exist"
+            )));
+        }
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+pub(crate) fn manually_imported_match(c: &Connection, media_id: i64) -> Result<bool, CatalogError> {
+    c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM manual_import_marks mark JOIN media m ON m.id=mark.media_id WHERE m.id=?1 AND mark.quick_fingerprint IS m.quick_fingerprint)",
+        [media_id],
+        |row| row.get(0),
+    )
+    .map_err(Into::into)
+}
+
 /// Names the prior import matched by source identity, for the case where the
 /// identity is strong evidence but not strong enough to call the file imported.
 pub(crate) fn imported_session(

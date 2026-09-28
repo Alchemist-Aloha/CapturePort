@@ -47,6 +47,10 @@ pub enum AppEvent {
         /// Present when the catalog could name the prior import behind the status.
         prior_import: Option<crate::PriorImport>,
     },
+    ManualImportMarked {
+        generation: ScanGeneration,
+        media_id: MediaId,
+    },
     ImportProgress {
         generation: ScanGeneration,
         progress: ImportProgress,
@@ -73,6 +77,7 @@ impl AppEvent {
             | Self::MetadataFailed { generation, .. }
             | Self::ThumbnailReady { generation, .. }
             | Self::ImportStatusChanged { generation, .. }
+            | Self::ManualImportMarked { generation, .. }
             | Self::ImportProgress { generation, .. }
             | Self::ImportCompleted { generation, .. }
             | Self::ImportFailed { generation, .. } => *generation,

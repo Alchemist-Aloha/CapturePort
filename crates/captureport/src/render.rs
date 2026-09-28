@@ -159,6 +159,9 @@ fn import_status_label(status: &captureport_core::ImportStatus) -> &'static str 
 /// classification, say which one: an unexplained "possible duplicate" is the
 /// state this product must never leave the user guessing about.
 fn import_status_line(item: &captureport_core::MediaItem) -> String {
+    if item.manually_marked_imported {
+        return "✓ Imported · marked manually".into();
+    }
     let label = import_status_label(&item.import_status);
     match &item.prior_import {
         Some(prior) => {
@@ -549,7 +552,14 @@ impl Browser {
                 .child(div().flex().flex_wrap().gap_2()
                     .child(button("Select all", p, cx.listener(|t,_,w,c|t.select_all(&SelectAll,w,c))))
                     .child(button("Select new", p, cx.listener(|t,_,w,c|t.select_new(&SelectAllNew,w,c))))
-                    .child(button("Clear", p, cx.listener(|t,_,w,c|t.select_none(&SelectNone,w,c)))))
+                    .child(button("Clear", p, cx.listener(|t,_,w,c|t.select_none(&SelectNone,w,c))))
+                    .child(div().id("mark-selected-imported").min_h(px(36.))
+                        .px_3().py_2().rounded_md().text_sm().bg(p.card)
+                        .text_color(if self.can_mark_selected_imported() { p.text } else { p.muted })
+                        .when(self.can_mark_selected_imported(), |button| button.cursor_pointer()
+                            .hover(move |style| style.bg(p.selected))
+                            .on_click(cx.listener(|t,_,w,c|t.mark_selected_imported(&MarkSelectedImported,w,c))))
+                        .child(if self.marking_imported { "Marking…" } else { "Mark as imported" })))
                 .child(button(if self.show_view_options { "Hide view options" } else { "View options" }, p,
                     cx.listener(|t,_,_,c| { t.show_view_options = !t.show_view_options; c.notify() }))))
             .child(if self.show_view_options {
@@ -1354,9 +1364,14 @@ impl Browser {
                 p,
                 cx,
             ))
-            .child(settings_field(
+            .child(div().text_xs().text_color(p.muted)
+                .child("Destination roots are absolute paths, for example /home/you/Pictures. Folder templates create subfolders inside these roots."))
+            .child(settings_template_field(
                 "Photo folder template",
                 self.settings.photo_folder.clone(),
+                false,
+                false,
+                self.template_segment_target.as_ref(),
                 p,
                 cx,
             ))
@@ -1366,16 +1381,22 @@ impl Browser {
                 p,
                 cx,
             ))
-            .child(settings_field(
+            .child(settings_template_field(
                 "Video folder template",
                 self.settings.video_folder.clone(),
+                false,
+                true,
+                self.template_segment_target.as_ref(),
                 p,
                 cx,
             ))
             .child(settings_section("File naming", p))
-            .child(settings_field(
+            .child(settings_template_field(
                 "Filename template",
                 self.settings.filename.clone(),
+                true,
+                false,
+                self.template_segment_target.as_ref(),
                 p,
                 cx,
             ))
@@ -1618,6 +1639,77 @@ fn settings_field(
         .into_any_element()
 }
 
+fn settings_template_field(
+    label: &'static str,
+    input: Entity<text_input::TextInput>,
+    filename: bool,
+    video: bool,
+    segment_target: Option<&Entity<text_input::TextInput>>,
+    p: Palette,
+    cx: &Context<Browser>,
+) -> AnyElement {
+    let expanded = segment_target.is_some_and(|target| target == &input);
+    let target = input.clone();
+    let example = template_help::example(&input.read(cx).value(), filename, video);
+    let mut field = div()
+        .flex().flex_col().gap_1().min_w_0().w_full()
+        .child(
+            div().flex().flex_wrap().items_center().justify_between().gap_2()
+                .child(div().text_xs().text_color(p.muted).child(label))
+                .child(button(
+                    if expanded { "Hide segments" } else { "Insert segment / syntax help" },
+                    p,
+                    cx.listener(move |t, _, _, c| {
+                        t.template_segment_target = if expanded { None } else { Some(target.clone()) };
+                        c.notify();
+                    }),
+                )),
+        )
+        .child(themed_input(input.clone(), p, cx))
+        .child(div().text_xs().text_color(p.muted).child(if filename {
+            "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here."
+        } else {
+            "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root."
+        }))
+        .child(div().text_xs().text_color(if example.is_ok() { p.muted } else { p.text })
+            .child(match example {
+                Ok(value) if value.is_empty() => "Example (sample metadata): destination root".into(),
+                Ok(value) => format!("Example (sample metadata): {value}"),
+                Err(error) => format!("Check template: {error}"),
+            }));
+    if expanded {
+        let mut reference = div().flex().flex_col().gap_2().py_3()
+            .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child("Supported segments"))
+            .child(div().text_xs().text_color(p.muted)
+                .child("Click a segment to insert it at the cursor. Use {sequence:04} for 0001 or {session:02} for 02 (width 1–12). Date formats use %Y, %m, %d, %H, %M and %S; for example {datetime:%Y-%m-%d_%H-%M-%S}."))
+            .child(div().text_xs().text_color(p.muted)
+                .child("Missing lens, dimensions, duration, GPS or timestamp metadata becomes unknown; missing camera identity stays blank. Unsafe characters in metadata become underscores. Date segments use your corrected capture time; capture_time and filesystem_time show the original timestamps. The import preview shows your actual final paths."));
+        let mut previous_group = "";
+        for (index, token) in captureport_ingest::TEMPLATE_TOKENS.iter().enumerate() {
+            if token.group != previous_group {
+                reference = reference.child(div().mt_2().text_sm()
+                    .font_weight(gpui::FontWeight::SEMIBOLD).child(token.group));
+                previous_group = token.group;
+            }
+            let target = input.clone();
+            let syntax = token.syntax;
+            reference = reference.child(div().flex().flex_wrap().items_center().gap_2()
+                .child(div().id((label, index)).cursor_pointer().rounded_md()
+                    .px_2().py_1().border_1().border_color(p.border).bg(p.card)
+                    .text_sm().hover(move |style| style.bg(p.selected))
+                    .on_click(cx.listener(move |_, _, window, cx| {
+                        target.update(cx, |input, cx| input.insert_segment(syntax, cx));
+                        window.focus(&target.read(cx).focus_handle(cx));
+                        cx.notify();
+                    }))
+                    .child(syntax))
+                .child(div().text_xs().text_color(p.muted).child(token.description)));
+        }
+        field = field.child(reference);
+    }
+    field.into_any_element()
+}
+
 fn themed_input(
     input: gpui::Entity<text_input::TextInput>,
     palette: Palette,
@@ -1726,6 +1818,7 @@ impl Render for Browser {
             .on_action(cx.listener(Self::select_all))
             .on_action(cx.listener(Self::select_new))
             .on_action(cx.listener(Self::select_none))
+            .on_action(cx.listener(Self::mark_selected_imported))
             .on_action(cx.listener(Self::import_selected))
             .on_action(cx.listener(Self::cancel_import))
             .on_action(cx.listener(Self::history))

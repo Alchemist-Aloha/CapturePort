@@ -1351,7 +1351,9 @@ next.capture_time - previous.capture_time > threshold
 
 starts a new group.
 
-For example:
+Time-gap grouping assigns session numbers without adding implicit destination
+folders. Users can opt into session folders with the folder template
+`{date:%Y-%m-%d}_{session}`, for example:
 
 ```text
 2026-09-27_01
@@ -1463,6 +1465,10 @@ ordinary directory
 
 Avoid showing the same camera twice when both mechanisms expose it.
 
+Prefer the mounted filesystem/Card source for mass-storage devices; suppress
+libgphoto2's generic Mass Storage Camera and disk adapters. Keep real PTP camera
+entries and their USB topology-based mount deduplication.
+
 New devices should appear automatically.
 
 Do not automatically begin copying.
@@ -1491,6 +1497,10 @@ Plugging in a camera/card causes it to appear without restarting CapturePort.
 Add the History view.
 
 Show sessions rather than building a media catalog.
+
+Explicit browser **Mark as imported** declarations are stored separately from
+successful import history. Restore their distinct manual label on source scans;
+they must not fabricate destination copies or verification evidence.
 
 Example:
 

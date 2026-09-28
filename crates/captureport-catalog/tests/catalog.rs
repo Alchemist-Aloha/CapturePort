@@ -420,3 +420,121 @@ fn v1_database_migrates_and_allows_primary_and_backup_destinations() {
     assert!(catalog.lookup_imported(media.identity.clone()).unwrap());
     assert!(db.with_extension("sqlite.pre-v2.bak").exists());
 }
+
+fn unimported_media(catalog: &CatalogHandle, path: &str) -> MediaRecord {
+    let source = catalog
+        .upsert_source(identity("manual-mark-camera"), "now")
+        .unwrap();
+    catalog
+        .upsert_media(
+            MediaIdentity {
+                source_id: source.id,
+                source_path: path.into(),
+                source_filename: path.into(),
+                source_size: 256,
+                capture_time: None,
+            },
+            MediaType::Photo,
+            "now",
+        )
+        .unwrap()
+}
+
+#[test]
+fn manual_import_mark_survives_reopening_without_creating_import_evidence() {
+    let dir = tempdir().unwrap();
+    let db = dir.path().join("catalog.sqlite");
+    let catalog = CatalogHandle::open(db.clone()).unwrap();
+    let media = unimported_media(&catalog, "A.JPG");
+    catalog
+        .update_media_fingerprints(
+            media.id,
+            Some("quick-blake3-v1:manual".into()),
+            Some("blake3:manual".into()),
+        )
+        .unwrap();
+    catalog
+        .mark_manually_imported(vec![media.id], "marked")
+        .unwrap();
+    drop(catalog);
+    let catalog = CatalogHandle::open(db.clone()).unwrap();
+    assert!(catalog.lookup_manually_imported(media.id).unwrap());
+    assert!(!catalog.lookup_imported(media.identity.clone()).unwrap());
+    assert!(!catalog
+        .lookup_imported_fingerprint(256, "quick-blake3-v1:manual", None)
+        .unwrap());
+    assert!(!catalog
+        .lookup_imported_fingerprint(256, "quick-blake3-v1:manual", Some("blake3:manual".into()))
+        .unwrap());
+    assert!(catalog
+        .lookup_imported_session_by_identity(media.identity)
+        .unwrap()
+        .is_none());
+    assert!(catalog.list_sessions(10).unwrap().is_empty());
+    assert!(catalog.incomplete_sessions().unwrap().is_empty());
+    let connection = Connection::open(db).unwrap();
+    let stored: (String, Option<String>) = connection
+        .query_row(
+            "SELECT marked_at,quick_fingerprint FROM manual_import_marks WHERE media_id=?1",
+            [media.id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        stored,
+        ("marked".into(), Some("quick-blake3-v1:manual".into()))
+    );
+    assert_eq!(
+        connection
+            .query_row("SELECT count(*) FROM imports", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+}
+
+#[test]
+fn manual_import_mark_batch_is_atomic_for_unknown_media() {
+    let catalog = CatalogHandle::open(CatalogPath::Memory).unwrap();
+    let first = unimported_media(&catalog, "A.JPG");
+    let second = unimported_media(&catalog, "B.JPG");
+    assert!(catalog
+        .mark_manually_imported(vec![first.id, 999_999, second.id], "marked")
+        .is_err());
+    assert!(!catalog.lookup_manually_imported(first.id).unwrap());
+    assert!(!catalog.lookup_manually_imported(second.id).unwrap());
+    assert!(!catalog.lookup_manually_imported(999_999).unwrap());
+    catalog
+        .mark_manually_imported(vec![first.id, second.id, first.id], "marked")
+        .unwrap();
+    assert!(catalog.lookup_manually_imported(first.id).unwrap());
+    assert!(catalog.lookup_manually_imported(second.id).unwrap());
+}
+
+#[test]
+fn manual_import_mark_is_invalidated_by_a_changed_fingerprint_snapshot() {
+    let catalog = CatalogHandle::open(CatalogPath::Memory).unwrap();
+    let media = unimported_media(&catalog, "A.JPG");
+    // SQL IS semantics keep a mark with an unavailable fingerprint valid
+    // until a scan supplies a fingerprint that differs from that snapshot.
+    catalog
+        .mark_manually_imported(vec![media.id], "marked")
+        .unwrap();
+    assert!(catalog.lookup_manually_imported(media.id).unwrap());
+    catalog
+        .update_media_fingerprints(media.id, Some("quick-blake3-v1:a".into()), None)
+        .unwrap();
+    assert!(!catalog.lookup_manually_imported(media.id).unwrap());
+    catalog
+        .mark_manually_imported(vec![media.id], "again")
+        .unwrap();
+    assert!(catalog.lookup_manually_imported(media.id).unwrap());
+    catalog
+        .update_media_fingerprints(media.id, Some("quick-blake3-v1:a".into()), None)
+        .unwrap();
+    assert!(catalog.lookup_manually_imported(media.id).unwrap());
+    catalog
+        .update_media_fingerprints(media.id, Some("quick-blake3-v1:b".into()), None)
+        .unwrap();
+    assert!(!catalog.lookup_manually_imported(media.id).unwrap());
+}

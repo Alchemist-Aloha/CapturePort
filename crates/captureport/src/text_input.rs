@@ -53,6 +53,17 @@ impl TextInput {
     pub fn value(&self) -> String {
         self.content.to_string()
     }
+    /// Insert a template segment at the cursor, replacing selected text.
+    pub fn insert_segment(&mut self, segment: &str, cx: &mut Context<Self>) {
+        let range = self.selection.clone();
+        self.content =
+            (self.content[..range.start].to_owned() + segment + &self.content[range.end..]).into();
+        let at = range.start + segment.len();
+        self.selection = at..at;
+        self.reversed = false;
+        self.marked_range = None;
+        cx.notify();
+    }
     pub fn set_value(&mut self, value: impl Into<SharedString>, cx: &mut Context<Self>) {
         self.content = value.into();
         let end = self.content.len();

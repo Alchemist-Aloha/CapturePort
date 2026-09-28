@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::CatalogError;
 
-pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 2;
+pub(crate) const CURRENT_SCHEMA_VERSION: i64 = 3;
 
 pub(crate) fn migrate(
     connection: &Connection,
@@ -127,6 +127,21 @@ pub(crate) fn migrate(
             UPDATE schema_version SET version = 2;
             PRAGMA user_version = 2;
         "#)?;
+        tx.commit()?;
+    }
+    if version < 3 {
+        let tx = connection.unchecked_transaction()?;
+        tx.execute_batch(
+            r#"
+            CREATE TABLE manual_import_marks (
+                media_id INTEGER PRIMARY KEY REFERENCES media(id),
+                marked_at TEXT NOT NULL,
+                quick_fingerprint TEXT
+            );
+            UPDATE schema_version SET version = 3;
+            PRAGMA user_version = 3;
+            "#,
+        )?;
         tx.commit()?;
     }
     Ok(())

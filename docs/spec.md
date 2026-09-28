@@ -227,6 +227,11 @@ Automatic mounted-source discovery lists volumes under `/media/` and
 `/run/media/`. Mounts under `/mnt/` are not added to the Sources sidebar
 automatically; users can still choose them with **Open folder**.
 
+Libgphoto2's generic **Mass Storage Camera** and `disk:` camera adapters are
+hidden from the Sources sidebar. Mounted storage remains available as the
+**Card** source through the filesystem adapter. Actual PTP cameras remain
+listed; matching USB mounts are suppressed only for those PTP cameras.
+
 ---
 
 # 8. Supported Media
@@ -371,6 +376,11 @@ struct MediaMetadata {
 ```
 
 Metadata extraction failures must not block importing.
+
+EXIF GPS normalization applies the latitude/longitude hemisphere reference
+tags, so south and west coordinates are negative. Missing or invalid reference
+tags or out-of-range coordinates leave GPS unavailable rather than assuming a
+hemisphere; both valid axes are required.
 
 ---
 
@@ -830,6 +840,45 @@ producing:
 after timestamp correction and grouping. It can be used in destination or
 filename templates.
 
+Folder and filename templates also expose the normalized metadata available to
+the importer. All segments work in both kinds of template:
+
+| Category | Segments | Output |
+| --- | --- | --- |
+| Time | `{hour}`, `{minute}`, `{second}` | Two-digit corrected capture-time parts |
+| Source | `{source_name}`, `{file_size}` | Source display name; file size in bytes |
+| Camera | `{lens}` | Recorded lens model or make |
+| Dimensions | `{width}`, `{height}`, `{dimensions}` | Pixels; dimensions such as `6000x4000` |
+| Orientation | `{orientation}` | `normal`, `rotate90`, `rotate180`, `rotate270`, `mirror_horizontal`, or `mirror_vertical` |
+| Video | `{duration_millis}`, `{duration_seconds}` | Milliseconds; seconds with three decimal places |
+| Location | `{gps_latitude}`, `{gps_longitude}` | Decimal degrees with seven decimal places |
+| Recorded timestamps | `{capture_time}`, `{filesystem_time}` | Original recorded timestamps, without clock correction |
+| Timestamp origin | `{timestamp_source}` | `exif_original`, `quicktime`, `camera`, or `filesystem` |
+
+Camera segments prefer embedded metadata over source identity. `{camera}` falls
+back to the source model or display name. Unavailable camera identity retains
+its existing empty-string fallback. Missing optional metadata in the added
+segments produces `unknown`; this keeps missing metadata from silently removing
+a folder level.
+
+`{date}`, `{time}`, and `{datetime}` accept strftime formatting, for example
+`{date:%Y-%m-%d}` and `{datetime:%Y-%m-%d_%H-%M-%S}`. Common directives are `%Y`
+(year), `%m` (month), `%d` (day), `%H` (hour), `%M` (minute), `%S` (second), and
+`%%` (literal percent). These segments use the corrected effective capture time.
+Both sequence and session support a zero-padding width of 1–12, such as
+`{sequence:04}` or `{session:03}`. Unformatted session numbers keep their existing
+two-digit minimum width.
+
+Only literal `/` characters in folder templates create folder levels. Token
+values are sanitized as a single segment: path separators, control characters,
+and `:*?"<>|` become underscores. Unsafe trailing dots/spaces, reserved device
+names such as `CON` and `NUL`, and reserved CapturePort partial prefixes are
+neutralized in token values. Literal unsafe paths remain invalid, including
+these reserved names, `.` or `..` folder components, repeated separators,
+invalid filename characters, and trailing dots/spaces. Filename templates cannot
+contain folder separators. A blank folder
+template imports directly into the absolute destination root.
+
 ---
 
 # 21. Media-Type Destinations
@@ -903,12 +952,17 @@ With:
 New session after 60 minutes
 ```
 
-the application creates:
+the application assigns two shooting sessions. Time-gap grouping controls
+gallery sections, session numbers, and per-session sequences; it does not append
+an extra destination directory. Primary and backup folder templates determine
+the session folder structure. To create folders such as:
 
 ```text
 2026-09-26_01/
 2026-09-26_02/
 ```
+
+use `{date:%Y-%m-%d}_{session}` explicitly in the folder template.
 
 Possible configuration:
 
@@ -1312,6 +1366,27 @@ Example:
 ```text
 ✓ Imported Sep 20
 ```
+
+The main browser selection toolbar includes **Mark as imported**. It applies
+to all selected files, including selected files hidden by the current filter
+and individually selected bundle members. Files already classified as imported
+are left unchanged. The action is unavailable while scanning, planning,
+importing, or saving a manual mark, and when no eligible files are selected.
+
+Manual marking records an explicit user declaration in the catalog; it does
+not copy files or create a successful import session, destination record, or
+verification evidence. Marked files are deselected, appear under the Imported
+filter with `✓ Imported · marked manually`, and are excluded from Select new.
+The declaration survives rescans and restarts for the same source media identity
+and quick fingerprint, when one is available. A changed fingerprint invalidates
+the declaration. Actual completed-copy evidence takes precedence on rescan.
+Filesystem scans restore a manual declaration only after obtaining a current
+quick fingerprint; a failed read cannot reuse stale cached evidence. PTP sources
+retain explicit identity-based declarations without downloading media to scan.
+Catalog writes run off the UI thread and update the browser only after the
+entire selected batch is persisted. Failed writes leave the selection and status
+unchanged. Changing sources while the write finishes cannot mark files in the
+new source. Any existing import preview is invalidated when marking starts.
 
 ---
 
@@ -1866,6 +1941,16 @@ Preview
 
 Invalid templates must be detected before import.
 
+Import settings describe folder and filename syntax next to their fields.
+Each field offers an expandable, grouped segment reference with descriptions;
+clicking a segment inserts it at the text cursor and returns focus to the field.
+Examples update while editing and are explicitly labeled as sample metadata.
+Invalid syntax and invalid sample paths appear inline and prevent saving,
+with an error naming the affected field. Photo and video folder examples use
+corresponding sample media types. Examples are illustrative; the
+deterministic import preview remains authoritative for actual paths, grouping,
+and collision resolution.
+
 ---
 
 # 55. Rule Evaluation
@@ -2079,7 +2164,9 @@ A destination filename never represents an incomplete copy.
 
 ### Invariant 4
 
-A source item is never marked successfully imported before the destination commit succeeds.
+A source item is never automatically marked successfully imported before the
+destination commit succeeds. Explicit manual declarations are separately
+labeled and never count as successful copy or verification evidence.
 
 ### Invariant 5
 

@@ -28,12 +28,24 @@ impl DiscoveredSource {
     }
 }
 
-/// Returns one entry per stable source. PTP devices win over a matching mount
-/// path because libgphoto2 can provide the camera identity and media tree.
+/// Returns one entry per stable source. Mounted mass-storage devices use the
+/// filesystem adapter, rather than libgphoto2's generic disk-camera adapter.
+/// Real PTP devices win over a matching mount because they provide camera identity.
 pub fn discover() -> Result<Vec<DiscoveredSource>, GPhotoError> {
     let cameras = GPhotoSource::autodetect()?;
+    Ok(combine_sources(cameras, mounted_filesystems()))
+}
+
+fn combine_sources(cameras: Vec<CameraDescriptor>, mounts: Vec<Mount>) -> Vec<DiscoveredSource> {
     let mut result = cameras
         .into_iter()
+        .filter(|camera| {
+            !camera.port.starts_with("disk:")
+                && !camera
+                    .model
+                    .trim()
+                    .eq_ignore_ascii_case("Mass Storage Camera")
+        })
         .map(DiscoveredSource::Ptp)
         .collect::<Vec<_>>();
     let camera_usb_addresses = result
@@ -43,7 +55,7 @@ pub fn discover() -> Result<Vec<DiscoveredSource>, GPhotoError> {
             _ => None,
         })
         .collect::<Vec<_>>();
-    for mount in mounted_filesystems() {
+    for mount in mounts {
         // A gphoto USB port is `usb:BUS,DEVICE`.  Match it against the USB
         // ancestor of the mounted block device, rather than comparing the
         // human-readable mount path with a port string.  If sysfs cannot
@@ -67,7 +79,7 @@ pub fn discover() -> Result<Vec<DiscoveredSource>, GPhotoError> {
     }
     let mut unique = HashMap::new();
     result.retain(|source| unique.insert(source.stable_id().to_owned(), ()).is_none());
-    Ok(result)
+    result
 }
 
 #[derive(Debug)]
@@ -170,6 +182,48 @@ fn likely_removable_mount(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn mounted_card_replaces_gphoto_mass_storage_camera() {
+        let cameras = vec![
+            CameraDescriptor {
+                model: "Mass Storage Camera".into(),
+                port: "disk:/run/media/user/Disk".into(),
+                stable_id: "camera:mass-storage".into(),
+            },
+            CameraDescriptor {
+                model: "Sony A7C II".into(),
+                port: "usb:001,002".into(),
+                stable_id: "camera:sony".into(),
+            },
+        ];
+        let mount = parse_mount_line("/dev/captureport-test-card /run/media/user/Disk vfat rw 0 0")
+            .unwrap();
+        let sources = combine_sources(cameras.clone(), vec![mount]);
+        assert_eq!(sources.len(), 2);
+        assert_eq!(sources[0], DiscoveredSource::Ptp(cameras[1].clone()));
+        assert!(
+            matches!(&sources[1], DiscoveredSource::MountedFilesystem { path, label, .. }
+            if path == Path::new("/run/media/user/Disk") && label.as_deref() == Some("Disk"))
+        );
+    }
+
+    #[test]
+    fn filesystem_camera_adapters_are_not_listed_as_ptp_sources() {
+        let cameras = vec![
+            CameraDescriptor {
+                model: "Other disk camera".into(),
+                port: "disk:/media/Card".into(),
+                stable_id: "camera:disk".into(),
+            },
+            CameraDescriptor {
+                model: "Mass Storage Camera".into(),
+                port: "usb:001,002".into(),
+                stable_id: "camera:generic".into(),
+            },
+        ];
+        assert!(combine_sources(cameras, vec![]).is_empty());
+    }
+
     #[test]
     fn parses_escaped_mount_path() {
         let m = parse_mount_line("/dev/sdb1 /run/media/user/My\\040Card vfat rw 0 0").unwrap();

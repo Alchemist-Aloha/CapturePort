@@ -57,6 +57,13 @@ pub enum CatalogCommand {
     LookupImported {
         media: MediaIdentity,
     },
+    MarkManuallyImported {
+        media_ids: Vec<i64>,
+        marked_at: String,
+    },
+    LookupManuallyImported {
+        media_id: i64,
+    },
     /// As `LookupImported`, but names the prior import rather than answering yes/no.
     LookupImportedSessionByIdentity {
         media: MediaIdentity,
@@ -272,6 +279,29 @@ impl CatalogHandle {
             _ => unreachable!(),
         }
     }
+    /// Store explicit user acknowledgements separately from successful copy
+    /// history. The batch is atomic and every media row must already exist.
+    pub fn mark_manually_imported(
+        &self,
+        media_ids: Vec<i64>,
+        marked_at: impl Into<String>,
+    ) -> Result<(), CatalogError> {
+        match self.execute(CatalogCommand::MarkManuallyImported {
+            media_ids,
+            marked_at: marked_at.into(),
+        })? {
+            CatalogResponse::Unit => Ok(()),
+            _ => unreachable!(),
+        }
+    }
+    /// A manual mark is valid only while the media's quick fingerprint matches
+    /// the snapshot recorded when the user marked it. It is not copy evidence.
+    pub fn lookup_manually_imported(&self, media_id: i64) -> Result<bool, CatalogError> {
+        match self.execute(CatalogCommand::LookupManuallyImported { media_id })? {
+            CatalogResponse::Imported(v) => Ok(v),
+            _ => unreachable!(),
+        }
+    }
     pub fn lookup_imported_fingerprint(
         &self,
         source_size: u64,
@@ -469,6 +499,16 @@ fn execute(c: &Connection, cmd: CatalogCommand) -> Result<CatalogResponse, Catal
         CatalogCommand::LookupImported { media } => {
             Ok(CatalogResponse::Imported(imported_match(c, &media)?))
         }
+        CatalogCommand::MarkManuallyImported {
+            media_ids,
+            marked_at,
+        } => {
+            mark_manually_imported(c, &media_ids, &marked_at)?;
+            Ok(CatalogResponse::Unit)
+        }
+        CatalogCommand::LookupManuallyImported { media_id } => Ok(CatalogResponse::Imported(
+            manually_imported_match(c, media_id)?,
+        )),
         CatalogCommand::LookupImportedSessionByIdentity { media } => Ok(
             CatalogResponse::ImportedSession(imported_session(c, &media)?),
         ),

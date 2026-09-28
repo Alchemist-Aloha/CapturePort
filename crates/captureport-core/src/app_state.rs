@@ -74,7 +74,7 @@ impl AppState {
                     self.thumbnails.clear();
                 }
             }
-            AppEvent::MediaDiscovered { item, .. } => {
+            AppEvent::MediaDiscovered { mut item, .. } => {
                 if !self.source.as_ref().is_some_and(|s| s.id == item.source_id) {
                     return false;
                 }
@@ -83,6 +83,16 @@ impl AppState {
                     self.order.push(item.id);
                 }
                 let id = item.id;
+                if item.manually_marked_imported
+                    || self
+                        .items
+                        .get(&id)
+                        .is_some_and(|existing| existing.manually_marked_imported)
+                {
+                    item.manually_marked_imported = true;
+                    item.import_status = ImportStatus::Imported;
+                    item.prior_import = None;
+                }
                 let status = item.import_status.clone();
                 self.items.insert(id, item);
                 if is_new {
@@ -119,11 +129,21 @@ impl AppState {
                 ..
             } => {
                 if let Some(item) = self.items.get_mut(&media_id) {
-                    item.import_status = status.clone();
-                    item.prior_import = prior_import.clone();
-                    if status != ImportStatus::New {
+                    if !item.manually_marked_imported {
+                        item.import_status = status;
+                        item.prior_import = prior_import;
+                    }
+                    if item.import_status != ImportStatus::New {
                         self.selected.remove(&media_id);
                     }
+                }
+            }
+            AppEvent::ManualImportMarked { media_id, .. } => {
+                if let Some(item) = self.items.get_mut(&media_id) {
+                    item.manually_marked_imported = true;
+                    item.import_status = ImportStatus::Imported;
+                    item.prior_import = None;
+                    self.selected.remove(&media_id);
                 }
             }
             AppEvent::ImportProgress { .. }
@@ -327,5 +347,84 @@ mod tests {
         assert!(!state.apply_event(discovered(2, 4)));
         assert!(!state.apply_event(discovered(2, 3)));
         assert_eq!(state.len(), 0);
+    }
+    #[test]
+    fn manual_import_mark_deselects_and_updates_filters_without_history() {
+        let mut state = AppState::new();
+        state.apply_event(AppEvent::SourceDetected {
+            generation: ScanGeneration(1),
+            source: source(),
+        });
+        state.apply_event(discovered(1, 1));
+        state.apply_event(AppEvent::ImportStatusChanged {
+            generation: ScanGeneration(1),
+            media_id: MediaId(1),
+            status: ImportStatus::PossibleDuplicate,
+            prior_import: Some(crate::PriorImport {
+                session_id: 7,
+                destination: "existing.jpg".into(),
+                ..Default::default()
+            }),
+        });
+        state.select(MediaId(1), true);
+        assert!(state.apply_event(AppEvent::ManualImportMarked {
+            generation: ScanGeneration(1),
+            media_id: MediaId(1),
+        }));
+        let item = state.item(MediaId(1)).unwrap();
+        assert!(item.manually_marked_imported);
+        assert_eq!(item.import_status, ImportStatus::Imported);
+        assert!(item.prior_import.is_none());
+        assert!(!state.is_selected(MediaId(1)));
+        state.filter = MediaFilter::Imported;
+        assert_eq!(state.visible_items().len(), 1);
+        state.filter = MediaFilter::New;
+        assert!(state.visible_items().is_empty());
+    }
+    #[test]
+    fn stale_manual_import_mark_is_ignored() {
+        let mut state = AppState::new();
+        state.apply_event(AppEvent::SourceDetected {
+            generation: ScanGeneration(2),
+            source: source(),
+        });
+        state.apply_event(discovered(1, 2));
+        assert!(!state.apply_event(AppEvent::ManualImportMarked {
+            generation: ScanGeneration(1),
+            media_id: MediaId(1),
+        }));
+        let item = state.item(MediaId(1)).unwrap();
+        assert!(!item.manually_marked_imported);
+        assert_eq!(item.import_status, ImportStatus::New);
+        assert!(state.is_selected(MediaId(1)));
+    }
+    #[test]
+    fn late_status_and_discovery_preserve_manual_import_mark() {
+        let mut state = AppState::new();
+        state.apply_event(AppEvent::SourceDetected {
+            generation: ScanGeneration(1),
+            source: source(),
+        });
+        state.apply_event(discovered(1, 1));
+        state.apply_event(AppEvent::ManualImportMarked {
+            generation: ScanGeneration(1),
+            media_id: MediaId(1),
+        });
+        for status in [ImportStatus::New, ImportStatus::Imported] {
+            state.select(MediaId(1), true);
+            state.apply_event(AppEvent::ImportStatusChanged {
+                generation: ScanGeneration(1),
+                media_id: MediaId(1),
+                status,
+                prior_import: Some(crate::PriorImport::default()),
+            });
+            assert!(!state.is_selected(MediaId(1)));
+        }
+        state.apply_event(discovered(1, 1));
+        let item = state.item(MediaId(1)).unwrap();
+        assert!(item.manually_marked_imported);
+        assert_eq!(item.import_status, ImportStatus::Imported);
+        assert!(item.prior_import.is_none());
+        assert!(!state.is_selected(MediaId(1)));
     }
 }

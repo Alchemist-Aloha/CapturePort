@@ -43,4 +43,4 @@ pub use source_delete::{
     DeletionFailure, DeletionOptions, DeletionRefusal, DeletionReport, SourceRemover,
     delete_verified_sources, deletion_refusal,
 };
-pub use template::{Template, TemplateContext, TemplateError};
+pub use template::{TEMPLATE_TOKENS, Template, TemplateContext, TemplateError, TemplateTokenHelp};

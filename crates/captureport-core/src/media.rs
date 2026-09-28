@@ -56,6 +56,8 @@ pub struct MediaItem {
     pub media_type: MediaType,
     pub metadata: MetadataState,
     pub import_status: ImportStatus,
+    /// Explicit user annotation, independent of verified import history.
+    pub manually_marked_imported: bool,
     /// Set when `import_status` is `Imported` or `PossibleDuplicate` and the
     /// catalog could name the prior import behind that classification.
     pub prior_import: Option<PriorImport>,
@@ -81,6 +83,7 @@ impl MediaItem {
             media_type,
             metadata: MetadataState::Pending,
             import_status: ImportStatus::New,
+            manually_marked_imported: false,
             prior_import: None,
             bundle_id: None,
         }

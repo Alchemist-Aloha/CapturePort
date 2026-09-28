@@ -165,6 +165,9 @@ fn benchmark_templates(items: &[MediaItem]) -> Result<Sample, Box<dyn std::error
             },
             sequence: index as u64 + 1,
             session: 1,
+            metadata: None,
+            file_size: item.size,
+            source_name: "Benchmark",
         }));
     }
     Ok(Sample {

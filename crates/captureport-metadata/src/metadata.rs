@@ -237,7 +237,24 @@ fn read_exif(exif: &exif::Exif, out: &mut NormalizedMetadata) {
             out.timestamp_source = Some(TimestampSource::ExifOriginal);
         }
     }
-    if let (Some(lat), Some(lon)) = (gps(exif, Tag::GPSLatitude), gps(exif, Tag::GPSLongitude)) {
+    if let (Some(lat), Some(lon)) = (
+        gps(
+            exif,
+            Tag::GPSLatitude,
+            Tag::GPSLatitudeRef,
+            b'N',
+            b'S',
+            90.0,
+        ),
+        gps(
+            exif,
+            Tag::GPSLongitude,
+            Tag::GPSLongitudeRef,
+            b'E',
+            b'W',
+            180.0,
+        ),
+    ) {
         out.gps = Some((lat, lon));
     }
 }
@@ -263,15 +280,56 @@ fn number(exif: &exif::Exif, tag: Tag) -> Option<u32> {
             _ => None,
         })
 }
-fn gps(exif: &exif::Exif, tag: Tag) -> Option<f64> {
-    exif.get_field(tag, In::PRIMARY)
-        .and_then(|f| match &f.value {
-            Value::Rational(v) if v.len() >= 3 => {
-                Some(v[0].to_f64() + v[1].to_f64() / 60.0 + v[2].to_f64() / 3600.0)
-            }
-            _ => None,
-        })
+fn gps(
+    exif: &exif::Exif,
+    tag: Tag,
+    reference: Tag,
+    positive: u8,
+    negative: u8,
+    maximum: f64,
+) -> Option<f64> {
+    let coordinate = &exif.get_field(tag, In::PRIMARY)?.value;
+    let reference = &exif.get_field(reference, In::PRIMARY)?.value;
+    gps_coordinate(coordinate, reference, positive, negative, maximum)
 }
+
+fn gps_coordinate(
+    coordinate: &Value,
+    reference: &Value,
+    positive: u8,
+    negative: u8,
+    maximum: f64,
+) -> Option<f64> {
+    let Value::Rational(parts) = coordinate else {
+        return None;
+    };
+    let Value::Ascii(reference) = reference else {
+        return None;
+    };
+    // EXIF degrees are unsigned: no hemisphere means the sign is unknown.
+    let [hemisphere] = reference.first()?.as_slice() else {
+        return None;
+    };
+    let sign = if *hemisphere == positive {
+        1.0
+    } else if *hemisphere == negative {
+        -1.0
+    } else {
+        return None;
+    };
+    if parts.len() != 3 || parts.iter().any(|part| part.denom == 0) {
+        return None;
+    }
+    let degrees = parts[0].to_f64();
+    let minutes = parts[1].to_f64();
+    let seconds = parts[2].to_f64();
+    if minutes >= 60.0 || seconds >= 60.0 {
+        return None;
+    }
+    let value = degrees + minutes / 60.0 + seconds / 3600.0;
+    (value.is_finite() && value <= maximum).then_some(sign * value)
+}
+
 fn format_system_time(t: SystemTime) -> String {
     let dt: chrono::DateTime<chrono::Utc> = t.into();
     dt.to_rfc3339()
@@ -280,6 +338,140 @@ fn format_system_time(t: SystemTime) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn coordinate(degrees: u32, minutes: u32, seconds: u32) -> Value {
+        Value::Rational(
+            [degrees, minutes, seconds]
+                .into_iter()
+                .map(|num| exif::Rational { num, denom: 1 })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn gps_hemispheres_and_coordinate_validation() {
+        let latitude = coordinate(33, 30, 0);
+        let longitude = coordinate(151, 15, 0);
+        let reference = |value: &[u8]| Value::Ascii(vec![value.to_vec()]);
+        assert_eq!(
+            gps_coordinate(&latitude, &reference(b"N"), b'N', b'S', 90.0),
+            Some(33.5)
+        );
+        assert_eq!(
+            gps_coordinate(&latitude, &reference(b"S"), b'N', b'S', 90.0),
+            Some(-33.5)
+        );
+        assert_eq!(
+            gps_coordinate(&longitude, &reference(b"E"), b'E', b'W', 180.0),
+            Some(151.25)
+        );
+        assert_eq!(
+            gps_coordinate(&longitude, &reference(b"W"), b'E', b'W', 180.0),
+            Some(-151.25)
+        );
+        for invalid in [b"".as_slice(), b"E", b"?", b"North"] {
+            assert_eq!(
+                gps_coordinate(&latitude, &reference(invalid), b'N', b'S', 90.0),
+                None
+            );
+        }
+        assert_eq!(
+            gps_coordinate(&latitude, &Value::Ascii(vec![]), b'N', b'S', 90.0),
+            None
+        );
+        for invalid in [
+            coordinate(91, 0, 0),
+            coordinate(90, 0, 1),
+            coordinate(33, 60, 0),
+            coordinate(33, 0, 60),
+            Value::Rational(vec![exif::Rational { num: 1, denom: 0 }; 3]),
+        ] {
+            assert_eq!(
+                gps_coordinate(&invalid, &reference(b"N"), b'N', b'S', 90.0),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn exif_gps_reads_reference_tags_and_requires_both_axes() {
+        // Little-endian TIFF with a GPS IFD: refs inline, three rationals per axis.
+        let exif = |latitude_ref: u8, longitude_ref: u8| {
+            let mut data = b"II\x2a\x00\x08\x00\x00\x00".to_vec();
+            data.extend_from_slice(&1u16.to_le_bytes());
+            for value in [0x8825u16, 4] {
+                data.extend_from_slice(&value.to_le_bytes());
+            }
+            data.extend_from_slice(&1u32.to_le_bytes());
+            data.extend_from_slice(&26u32.to_le_bytes());
+            data.extend_from_slice(&0u32.to_le_bytes());
+            data.extend_from_slice(&4u16.to_le_bytes());
+            for (tag, kind, count, value) in [
+                (1u16, 2u16, 2u32, u32::from(latitude_ref)),
+                (2, 5, 3, 80),
+                (3, 2, 2, u32::from(longitude_ref)),
+                (4, 5, 3, 104),
+            ] {
+                data.extend_from_slice(&tag.to_le_bytes());
+                data.extend_from_slice(&kind.to_le_bytes());
+                data.extend_from_slice(&count.to_le_bytes());
+                data.extend_from_slice(&value.to_le_bytes());
+            }
+            data.extend_from_slice(&0u32.to_le_bytes());
+            for num in [33u32, 30, 0, 151, 15, 0] {
+                data.extend_from_slice(&num.to_le_bytes());
+                data.extend_from_slice(&1u32.to_le_bytes());
+            }
+            Reader::new().read_raw(data).unwrap()
+        };
+        let sample = exif(b'S', b'W');
+        assert_eq!(
+            gps(
+                &sample,
+                Tag::GPSLatitude,
+                Tag::GPSLatitudeRef,
+                b'N',
+                b'S',
+                90.0
+            ),
+            Some(-33.5)
+        );
+        assert_eq!(
+            gps(
+                &sample,
+                Tag::GPSLongitude,
+                Tag::GPSLongitudeRef,
+                b'E',
+                b'W',
+                180.0
+            ),
+            Some(-151.25)
+        );
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let mut normalized = MetadataService::extract(file.path(), MediaType::Tiff).unwrap();
+        read_exif(&sample, &mut normalized);
+        assert_eq!(normalized.gps, Some((-33.5, -151.25)));
+        assert_eq!(
+            normalized.core_metadata().gps_e7,
+            Some((-335_000_000, -1_512_500_000))
+        );
+        let uncertain = exif(0, b'W');
+        normalized.gps = None;
+        read_exif(&uncertain, &mut normalized);
+        assert_eq!(normalized.gps, None);
+        assert_eq!(
+            gps(
+                &uncertain,
+                Tag::GPSLatitude,
+                Tag::GPSLatitudeRef,
+                b'N',
+                b'S',
+                90.0
+            ),
+            None
+        );
+    }
+
     #[test]
     fn core_conversion_preserves_common_fields() {
         let n = NormalizedMetadata {
