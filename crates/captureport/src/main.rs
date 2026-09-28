@@ -191,6 +191,26 @@ const TIMEZONE_CHOICES: &[(&str, i32)] = &[
     ("UTC+14:00", 50_400),
 ];
 
+/// Append a, b, c, ... to default gallery names that share a date.
+fn suffix_duplicate_titles(groups: &mut [GalleryGroup], is_custom: impl Fn(&str) -> bool) {
+    let mut totals = HashMap::<String, usize>::new();
+    for group in groups.iter() {
+        if !is_custom(&group.key) {
+            *totals.entry(group.title.clone()).or_default() += 1;
+        }
+    }
+    let mut seen = HashMap::<String, usize>::new();
+    for group in groups.iter_mut() {
+        if is_custom(&group.key) || totals.get(&group.title).copied().unwrap_or(1) < 2 {
+            continue;
+        }
+        let index = seen.entry(group.title.clone()).or_default();
+        let suffix = (b'a' + (*index).min(25) as u8) as char;
+        group.title = format!("{}{suffix}", group.title);
+        *index += 1;
+    }
+}
+
 fn timezone_label(offset: Option<i32>) -> String {
     match offset {
         None => "Capture metadata".into(),
@@ -969,6 +989,9 @@ impl Browser {
             }
         }
         self.gallery_groups.retain(|group| !group.ids.is_empty());
+        suffix_duplicate_titles(&mut self.gallery_groups, |key| {
+            self.gallery_names.contains_key(key)
+        });
     }
     fn set_gap_minutes(&mut self, minutes: u32, cx: &mut Context<Self>) {
         self.preset.grouping = Grouping::TimeGap {
@@ -2413,6 +2436,28 @@ mod integration_tests {
         assert_eq!(format_file_time(epoch, Some(0)), "2024-05-01 10:00");
         assert_eq!(format_file_time(epoch, Some(2 * 3600)), "2024-05-01 12:00");
         assert_eq!(format_file_time(epoch, Some(-5 * 3600)), "2024-05-01 05:00");
+    }
+
+    #[test]
+    fn duplicate_gallery_dates_get_letter_suffixes() {
+        let group = |key: &str, title: &str| GalleryGroup {
+            key: key.into(),
+            title: title.into(),
+            session: 1,
+            ids: Vec::new(),
+        };
+        let mut groups = vec![
+            group("a", "2026-09-18"),
+            group("b", "2026-09-18"),
+            group("c", "2026-09-19"),
+            group("d", "2026-09-18"),
+        ];
+        suffix_duplicate_titles(&mut groups, |key| key == "d");
+        let titles: Vec<_> = groups.iter().map(|group| group.title.as_str()).collect();
+        assert_eq!(
+            titles,
+            ["2026-09-18a", "2026-09-18b", "2026-09-19", "2026-09-18"]
+        );
     }
 
     #[test]
