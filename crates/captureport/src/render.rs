@@ -131,16 +131,16 @@ impl Palette {
 }
 
 fn thumbnail_columns(available: f32, target: f32) -> usize {
-    ((available + 12.) / (target + 12.)).round().max(1.) as usize
+    ((available + spacing::GRID_GAP) / (target + spacing::GRID_GAP)).round().max(1.) as usize
 }
 
 fn thumbnail_layout(window_width: f32, window_height: f32, sidebar_width: f32, size: u8, view_options: bool, bundle_open: bool) -> (usize, f32) {
-    let available = (window_width - sidebar_width - 40.).max(1.);
+    let available = (window_width - sidebar_width - 2. * spacing::CONTENT - spacing::SCROLLBAR_GUTTER).max(1.);
     let target = [172., 210., 250., 300., 360.][size.min(4) as usize];
     let columns = thumbnail_columns(available, target);
-    let card_width = ((available - 12. * (columns - 1) as f32) / columns as f32).max(1.);
+    let card_width = ((available - spacing::GRID_GAP * (columns - 1) as f32) / columns as f32).max(1.);
     let extra_chrome = if view_options { 86. } else { 0. } + if bundle_open { 240. } else { 0. };
-    let viewport_height = (window_height - 48. - 52. - 208. - 112. - extra_chrome).max(1.);
+    let viewport_height = (window_height - 48. - 52. - 208. - spacing::MEDIA_ROW_CHROME - extra_chrome).max(1.);
     let image_height = (card_width - 2.).max(1.).min(target).min(viewport_height);
     (columns, image_height)
 }
@@ -261,7 +261,7 @@ mod thumbnail_layout_tests {
                 let columns = thumbnail_columns(available, target);
                 assert!(columns >= 1);
                 let card_width =
-                    (available - (columns - 1) as f32 * 12.) / columns as f32;
+                    (available - (columns - 1) as f32 * super::spacing::GRID_GAP) / columns as f32;
                 assert!(card_width > 0.);
             }
         }
@@ -372,16 +372,16 @@ impl Browser {
             .w_full()
             .flex_shrink_0()
             .h_full()
-            .p_4()
+            .p(px(spacing::CONTENT))
             .border_r_1()
             .border_color(p.border)
             .bg(p.panel)
             .flex()
             .flex_col()
-            .gap_2()
+            .gap(px(spacing::CONTROL_GAP))
             .overflow_y_scroll()
             .track_scroll(&self.scrollbars.sidebar.handle)
-            .scrollbar_width(px(14.))
+            .scrollbar_width(px(spacing::SCROLLBAR_GUTTER))
             .child(
                 div()
                     .text_xs()
@@ -422,8 +422,9 @@ impl Browser {
                 div()
                     .id(gpui::ElementId::named_usize("source", index))
                     .cursor_pointer()
-                    .p_2()
-                    .min_h(px(34.))
+                    .px(px(spacing::CONTENT)).py(px(spacing::TIGHT))
+                    .flex().items_center().text_sm()
+                    .min_h(px(spacing::CONTROL_HEIGHT))
                     .flex_shrink_0()
                     .rounded_sm()
                     .border_1().border_color(p.border)
@@ -447,7 +448,6 @@ impl Browser {
         panel = panel
             .child(
                 div()
-                    .mt_1()
                     .flex_shrink_0()
                     .text_xs()
                     .text_color(p.muted)
@@ -456,7 +456,7 @@ impl Browser {
             )
             .child(
                 div()
-                    .mt_5()
+                    .mt(px(spacing::SECTION - spacing::CONTROL_GAP))
                     .text_xs()
                     .text_color(p.muted)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
@@ -472,7 +472,7 @@ impl Browser {
                 sidebar_nav("Review import", self.page == Page::Preview, p,
                     cx.listener(|t, _, _, c| { t.page = Page::Preview; c.notify() }),
                 ).into_any_element()
-            } else { div().into_any_element() })
+            } else { div().hidden().into_any_element() })
             .child(sidebar_nav("History", self.page == Page::History, p,
                 cx.listener(|t, _, w, c| t.history(&ShowHistory, w, c)),
             ))
@@ -482,7 +482,7 @@ impl Browser {
             .child(sidebar_nav("Settings", self.page == Page::Settings, p,
                 cx.listener(|t, _, _, c| t.show_settings(c)),
             ))
-            .child(div().mt_5().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
+            .child(div().mt(px(spacing::SECTION - spacing::CONTROL_GAP)).text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(p.muted).child("Tools"))
             .child(button("Reconcile library", p,
                 cx.listener(|t, _, w, c| t.reconcile(&ReconcileLibrary, w, c)),
@@ -491,7 +491,7 @@ impl Browser {
                 button("Cancel library scan", p,
                     cx.listener(|t, _, w, c| t.cancel_reconcile(&CancelReconcile, w, c)),
                 ).into_any_element()
-            } else { div().into_any_element() })
+            } else { div().hidden().into_any_element() })
             .child(button(
                 "Clear thumbnail cache", p,
                 cx.listener(|t, _, _, c| t.clear_thumbnail_cache(c)),
@@ -503,10 +503,10 @@ impl Browser {
             .child(if self.importing {
                 button("Cancel import", p,  cx.listener(|t, _, w, c| t.cancel_import(&CancelImport, w, c)))
                     .into_any_element()
-            } else { div().into_any_element() })
+            } else { div().hidden().into_any_element() })
             .child(
                 div()
-                    .mt_2()
+                    .mt(px(spacing::SECTION - spacing::CONTROL_GAP))
                     .flex_shrink_0()
                     .text_xs()
                     .text_color(p.muted)
@@ -545,24 +545,24 @@ impl Browser {
             .and_then(|source| source.display_name.clone()))
             .unwrap_or_else(|| "No source open".into());
         div().flex_1().min_w_0().min_h_0().flex().flex_col()
-            .child(div().px_5().pt_4().pb_2().flex().flex_col().gap_3().border_b_1().border_color(p.border)
-                .child(div().min_w_0().flex().items_baseline().justify_between().gap_3()
-                    .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_name))
-                    .child(div().text_xs().text_color(p.muted).child(format!("{visible} captures in view · {} selected overall", self.state.selection_summary().count))))
-                .child(div().flex().flex_wrap().gap_1()
+            .child(div().px(px(spacing::CONTENT)).pt(px(spacing::CONTENT)).pb(px(spacing::CONTROL_GAP)).flex().flex_col().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border)
+                .child(div().min_w_0().flex().items_baseline().justify_between().gap(px(spacing::CONTENT))
+                    .child(div().flex_1().min_w_0().text_lg().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_name))
+                    .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(format!("{visible} captures in view · {} selected overall", self.state.selection_summary().count))))
+                .child(div().flex().flex_wrap().gap(px(spacing::TIGHT))
                     .child(chip("All",self.state.filter==MediaFilter::All, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
                     .child(chip("Photos",self.state.filter==MediaFilter::Photos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
                     .child(chip("Videos",self.state.filter==MediaFilter::Videos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Videos,c))))
                     .child(chip("New",self.state.filter==MediaFilter::New, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::New,c))))
                     .child(chip("Imported",self.state.filter==MediaFilter::Imported, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Imported,c))))
                     .child(chip("Possible",self.state.filter==MediaFilter::PossibleDuplicates, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::PossibleDuplicates,c))))))
-            .child(div().px_5().py_2().flex().flex_wrap().items_center().justify_between().gap_2().border_b_1().border_color(p.border)
-                .child(div().flex().flex_wrap().gap_2()
+            .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP)).flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTROL_GAP)).border_b_1().border_color(p.border)
+                .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
                     .child(button("Select all", p, cx.listener(|t,_,w,c|t.select_all(&SelectAll,w,c))))
                     .child(button("Select new", p, cx.listener(|t,_,w,c|t.select_new(&SelectAllNew,w,c))))
                     .child(button("Clear", p, cx.listener(|t,_,w,c|t.select_none(&SelectNone,w,c))))
-                    .child(div().id("mark-selected-imported").min_h(px(36.))
-                        .px_3().py_2().rounded_sm().text_sm().bg(p.card)
+                    .child(div().id("mark-selected-imported").min_h(px(spacing::CONTROL_HEIGHT)).flex().items_center()
+                        .px(px(spacing::CONTENT)).py(px(spacing::TIGHT)).rounded_sm().text_sm().bg(p.card)
                         .text_color(if self.can_mark_selected_imported() { p.text } else { p.muted })
                         .when(self.can_mark_selected_imported(), |button| button.cursor_pointer()
                             .hover(move |style| style.bg(p.selected))
@@ -571,17 +571,17 @@ impl Browser {
                 .child(button(if self.show_view_options { "Hide view options" } else { "View options" }, p,
                     cx.listener(|t,_,_,c| { t.show_view_options = !t.show_view_options; c.notify() }))))
             .child(if self.show_view_options {
-                div().px_5().py_3().flex().flex_wrap().items_center().gap_5().border_b_1().border_color(p.border).bg(p.panel)
-                    .child(div().flex().items_center().gap_2()
+                div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).flex().flex_wrap().items_center().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border).bg(p.panel)
+                    .child(div().flex().items_center().gap(px(spacing::CONTROL_GAP))
                         .child(div().text_sm().text_color(p.muted).child("Sort by"))
                         .child(chip("Time",self.state.sort==MediaSort::CaptureTime, p, cx.listener(|t,_,_,c|t.sort(MediaSort::CaptureTime,c))))
                         .child(chip("Name",self.state.sort==MediaSort::Name, p, cx.listener(|t,_,_,c|t.sort(MediaSort::Name,c)))))
-                    .child(div().flex().items_center().gap_2()
+                    .child(div().flex().items_center().gap(px(spacing::CONTROL_GAP))
                         .child(div().text_sm().text_color(p.muted).child("Thumbnail size"))
-                        .child(div().id("thumbnail-size-slider").flex().items_center().gap_1()
+                        .child(div().id("thumbnail-size-slider").flex().items_center().gap(px(spacing::TIGHT))
                             .children((0..=4).map(|step| {
                                 let active = step <= self.ui.thumbnail_size;
-                                div().id(gpui::ElementId::named_usize("thumbnail-size-step", step as usize)).w(px(30.)).h(px(28.))
+                                div().id(gpui::ElementId::named_usize("thumbnail-size-step", step as usize)).w(px(24.)).h(px(28.))
                                     .flex().items_center().cursor_pointer()
                                     .on_click(cx.listener(move |t,_,_,c| t.set_thumbnail_size(step,c)))
                                     .on_mouse_move(cx.listener(move |t,e: &gpui::MouseMoveEvent,_,c| {
@@ -591,9 +591,9 @@ impl Browser {
                                         .rounded_full().bg(if active { p.accent } else { p.border }))
                             })))
                         .child(div().text_xs().text_color(p.muted).child(format!("{} px", image_height.round() as u32))))
-                    .child(div().flex().items_center().gap_2()
+                    .child(div().flex().items_center().gap(px(spacing::CONTROL_GAP))
                         .child(div().text_sm().text_color(p.muted).child("Session gap"))
-                        .child(div().id("gallery-gap-slider").flex().items_center().gap_1()
+                        .child(div().id("gallery-gap-slider").flex().items_center().gap(px(spacing::TIGHT))
                             .children([5_u32, 15, 30, 60, 120, 240, 480, 1440].into_iter().map(|minutes| {
                                 let active = matches!(self.preset.grouping, Grouping::TimeGap { threshold_minutes } if threshold_minutes >= minutes);
                                 div().id(gpui::ElementId::named_usize("gallery-gap-step", minutes as usize)).w(px(24.)).h(px(28.))
@@ -610,17 +610,17 @@ impl Browser {
                             _ => "Off".into(),
                         })))
                     .into_any_element()
-            } else { div().into_any_element() })
+            } else { div().hidden().into_any_element() })
             .child(self.expanded_bundle_panel(cx))
             .child(if visible==0 {
-                div().flex_1().flex().items_center().justify_center().px_5()
-                    .child(div().flex().flex_col().items_center().gap_3()
+                div().flex_1().flex().items_center().justify_center().px(px(spacing::CONTENT))
+                    .child(div().flex().flex_col().items_center().gap(px(spacing::CONTENT))
                         .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
                             .child(if self.scanning { "Scanning source…" } else if self.state.source.is_none() { "Start with a source" } else if self.state.filter == MediaFilter::All { "No media found in this source" } else { "No media matches this filter" }))
                         .child(div().text_sm().text_color(p.muted)
                             .child(if self.scanning { "Media will appear here as it is found." } else if self.state.source.is_none() { "Open a folder or connect a camera to browse media." } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." }))
                         .child(if self.state.source.is_none() && !self.scanning {
-                            div().flex().flex_wrap().justify_center().gap_2()
+                            div().flex().flex_wrap().justify_center().gap(px(spacing::CONTROL_GAP))
                                 .child(primary_button("Open a folder…", p,
                                     cx.listener(|t, _, w, c| t.open_folder(&OpenFolder, w, c))))
                                 .child(button("Scan for cameras", p,
@@ -628,13 +628,13 @@ impl Browser {
                                 .into_any_element()
                         } else if self.state.filter != MediaFilter::All && !self.scanning {
                             button("Show all media", p,  cx.listener(|t, _, _, c| t.filter(MediaFilter::All, c))).into_any_element()
-                        } else { div().into_any_element() }))
+                        } else { div().hidden().into_any_element() }))
                     .into_any_element()
             } else {
                 div().relative().flex_1().min_h_0().flex().flex_col().child(
                 uniform_list(("media-grid", columns * 5 + self.ui.thumbnail_size as usize + if grouped { 100 } else { 0 }),row_count,cx.processor(move |t,range:std::ops::Range<usize>,_,cx|range.map(|row| {
                     let GalleryRow { header, ids } = &rows[row];
-                    let mut cards=div().w_full().flex().gap_3();
+                    let mut cards=div().w_full().flex().gap(px(spacing::CONTENT));
                     for column in 0..columns {
                         if let Some(&id)=ids.get(column) {
                             t.request_thumbnail(id);
@@ -660,35 +660,37 @@ impl Browser {
                                     div().id(("media-open", id.0)).relative().w_full().cursor_pointer()
                                         .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .child(base)
-                                        .child(div().absolute().top_1().right_1().px_1().rounded_sm()
+                                        .child(div().absolute().top(px(spacing::TIGHT)).right(px(spacing::TIGHT)).px(px(spacing::TIGHT)).rounded_sm()
                                             .bg(gpui::rgba(0x00000099)).text_color(rgb(0xffffff))
                                             .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
                                             .child(badge))
                                         .child(if partly_selected {
-                                            div().absolute().top_1().left_1().px_2().py_1().rounded_sm()
+                                            div().absolute().top(px(spacing::TIGHT)).left(px(spacing::TIGHT)).px(px(spacing::CONTROL_GAP)).py(px(spacing::TIGHT)).rounded_sm()
                                                 .bg(p.card).text_color(p.text).text_xs()
                                                 .font_weight(gpui::FontWeight::SEMIBOLD)
                                                 .child(if selected { "Selected" } else { "Part selected" })
                                                 .into_any_element()
-                                        } else { div().into_any_element() })
+                                        } else { div().hidden().into_any_element() })
                                         .into_any_element()
                                 };
-                                let metadata = div().w_full().px_2().py_2().min_w_0()
-                                    .child(div().id(("media-name", id.0)).min_w_0().cursor_pointer().rounded_sm()
+                                // Block flow keeps truncated text out of flex's intrinsic-width
+                                // measurement, where GPUI can cache an ellipsis-only filename.
+                                let metadata = div().w_full().h(px(spacing::MEDIA_DETAILS_HEIGHT)).px(px(spacing::CONTROL_GAP)).py(px(spacing::CONTROL_GAP)).min_w_0()
+                                    .child(div().id(("media-name", id.0)).w_full().min_w_0().cursor_pointer().rounded_sm()
                                         .on_click(cx.listener(move |t, _, _, c| {
                                             c.stop_propagation();
                                             t.toggle_group_selection(id, c);
                                         }))
                                         .hover(move |style| style.bg(p.selected))
-                                        .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
+                                        .child(div().w_full().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
                                             .truncate().child(item.source_name.clone())))
-                                    .child(div().text_xs().text_color(p.muted).truncate().child(
+                                    .child(div().mt(px(spacing::TIGHT)).text_xs().text_color(p.muted).truncate().child(
                                         if time_label.is_empty() { size_label } else { format!("{time_label} · {size_label}") }))
-                                    .child(div().id(("media-status", id.0)).truncate().text_xs().font_weight(gpui::FontWeight::SEMIBOLD).cursor_pointer()
+                                    .child(div().id(("media-status", id.0)).mt(px(spacing::TIGHT)).truncate().text_xs().font_weight(gpui::FontWeight::SEMIBOLD).cursor_pointer()
                                         .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .text_color(if partly_selected { p.text } else { p.muted })
                                         .child(import_status_line(item)))
-                                    .child(div().id(("media-disclosure", id.0)).text_xs().text_color(p.muted).cursor_pointer()
+                                    .child(div().id(("media-disclosure", id.0)).mt(px(spacing::TIGHT)).when(members.is_none(), |style| style.hidden()).text_xs().text_color(p.muted).cursor_pointer()
                                         .on_click(cx.listener(move |t,_,_,c| t.toggle_bundle(id,c)))
                                         .child(if members.is_some() {
                                             if expanded { "Hide files" } else { "View files" }
@@ -701,18 +703,18 @@ impl Browser {
                             }
                         } else { cards=cards.child(div().flex_1()); }
                     }
-                    let mut view=div().w_full().h(px(image_height + 112. + if grouped { 42. } else { 0. })).flex().flex_col().px_5().py_2();
+                    let mut view=div().w_full().h(px(image_height + spacing::MEDIA_ROW_CHROME + if grouped { spacing::GALLERY_ROW_CHROME } else { 0. })).flex().flex_col().px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP));
                     if grouped {
                         let heading = if let Some((key, title)) = header {
                             if t.gallery_edit_key.as_ref() == Some(key) {
-                                div().w_full().min_h(px(30.)).flex().items_center().gap_2()
+                                div().w_full().h(px(spacing::CONTROL_HEIGHT)).flex().items_center().gap(px(spacing::CONTROL_GAP))
                                     .child(div().flex_1().min_w_0()
                                         .child(themed_input(t.gallery_edit_input.clone(), p, cx)))
                                     .child(button("Save", p,  cx.listener(|t,_,_,c| t.save_gallery_name(c))))
                             } else {
                                 let key = key.clone();
                                 let name_key = key.clone();
-                                div().w_full().min_h(px(30.)).flex().items_center().gap_2()
+                                div().w_full().h(px(spacing::CONTROL_HEIGHT)).flex().items_center().gap(px(spacing::CONTROL_GAP))
                                     .child(
                                         div()
                                             .id(gpui::ElementId::Name(format!("gallery-name-{key}").into()))
@@ -726,11 +728,11 @@ impl Browser {
                                     )
                                     .child(button("Rename", p,  cx.listener(move |t,_,_,c| t.edit_gallery(key.clone(),c))))
                             }
-                        } else { div().h(px(30.)) };
-                        view=view.child(heading);
+                        } else { div().h(px(spacing::CONTROL_HEIGHT)) };
+                        view=view.child(heading.mb(px(spacing::CONTROL_GAP)));
                     }
                     view.child(cards)
-                }).collect())).track_scroll(self.scrollbars.media.list.clone()).pr(px(14.)).min_h_0().flex_1())
+                }).collect())).track_scroll(self.scrollbars.media.list.clone()).pr(px(spacing::SCROLLBAR_GUTTER)).min_h_0().flex_1())
                     .child(self.scrollbars.media.element(p.border, p.muted, p.accent))
                     .into_any_element()
             }).into_any_element()
@@ -764,9 +766,9 @@ impl Browser {
             .max_h(px(240.))
             .overflow_y_scroll()
             .track_scroll(&self.scrollbars.bundle.handle)
-            .scrollbar_width(px(14.))
-            .px_5()
-            .py_3()
+            .scrollbar_width(px(spacing::SCROLLBAR_GUTTER))
+            .px(px(spacing::CONTENT))
+            .py(px(spacing::CONTENT))
             .border_b_1()
             .border_color(p.border)
             .bg(p.panel)
@@ -776,7 +778,7 @@ impl Browser {
                     .flex_wrap()
                     .items_center()
                     .justify_between()
-                    .gap_2()
+                    .gap(px(spacing::CONTROL_GAP))
                     .child(div().id(("group-name", primary.0)).font_weight(gpui::FontWeight::SEMIBOLD).cursor_pointer()
                         .on_click(cx.listener(move |t, _, _, c| t.toggle_group_selection(primary, c)))
                         .child(format!(
@@ -790,10 +792,10 @@ impl Browser {
             )
             .child(
                 div()
-                    .my_2()
+                    .my(px(spacing::CONTROL_GAP))
                     .flex()
                     .flex_wrap()
-                    .gap_2()
+                    .gap(px(spacing::CONTROL_GAP))
                     .child(button(
                         "Select all in group", p,
                         cx.listener(move |t, _, _, c| t.select_bundle_members(primary, true, c)),
@@ -823,16 +825,16 @@ impl Browser {
             panel = panel.child(
                 div()
                     .id(("bundle-member", id.0))
-                    .ml_3()
-                    .pl_3()
-                    .py_2()
+                    .ml(px(spacing::CONTENT))
+                    .pl(px(spacing::CONTENT))
+                    .py(px(spacing::CONTROL_GAP))
                     .border_l_1()
                     .border_color(p.border)
                     .flex()
                     .flex_wrap()
                     .items_center()
                     .justify_between()
-                    .gap_2()
+                    .gap(px(spacing::CONTROL_GAP))
                     .cursor_pointer()
                     .bg(if selected { p.selected } else { p.panel })
                     .hover(move |style| style.bg(p.selected))
@@ -866,7 +868,7 @@ impl Browser {
         let Some(plan) = &self.plan else {
             return div()
                 .flex_1()
-                .p_5()
+                .p(px(spacing::CONTENT))
                 .child("No preview yet")
                 .into_any_element();
         };
@@ -882,14 +884,14 @@ impl Browser {
             .min_w_0()
             .flex()
             .flex_col()
-            .child(div().px_5().py_3().border_b_1().border_color(p.border)
-                .child(div().flex().flex_wrap().items_center().justify_between().gap_2()
+            .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).border_b_1().border_color(p.border)
+                .child(div().flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTROL_GAP))
                     .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
                         .child(format!("Review import · {count} files")))
                     .child(button("Back to media", p,  cx.listener(|t, _, _, c| { t.page = Page::Browser; c.notify() }))))
                 .child(div().text_sm().text_color(p.muted)
                     .child(if blocked > 0 { format!("{blocked} blocked · Review the affected paths below") } else { "Check each final destination before copying.".into() })))
-            .child(div().px_5().py_3().flex().flex_wrap().items_center().justify_between().gap_3().border_b_1().border_color(p.border).bg(p.panel)
+            .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border).bg(p.panel)
                 .child(div().text_sm().child(format!(
                     "{} can proceed · {} blocked · {} preset · {:?} verification",
                     count.saturating_sub(blocked), blocked, plan.preset_name, plan.verification
@@ -899,11 +901,11 @@ impl Browser {
                         cx.listener(|t, _, w, c| t.import_selected(&ImportSelected, w, c)))
                         .into_any_element()
                 } else if blocked > 0 {
-                    div().flex().items_center().gap_2()
-                        .child(div().px_3().py_2().rounded_sm().bg(p.border).text_sm().text_color(p.muted).child("Import blocked"))
+                    div().flex().items_center().gap(px(spacing::CONTROL_GAP))
+                        .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP)).rounded_sm().bg(p.border).text_sm().text_color(p.muted).child("Import blocked"))
                         .child(button("Edit import settings", p,  cx.listener(|t, _, _, c| t.show_settings(c))))
                         .into_any_element()
-                } else { div().into_any_element() }))
+                } else { div().hidden().into_any_element() }))
             .child(
                 if self.last_import_result.is_some() && self.filesystem_root.is_some() {
                     if self.deletion_armed {
@@ -914,8 +916,8 @@ impl Browser {
                             .flex_wrap()
                             .items_center()
                             .justify_between()
-                            .gap_3()
-                            .p_3()
+                            .gap(px(spacing::CONTENT))
+                            .p(px(spacing::CONTENT))
                             .rounded_sm()
                             .border_1()
                             .border_color(p.danger)
@@ -924,7 +926,7 @@ impl Browser {
                                     .flex()
                                     .flex_col()
                                     .min_w_0()
-                                    .gap_1()
+                                    .gap(px(spacing::TIGHT))
                                     .child(
                                         div()
                                             .text_sm()
@@ -941,7 +943,7 @@ impl Browser {
                                 div()
                                     .flex()
                                     .items_center()
-                                    .gap_2()
+                                    .gap(px(spacing::CONTROL_GAP))
                                     .child(button(
                                         "Keep originals",
                                         p,
@@ -951,8 +953,9 @@ impl Browser {
                                         div()
                                             .id("confirm-delete-originals")
                                             .cursor_pointer()
-                                            .px_3()
-                                            .py_2()
+                                            .px(px(spacing::CONTENT))
+                                            .py(px(spacing::TIGHT))
+                                            .min_h(px(spacing::CONTROL_HEIGHT)).flex().items_center()
                                             .rounded_sm()
                                             .bg(p.danger)
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
@@ -1033,8 +1036,8 @@ impl Browser {
                                     .join("\n");
                                 div()
                                     .min_h(px(72.))
-                                    .px_5()
-                                    .py_2()
+                                    .px(px(spacing::CONTENT))
+                                    .py(px(spacing::CONTROL_GAP))
                                     .border_b_1()
                                     .border_color(p.border)
                                     .child(
@@ -1057,7 +1060,7 @@ impl Browser {
                     }),
                 )
                 .track_scroll(self.scrollbars.preview.list.clone())
-                .pr(px(14.))
+                .pr(px(spacing::SCROLLBAR_GUTTER))
                 .min_h_0()
                 .flex_1())
                     .child(self.scrollbars.preview.element(p.border, p.muted, p.accent)),
@@ -1076,11 +1079,11 @@ impl Browser {
             .flex_col()
             .overflow_y_scroll()
             .track_scroll(&self.scrollbars.history.handle)
-            .scrollbar_width(px(14.))
+            .scrollbar_width(px(spacing::SCROLLBAR_GUTTER))
             .child(
                 div()
-                    .px_5()
-                    .py_3()
+                    .px(px(spacing::CONTENT))
+                    .py(px(spacing::CONTENT))
                     .border_b_1()
                     .border_color(p.border)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
@@ -1120,8 +1123,8 @@ impl Browser {
                 div()
                     .id(("history", id as u64))
                     .cursor_pointer()
-                    .px_5()
-                    .py_3()
+                    .px(px(spacing::CONTENT))
+                    .py(px(spacing::CONTENT))
                     .border_b_1()
                     .border_color(p.border)
                     .hover(move |style| style.bg(p.selected))
@@ -1142,14 +1145,14 @@ impl Browser {
             );
         }
         if self.history.is_empty() {
-            panel = panel.child(div().p_5().text_color(p.muted)
+            panel = panel.child(div().p(px(spacing::CONTENT)).text_color(p.muted)
                 .child("No imports yet. Open a source, select media, then review an import to start your history."));
         }
         if let Some(detail) = &self.session_detail {
             panel = panel.child(
                 div()
-                    .px_5()
-                    .py_3()
+                    .px(px(spacing::CONTENT))
+                    .py(px(spacing::CONTENT))
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child(format!(
                         "Session {} · {} copies",
@@ -1188,8 +1191,8 @@ impl Browser {
                     .unwrap_or_else(|| "unknown".into());
                 panel = panel.child(
                     div()
-                        .px_5()
-                        .py_2()
+                        .px(px(spacing::CONTENT))
+                        .py(px(spacing::CONTROL_GAP))
                         .border_b_1()
                         .border_color(p.border)
                         .child(
@@ -1218,13 +1221,13 @@ impl Browser {
             .flex_1()
             .min_h_0()
             .min_w_0()
-            .p_5()
+            .p(px(spacing::CONTENT))
             .flex()
             .flex_col()
-            .gap_2()
+            .gap(px(spacing::CONTROL_GAP))
             .overflow_y_scroll()
             .track_scroll(&self.scrollbars.recovery.handle)
-            .scrollbar_width(px(14.))
+            .scrollbar_width(px(spacing::SCROLLBAR_GUTTER))
             .child(
                 div()
                     .text_lg()
@@ -1237,11 +1240,11 @@ impl Browser {
                 self.partial_files.len()
             )));
         if self.incomplete_sessions.is_empty() && self.partial_files.is_empty() {
-            panel = panel.child(div().mt_4().p_4().rounded_sm().bg(p.card)
+            panel = panel.child(div().mt(px(spacing::CONTENT)).p(px(spacing::CONTENT)).rounded_sm().bg(p.card)
                 .child("Nothing needs recovery. Interrupted imports and incomplete files will appear here."));
         }
         for session in &self.incomplete_sessions {
-            panel = panel.child(div().p_3().bg(p.card).rounded_sm().child(format!(
+            panel = panel.child(div().p(px(spacing::CONTENT)).bg(p.card).rounded_sm().child(format!(
                 "Session {} · started {} · {} recorded copies",
                 session.session.id,
                 session.session.started_at,
@@ -1257,7 +1260,7 @@ impl Browser {
         for (index, partial) in self.partial_files.iter().enumerate() {
             panel = panel.child(
                 div()
-                    .p_3()
+                    .p(px(spacing::CONTENT))
                     .bg(p.card)
                     .rounded_sm()
                     .flex()
@@ -1272,7 +1275,7 @@ impl Browser {
                         div()
                             .flex()
                             .items_center()
-                            .gap_2()
+                            .gap(px(spacing::CONTROL_GAP))
                             .child(button(
                                 "Keep file",
                                 p,
@@ -1282,8 +1285,9 @@ impl Browser {
                                 div()
                                     .id(gpui::ElementId::named_usize("confirm-clean-partial", index))
                                     .cursor_pointer()
-                                    .px_3()
-                                    .py_2()
+                                    .px(px(spacing::CONTENT))
+                                    .py(px(spacing::TIGHT))
+                                    .min_h(px(spacing::CONTROL_HEIGHT)).flex().items_center()
                                     .rounded_sm()
                                     .bg(p.danger)
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
@@ -1316,13 +1320,13 @@ impl Browser {
             .flex_1()
             .min_h_0()
             .min_w_0()
-            .p_5()
+            .p(px(spacing::CONTENT))
             .flex()
             .flex_col()
-            .gap_2()
+            .gap(px(spacing::CONTENT))
             .overflow_y_scroll()
             .track_scroll(&self.scrollbars.settings.handle)
-            .scrollbar_width(px(14.))
+            .scrollbar_width(px(spacing::SCROLLBAR_GUTTER))
             .child(
                 div()
                     .text_lg()
@@ -1336,7 +1340,7 @@ impl Browser {
                 div()
                     .flex()
                     .flex_wrap()
-                    .gap_2()
+                    .gap(px(spacing::CONTROL_GAP))
                     .children(ColorScheme::ALL.map(|scheme| chip(
                         scheme.label(),
                         self.ui.scheme == scheme,
@@ -1348,7 +1352,7 @@ impl Browser {
                 div()
                     .flex()
                     .flex_wrap()
-                    .gap_2()
+                    .gap(px(spacing::CONTROL_GAP))
                     .child(chip(
                         "Light",
                         !self.ui.dark_mode,
@@ -1388,7 +1392,7 @@ impl Browser {
                 div()
                     .flex()
                     .flex_wrap()
-                    .gap_2()
+                    .gap(px(spacing::CONTROL_GAP))
                     .child(chip(
                         "Everyday",
                         self.preset.name == "Everyday", p,
@@ -1447,12 +1451,12 @@ impl Browser {
                 div()
                     .flex()
                     .flex_wrap()
-                    .gap_2()
+                    .gap(px(spacing::CONTROL_GAP))
                     .child(
                         div()
                             .id("verification")
                             .cursor_pointer()
-                            .p_2()
+                            .p(px(spacing::CONTROL_GAP))
                             .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
                             .child(format!("Verification: {:?}", self.preset.verification))
@@ -1462,7 +1466,7 @@ impl Browser {
                         div()
                             .id("bundle-policy")
                             .cursor_pointer()
-                            .p_2()
+                            .p(px(spacing::CONTROL_GAP))
                             .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
                             .child(format!("Bundles: {:?}", self.preset.bundle_policy))
@@ -1473,12 +1477,12 @@ impl Browser {
                 div()
                     .flex()
                     .flex_wrap()
-                    .gap_2()
+                    .gap(px(spacing::CONTROL_GAP))
                     .child(
                         div()
                             .id("grouping")
                             .cursor_pointer()
-                            .p_2()
+                            .p(px(spacing::CONTROL_GAP))
                             .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
                             .child(format!("Grouping: {:?}", self.preset.grouping))
@@ -1488,7 +1492,7 @@ impl Browser {
                         div()
                             .id("collision")
                             .cursor_pointer()
-                            .p_2()
+                            .p(px(spacing::CONTROL_GAP))
                             .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
                             .child(format!("Collision: {:?}", self.preset.collision))
@@ -1536,7 +1540,7 @@ impl Browser {
                 div()
                     .flex()
                     .flex_col()
-                    .gap_1()
+                    .gap(px(spacing::TIGHT))
                     .child(
                         div()
                             .text_xs()
@@ -1568,10 +1572,10 @@ impl Browser {
                             .max_h(px(200.))
                             .overflow_y_scroll()
                             .track_scroll(&self.scrollbars.timezone.handle)
-                            .scrollbar_width(px(14.))
+                            .scrollbar_width(px(spacing::SCROLLBAR_GUTTER))
                             .flex()
                             .flex_col()
-                            .gap_1()
+                            .gap(px(spacing::TIGHT))
                             .child(timezone_choice(
                                 "Capture metadata".into(),
                                 self.settings.timezone_seconds.read(cx).value().trim().is_empty(),
@@ -1632,7 +1636,7 @@ impl Browser {
                 div()
                     .id("backup-required")
                     .cursor_pointer()
-                    .p_2()
+                    .p(px(spacing::CONTROL_GAP))
                     .bg(p.card).rounded_sm().border_1().border_color(p.border)
                     .hover(move |style| style.bg(p.selected))
                     .child(format!("Backup required: {}", self.backup_required_choice))
@@ -1660,8 +1664,8 @@ fn timezone_choice(
     div()
         .id(("timezone-choice", id))
         .cursor_pointer()
-        .px_3()
-        .py_2()
+        .px(px(spacing::CONTENT))
+        .py(px(spacing::TIGHT))
         .rounded_sm()
         .text_sm()
         .bg(if active { palette.selected } else { palette.card })
@@ -1671,7 +1675,7 @@ fn timezone_choice(
 }
 
 fn settings_section(label: &'static str, palette: Palette) -> impl IntoElement {
-    div().mt_6().pb_2().border_b_1().border_color(palette.border)
+    div().mt(px(spacing::CONTROL_GAP)).pb(px(spacing::TIGHT)).border_b_1().border_color(palette.border)
         .text_base().font_weight(gpui::FontWeight::SEMIBOLD).child(label)
 }
 fn settings_field(
@@ -1683,7 +1687,7 @@ fn settings_field(
     div()
         .flex()
         .flex_col()
-        .gap_1()
+        .gap(px(spacing::TIGHT))
         .child(div().text_xs().text_color(palette.muted).child(label))
         .child(themed_input(input, palette, cx))
         .into_any_element()
@@ -1702,9 +1706,9 @@ fn settings_template_field(
     let target = input.clone();
     let example = template_help::example(&input.read(cx).value(), filename, video);
     let mut field = div()
-        .flex().flex_col().gap_1().min_w_0().w_full()
+        .flex().flex_col().gap(px(spacing::TIGHT)).min_w_0().w_full()
         .child(
-            div().flex().flex_wrap().items_center().justify_between().gap_2()
+            div().flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTROL_GAP))
                 .child(div().text_xs().text_color(p.muted).child(label))
                 .child(button(
                     if expanded { "Hide segments" } else { "Insert segment / syntax help" },
@@ -1728,7 +1732,7 @@ fn settings_template_field(
                 Err(error) => format!("Check template: {error}"),
             }));
     if expanded {
-        let mut reference = div().flex().flex_col().gap_2().py_3()
+        let mut reference = div().flex().flex_col().gap(px(spacing::CONTROL_GAP)).py(px(spacing::CONTENT))
             .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child("Supported segments"))
             .child(div().text_xs().text_color(p.muted)
                 .child("Click a segment to insert it at the cursor. Use {sequence:04} for 0001 or {session:02} for 02 (width 1–12). Date formats use %Y, %m, %d, %H, %M and %S; for example {datetime:%Y-%m-%d_%H-%M-%S}."))
@@ -1737,15 +1741,15 @@ fn settings_template_field(
         let mut previous_group = "";
         for (index, token) in captureport_ingest::TEMPLATE_TOKENS.iter().enumerate() {
             if token.group != previous_group {
-                reference = reference.child(div().mt_2().text_sm()
+                reference = reference.child(div().mt(px(spacing::CONTROL_GAP)).text_sm()
                     .font_weight(gpui::FontWeight::SEMIBOLD).child(token.group));
                 previous_group = token.group;
             }
             let target = input.clone();
             let syntax = token.syntax;
-            reference = reference.child(div().flex().flex_wrap().items_center().gap_2()
+            reference = reference.child(div().flex().flex_wrap().items_center().gap(px(spacing::CONTROL_GAP))
                 .child(div().id((label, index)).cursor_pointer().rounded_sm()
-                    .px_2().py_1().border_1().border_color(p.border).bg(p.card)
+                    .px(px(spacing::CONTROL_GAP)).py(px(spacing::TIGHT)).border_1().border_color(p.border).bg(p.card)
                     .text_sm().hover(move |style| style.bg(p.selected))
                     .on_click(cx.listener(move |_, _, window, cx| {
                         target.update(cx, |input, cx| input.insert_segment(syntax, cx));
@@ -1789,11 +1793,11 @@ fn sidebar_nav(
 ) -> impl IntoElement {
     div()
         .id(label)
-        .min_h(px(34.))
-        .px_3()
-        .py_1()
+        .min_h(px(spacing::CONTROL_HEIGHT))
+        .px(px(spacing::CONTENT))
+        .py(px(spacing::TIGHT))
         .rounded_sm()
-        .cursor_pointer()
+        .flex().items_center().cursor_pointer()
         .text_sm()
         .font_weight(if active { gpui::FontWeight::SEMIBOLD } else { gpui::FontWeight::NORMAL })
         .bg(if active { palette.selected } else { palette.panel })
@@ -1809,11 +1813,11 @@ fn primary_button(
 ) -> impl IntoElement {
     div()
         .id(label)
-        .min_h(px(34.))
-        .px_4()
-        .py_1()
+        .min_h(px(spacing::CONTROL_HEIGHT))
+        .px(px(spacing::CONTENT))
+        .py(px(spacing::TIGHT))
         .rounded_sm()
-        .cursor_pointer()
+        .flex().items_center().cursor_pointer()
         .text_sm()
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .bg(palette.primary_bg)
@@ -1881,7 +1885,7 @@ impl Render for Browser {
             .child(
                 div()
                     .h(px(48.)).flex_shrink_0().border_b_1().border_color(p.border)
-                    .px_6()
+                    .px(px(spacing::CONTENT))
                     .flex()
                     .items_center()
                     .justify_between()
@@ -1889,7 +1893,7 @@ impl Render for Browser {
                     .text_color(p.header_text)
                     .child(
                         div()
-                            .flex().items_baseline().gap_4()
+                            .flex().items_baseline().gap(px(spacing::CONTENT))
                             .child(div().text_base().font_weight(gpui::FontWeight::SEMIBOLD).child("CapturePort"))
                             .child(div().text_xs().text_color(p.header_muted).child("Photo and video ingest")),
                     )
@@ -1909,7 +1913,7 @@ impl Render for Browser {
             .child(
                 div()
                     .min_h(px(52.)).flex_shrink_0()
-                    .px_5()
+                    .px(px(spacing::CONTENT))
                     .flex()
                     .items_center()
                     .justify_between()
@@ -1919,7 +1923,7 @@ impl Render for Browser {
                     .bg(p.card)
                     .text_sm()
                     .child(div().min_w_0().truncate().text_color(p.muted).child(status))
-                    .child(div().flex().items_center().gap_3()
+                    .child(div().flex().items_center().gap(px(spacing::CONTENT))
                         .child(format!(
                             "{} items · {} selected · {}",
                             self.state.len(),
@@ -1937,7 +1941,7 @@ impl Render for Browser {
                                     }
                                 }))
                                 .into_any_element()
-                        } else { div().into_any_element() })),
+                        } else { div().hidden().into_any_element() })),
             )
     }
 }

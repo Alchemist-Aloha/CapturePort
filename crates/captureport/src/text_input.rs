@@ -428,7 +428,11 @@ impl Render for TextInput {
             .on_action(cx.listener(Self::end))
             .on_action(cx.listener(Self::select_all))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
-            .p_2()
+            .min_h(gpui::px(crate::spacing::CONTROL_HEIGHT - 2.))
+            .px(gpui::px(crate::spacing::CONTENT))
+            .py(gpui::px(crate::spacing::TIGHT))
+            .flex()
+            .items_center()
             .child(TextElement { input: cx.entity() })
     }
 }

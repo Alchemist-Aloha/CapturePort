@@ -41,35 +41,39 @@ rounded:
   sm: "4px"
   full: "9999px"
 spacing:
-  "1": "4px"
-  "2": "8px"
-  "3": "12px"
-  "4": "16px"
-  "5": "20px"
-  "6": "24px"
+  tight: "4px"
+  control-gap: "8px"
+  content: "16px"
+  section: "24px"
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.primary-text}"
     rounded: "{rounded.sm}"
     padding: "4px 16px"
-    height: "34px"
+    height: "36px"
   button-secondary:
     backgroundColor: "{colors.card}"
     textColor: "{colors.text}"
     rounded: "{rounded.sm}"
-    padding: "4px 12px"
-    height: "34px"
+    padding: "4px 16px"
+    height: "36px"
   filter-idle:
     backgroundColor: "transparent"
     textColor: "{colors.text}"
     rounded: "{rounded.sm}"
-    padding: "4px 12px"
+    padding: "4px 8px"
   filter-active:
     backgroundColor: "{colors.selected}"
     textColor: "{colors.text}"
     rounded: "{rounded.sm}"
-    padding: "4px 12px"
+    padding: "4px 8px"
+  input:
+    backgroundColor: "{colors.card}"
+    textColor: "{colors.text}"
+    rounded: "{rounded.sm}"
+    padding: "4px 16px"
+    height: "36px"
   media-card:
     backgroundColor: "{colors.canvas}"
     rounded: "{rounded.sm}"
@@ -91,7 +95,7 @@ The bundled Adwaita Sans face gives the desktop UI a consistent Linux-native voi
 **Key Characteristics:**
 
 - 48px neutral header, 232px source rail (184px below 760px), and 52px footer.
-- 4px control radius and 34px minimum button and navigation height.
+- 4px control radius and 36px minimum button, navigation, and filter height.
 - Adwaita Sans from the bundled OFL-licensed font asset.
 - Quiet filter selection, explicit “Selected” / “Part selected” labels, and status text with icon.
 - Full palette parity across Pine, Darkroom, Graphite, and Ink in light and dark modes.
@@ -141,9 +145,11 @@ The active Pine light tokens above are the frontmatter source. The complete sour
 
 The desktop shell is vertical: a 48px header, a flexible body, and a 52px footer. The body places a fixed source rail beside a fluid content area. The rail is 232px wide at normal windows and 184px below the single 760px window-width breakpoint.
 
-The browser uses a reflowing contact sheet with 12px column gaps and 20px content gutters. Thumbnail targets remain the existing stepped sizes; each image well uses `ObjectFit::Contain` so photographs are never cropped. The layout reserves 208px for browser control chrome and 112px for each row's metadata, including filename, time, size, import status, and bundle disclosure.
+The browser uses a reflowing contact sheet with 16px grid gaps and 16px content gutters. Thumbnail targets remain the existing stepped sizes; each image well uses `ObjectFit::Contain` so photographs are never cropped. The layout reserves 208px for browser control chrome and 104px for media metadata; the resulting media row chrome is 122px (104px details + 16px grid gap + 2px borders). A grouped gallery heading contributes 44px (36px control height + 8px control gap).
 
 The footer keeps selection totals and “Preview import” together. It remains present while status messages change, so the review action has a stable location.
+
+Every page uses 16px header/footer gutters. Settings fields use 16px group separation, with an 8px section margin plus the parent 16px rhythm for a 24px section step; headings end 4px before their content. Hidden sidebar actions are removed from layout so unavailable actions leave no phantom gap. Scrollbars reserve a 16px gutter with a 4px inset.
 
 ## Elevation & Depth
 
@@ -153,19 +159,19 @@ CapturePort is flat by default. Depth comes from tonal surface changes and 1px b
 
 ## Shapes
 
-The system uses a 4px radius for buttons, filters, navigation rows, fields, cards, and media tiles. Image overlays use the same compact radius. Borders are 1px and palette-derived. Secondary buttons are outlined, with a 34px minimum height; primary buttons use the scheme’s filled primary surface at the same minimum height.
+The system uses a 4px radius for buttons, filters, navigation rows, fields, cards, and media tiles. Image overlays use the same compact radius. Borders are 1px and palette-derived. Buttons, navigation rows, and filters use a 36px minimum height with 16px horizontal and 4px vertical padding. Inputs use a 34px inner height plus 2px of borders for a 36px outer control.
 
 ## Components
 
 ### Buttons
 
-- **Primary:** filled scheme primary, contrasting text, 34px minimum height, 4px radius, and 16px horizontal padding.
-- **Secondary:** outlined card/panel surface, 1px scheme border, 34px minimum height, 4px radius, and 12px horizontal padding.
+- **Primary:** filled scheme primary, contrasting text, 36px minimum height, 4px radius, and 16px horizontal/4px vertical padding.
+- **Secondary:** outlined card/panel surface, 1px scheme border, 36px minimum height, 4px radius, and 16px horizontal/4px vertical padding.
 - **Hover / Focus:** hover changes the relevant scheme surface; focus uses the accent border. No shadow or glow.
 
 ### Filters and Navigation
 
-- Source navigation uses 34px rows and 4px radius. Filter chips use their content-sized `py_1`/`px_3` spacing and 4px radius.
+- Source navigation uses 36px rows with 16px horizontal/4px vertical padding. Compact filter chips use 36px rows with 8px horizontal/4px vertical padding and 4px radius.
 - Active filters are quiet: selected tone and text weight communicate state without a saturated filled chip.
 - Navigation remains text-first and the active row uses the selected surface.
 
@@ -174,6 +180,7 @@ The system uses a 4px radius for buttons, filters, navigation rows, fields, card
 - The tile is a flat, bordered 4px card with a contained image well and a placeholder while thumbnails load.
 - Type badge, file size, and explicit selection label sit over or beside the image without cropping it.
 - Metadata is separate: filename, time plus size, import status, then “View files” / “Hide files” for bundles.
+- The filename wrapper is explicitly full width before ellipsis truncation, so long source names remain stable in the grid.
 - Import status always uses icon plus text, including prior-session detail when available.
 
 ### Footer and Import Disclosure
@@ -185,7 +192,7 @@ The 52px footer presents item totals, selected totals, byte totals, status text,
 ### Do:
 
 - **Do** preserve all four schemes and both modes as complete source palettes.
-- **Do** keep the 48px header, 232/184px rail, 52px footer, and 4px/34px control language coherent.
+- **Do** keep the 48px header, 232/184px rail, 52px footer, and 4px/36px control language coherent.
 - **Do** use Adwaita Sans for every surface and keep the OFL asset with its license.
 - **Do** keep thumbnails contained and expose file size, import status, and bundle disclosure as separate metadata.
 - **Do** label selection explicitly and keep color from carrying status by itself.

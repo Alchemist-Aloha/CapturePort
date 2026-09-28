@@ -2,6 +2,7 @@ mod logging;
 mod paths;
 mod scan;
 mod scrollbar;
+mod spacing;
 mod template_help;
 mod text_input;
 
@@ -1993,10 +1994,12 @@ fn button(
     div()
         .id(label.clone())
         .cursor_pointer()
+        .flex()
+        .items_center()
         .rounded_sm()
-        .px_3()
-        .py_1()
-        .min_h(px(34.))
+        .px(px(spacing::CONTENT))
+        .py(px(spacing::TIGHT))
+        .min_h(px(spacing::CONTROL_HEIGHT))
         .flex_shrink_0()
         .text_sm()
         .border_1()
@@ -2014,10 +2017,13 @@ fn chip(
 ) -> impl IntoElement {
     let chip = div()
         .id(label)
+        .min_h(px(spacing::CONTROL_HEIGHT))
         .cursor_pointer()
+        .flex()
+        .items_center()
         .rounded_sm()
-        .px_3()
-        .py_1()
+        .px(px(spacing::CONTROL_GAP))
+        .py(px(spacing::TIGHT))
         .text_sm()
         .font_weight(if active {
             gpui::FontWeight::SEMIBOLD

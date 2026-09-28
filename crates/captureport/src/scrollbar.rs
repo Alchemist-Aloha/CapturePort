@@ -5,8 +5,8 @@ use gpui::{
 };
 use std::{cell::Cell, rc::Rc};
 
-const GUTTER: f32 = 14.;
-const INSET: f32 = 3.;
+const GUTTER: f32 = crate::spacing::SCROLLBAR_GUTTER;
+const INSET: f32 = crate::spacing::TIGHT;
 const MIN_THUMB: f32 = 28.;
 
 #[derive(Default)]
@@ -222,10 +222,10 @@ mod tests {
 
     #[test]
     fn thumb_tracks_scroll_range_and_drag_reaches_both_ends() {
-        let top = Geometry::new(206., 200., 800., 0.).unwrap();
+        let top = Geometry::new(208., 200., 800., 0.).unwrap();
         assert_eq!(top.thumb_height, 40.);
         assert_eq!(top.thumb_top, 0.);
-        let middle = Geometry::new(206., 200., 800., -400.).unwrap();
+        let middle = Geometry::new(208., 200., 800., -400.).unwrap();
         assert_eq!(middle.thumb_top, 80.);
         assert_eq!(middle.offset_at(middle.thumb_top), -400.);
         assert_eq!(middle.offset_at(-100.), 0.);
@@ -234,11 +234,11 @@ mod tests {
 
     #[test]
     fn no_overflow_and_tiny_viewports_have_safe_geometry() {
-        assert!(Geometry::new(206., 200., 0., 0.).is_none());
+        assert!(Geometry::new(208., 200., 0., 0.).is_none());
         assert!(Geometry::new(0., 0., 100., 0.).is_none());
-        let large = Geometry::new(206., 200., 100_000., 0.).unwrap();
+        let large = Geometry::new(208., 200., 100_000., 0.).unwrap();
         assert_eq!(large.thumb_height, MIN_THUMB);
-        let tiny = Geometry::new(16., 10., 100., 0.).unwrap();
+        let tiny = Geometry::new(18., 10., 100., 0.).unwrap();
         assert_eq!(tiny.thumb_height, 10.);
         assert_eq!(tiny.offset_at(100.), 0.);
     }

@@ -2281,6 +2281,15 @@ window width. Interactive controls use a 4-pixel radius; settings forms keep a
 readable maximum width. Existing shortcuts, source actions, planning, copying,
 verification, and recovery behavior are unchanged by the visual treatment.
 
+Spacing uses shared logical-pixel roles: 4 for tight detail groups, 8 for
+adjacent controls, 16 for content gutters and media gaps, and 24 between
+sections. Buttons, source rows, filter tabs, and text fields have a 36-pixel
+minimum height. Buttons and fields use 16-pixel horizontal padding; compact
+filter tabs use 8. Header, sidebar, content, and footer gutters align at 16
+pixels. Unavailable actions do not leave empty gaps. Media metadata and gallery
+headings reserve consistent space in the virtualized row geometry, and the
+column calculation accounts for both media gaps and the scrollbar gutter.
+
 Every vertically scrollable surface shows a palette-matched scrollbar at its
 right edge when content exceeds the viewport: the Sources sidebar, media grid,
 expanded media group, import preview, history, recovery, settings, and timezone
