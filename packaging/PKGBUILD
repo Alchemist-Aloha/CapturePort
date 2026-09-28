@@ -1,11 +1,11 @@
 # Maintainer: CapturePort contributors
 pkgname=captureport
-pkgver=0.1.0
+pkgver=${CAPTUREPORT_VERSION:-0.1.0}
 pkgrel=1
 pkgdesc='Linux photo and video ingest application'
 arch=('x86_64' 'aarch64')
 license=('MIT')
-depends=('glib2' 'gtk3' 'libxkbcommon' 'wayland' 'libgphoto2' 'libxcb')
+depends=('glib2' 'gtk3' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'libgphoto2' 'libxcb' 'fontconfig' 'freetype2' 'vulkan-icd-loader')
 makedepends=('cargo' 'rust')
 options=(!lto)
 source=()

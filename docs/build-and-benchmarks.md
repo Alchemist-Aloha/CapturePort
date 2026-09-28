@@ -9,13 +9,40 @@ and libgphoto2_port development files.
 Run `cd packaging && makepkg` from a repository checkout to build the Arch
 package. The PKGBUILD disables makepkg's C LTO option so bundled SQLite links
 correctly. `scripts/build-deb.sh` builds a Debian package on a Debian host with
-`dpkg-deb` and `dpkg-shlibdeps` installed. `scripts/build-portable.sh` creates
+`dpkg-deb` and `dpkg-shlibdeps` installed. `scripts/build-rpm.sh` builds an RPM
+on a Fedora host with `rpmbuild` (`rpm-build`) installed, retaining RPM's
+automatic shared-library dependency detection. `scripts/build-portable.sh` creates
 a relocatable tarball with the binary, launcher, license, and README. The
 portable archive still needs the host graphics and libgphoto2 libraries.
 
 Package scripts print their artifact paths. Set `CAPTUREPORT_VERSION` and
 `CAPTUREPORT_OUTPUT_DIR` to change the version and output directory. Packages
 must be built on the target architecture.
+
+### GitHub Actions builds
+
+The **Linux packages** workflow runs on every branch push and every tag push,
+and can also be started manually. Its three x86_64 jobs build on Ubuntu 24.04,
+Arch Linux, and Fedora respectively. Download the artifacts from the workflow
+run's **Artifacts** section:
+
+- `captureport-debian-x86_64-<version>`: Linux executable,
+  portable `.tar.gz`, and `.deb`;
+- `captureport-arch-x86_64-<version>`: pacman `.pkg.tar.zst`;
+- `captureport-fedora-x86_64-<version>`: `.rpm`.
+
+Each artifact includes `SHA256SUMS` and is retained for 30 days. Numeric release
+tags such as `v0.2.0` use the tag version; prerelease/build separators are
+normalized to dots for package manager compatibility. Branch builds and other
+tag names use `<crate-version>.dev.<run-number>.<short-commit>`.
+Artifacts are uploaded to the workflow run; the workflow does not create a
+GitHub Release.
+
+The standalone executable is built on Ubuntu 24.04 and requires compatible
+host graphics and libgphoto2 libraries. After extracting the Actions artifact,
+run `chmod +x captureport-linux-x86_64` before using that executable. The portable
+tarball preserves executable permissions. These builds do not bundle system
+libraries or validate a compositor or physical camera.
 
 ## Synthetic benchmark
 

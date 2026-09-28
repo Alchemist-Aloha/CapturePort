@@ -1253,7 +1253,7 @@ Suggested layout:
 ┌─────────────────────────────────────────────────────────────┐
 │ Sony A7C II                               438 items · 36 GB │
 ├─────────────────────────────────┬───────────────────────────┤
-│                                 │ Import settings           │
+│                                 │ Settings                  │
 │  [✓] thumbnail   DSC02341       │                           │
 │  [✓] thumbnail   DSC02342       │ Preset: Everyday       ▾ │
 │  [ ] thumbnail   DSC02343 ✓     │                           │
@@ -2172,9 +2172,16 @@ thumbnail loads; video and still formats are clearly distinguished.
 A five-step slider in the browser changes the preferred thumbnail size; the
 actual displayed size adjusts to fit the window. Long filenames are truncated
 in the grid while sidebar action labels remain fully visible. A header
-toggle switches between light and dark appearance across all views. Both
-appearance and thumbnail size are saved separately from import presets in the
-XDG configuration directory.
+toggle switches between light and dark appearance across all views, and the
+Settings screen repeats that choice in its Appearance section. Four color
+schemes are available: Pine, Darkroom, Graphite, and Ink. Each defines a
+complete light and a complete dark palette, so the scheme and the light/dark
+mode are independent choices. The active scheme drives every visual surface,
+including the header, primary buttons, and secondary button tints. Scheme, mode,
+and thumbnail size are saved separately from import presets in `ui.json` under
+the XDG configuration directory. Pine is the default for a fresh configuration,
+and a `ui.json` written before color schemes existed keeps its saved mode and
+thumbnail size while using Pine.
 Editable text fields in import settings and gallery names use the active light
 or dark palette for their surface, text, border, selection, and focus state.
 
@@ -2184,3 +2191,17 @@ The browser footer shows the selected count and size with a Preview import actio
 Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. The screen exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. A blank pair of backup roots disables backup. Camera/card aliases are stored in the catalog and shown when the device reconnects.
 
 Recovery, history, reconciliation, thumbnail-cache clearing, and post-import source deletion are separate actions. Recovery cleanup only offers CapturePort-owned partial files. Source deletion requires a second explicit confirmation after a verified filesystem import and compares the source's full content hash with every planned destination before removing it.
+
+---
+
+# 65. Linux Build Distribution
+
+Every GitHub branch push and tag push produces downloadable x86_64 Linux build
+artifacts: a release executable, a portable archive, a Debian package, an Arch
+pacman package, and an RPM package. Distribution packages are built on their
+respective distro environments and declare runtime system dependencies;
+portable builds also require compatible host graphics and libgphoto2 libraries.
+Workflow artifacts include SHA-256 checksums and are retained for 30 days.
+Numeric release tags supply package versions; other builds carry the crate
+version, workflow run number, and commit identifier. The workflow supports
+manual runs and uploads artifacts without creating a GitHub Release.

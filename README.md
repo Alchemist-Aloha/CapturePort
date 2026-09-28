@@ -30,5 +30,9 @@ Deterministic UI fixtures are available with `--demo empty`, `--demo camera`,
 `--demo importing`, `--demo errors`, and `--demo 10000`. Packaging and
 benchmark commands are described in [docs/build-and-benchmarks.md](docs/build-and-benchmarks.md).
 
+Every branch and tag push builds x86_64 Linux binaries, portable archives, and
+Debian, pacman, and RPM packages in the **Linux packages** GitHub Actions workflow.
+Download them from the workflow run's **Artifacts** section.
+
 The implementation contract is [docs/spec.md](docs/spec.md); the staged build
 plan is [docs/plan.md](docs/plan.md).

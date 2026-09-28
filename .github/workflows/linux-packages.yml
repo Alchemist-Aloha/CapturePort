@@ -1,0 +1,122 @@
+name: Linux packages
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.distro }} x86_64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian
+            image: ubuntu:24.04
+          - distro: arch
+            image: archlinux:base-devel
+          - distro: fedora
+            image: fedora:latest
+    container:
+      image: ${{ matrix.image }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Install Ubuntu build dependencies
+        if: matrix.distro == 'debian'
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential ca-certificates curl git cmake clang pkg-config dpkg-dev \
+            libx11-dev libxcb1-dev libxcb-xkb-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev libfontconfig1-dev libfreetype6-dev libvulkan-dev \
+            libasound2-dev libssl-dev libgtk-3-dev libgphoto2-dev
+
+      - name: Install Arch build dependencies
+        if: matrix.distro == 'arch'
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel ca-certificates curl git rust cargo cmake clang pkgconf \
+            libx11 libxcb libxkbcommon libxkbcommon-x11 wayland fontconfig \
+            freetype2 vulkan-headers vulkan-icd-loader alsa-lib openssl gtk3 libgphoto2
+
+      - name: Install Fedora build dependencies
+        if: matrix.distro == 'fedora'
+        run: |
+          dnf install -y \
+            gcc gcc-c++ make ca-certificates curl-minimal git cmake clang perl \
+            pkgconf-pkg-config rpm-build \
+            libX11-devel libxcb-devel libxkbcommon-devel libxkbcommon-x11-devel \
+            wayland-devel fontconfig-devel freetype-devel vulkan-loader-devel \
+            alsa-lib-devel openssl-devel gtk3-devel libgphoto2-devel
+
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.distro != 'arch'
+
+      - name: Set package version
+        run: |
+          base_version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' crates/captureport/Cargo.toml | head -n1)
+          version="${base_version}.dev.${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:7}"
+          # Normalize numeric release tags for all three package managers.
+          # Other tag names still build, using the unique development version.
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?)$ ]]; then
+            version=${BASH_REMATCH[1]//-/\.}
+            version=${version//+/\.}
+          fi
+          echo "CAPTUREPORT_VERSION=$version" >> "$GITHUB_ENV"
+          echo "CAPTUREPORT_OUTPUT_DIR=$GITHUB_WORKSPACE/dist" >> "$GITHUB_ENV"
+
+      - name: Build Linux binary, portable archive, and Debian package
+        if: matrix.distro == 'debian'
+        run: |
+          scripts/build-portable.sh
+          scripts/build-deb.sh
+          install -Dm755 target/release/captureport dist/captureport-linux-x86_64
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb
+
+      - name: Build pacman package as an unprivileged user
+        if: matrix.distro == 'arch'
+        run: |
+          useradd --create-home builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          runuser -u builder -- env \
+            CAPTUREPORT_VERSION="$CAPTUREPORT_VERSION" \
+            PKGDEST="$CAPTUREPORT_OUTPUT_DIR" \
+            bash -c 'mkdir -p "$PKGDEST"; cd packaging; makepkg --noconfirm'
+          pacman -Qip dist/*.pkg.tar.zst
+          pacman -Qlp dist/*.pkg.tar.zst
+
+      - name: Build RPM package
+        if: matrix.distro == 'fedora'
+        run: |
+          scripts/build-rpm.sh
+          rpm -qip dist/*.rpm
+          rpm -qlp dist/*.rpm
+          rpm -qp --requires dist/*.rpm
+
+      - name: Calculate checksums
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: captureport-${{ matrix.distro }}-x86_64-${{ env.CAPTUREPORT_VERSION }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
