@@ -44,3 +44,13 @@ A photographer connects a camera or card, or opens a source folder; reviews disc
 2. Keep originals safe and make incomplete work unmistakable.
 3. Treat the filesystem as the lasting library and the database as supporting state.
 4. Keep the routine import path fast, clear, and keyboard accessible.
+
+## Accessibility & Inclusion
+
+Important state is never communicated by color alone. Import status requires an icon and text, with color only as an optional reinforcement:
+
+```text
+✓ Imported
+! Possible duplicate
+● New
+```

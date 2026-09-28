@@ -259,12 +259,14 @@ fn format_file_time_compact(seconds: u64, offset: Option<i32>) -> String {
 #[serde(default)]
 struct UiPreferences {
     dark_mode: bool,
+    scheme: ColorScheme,
     thumbnail_size: u8,
 }
 impl Default for UiPreferences {
     fn default() -> Self {
         Self {
             dark_mode: false,
+            scheme: ColorScheme::default(),
             thumbnail_size: 2,
         }
     }
@@ -764,6 +766,13 @@ impl Browser {
         self.ui.dark_mode = !self.ui.dark_mode;
         self.save_ui();
         cx.notify();
+    }
+    fn set_scheme(&mut self, scheme: ColorScheme, cx: &mut Context<Self>) {
+        if self.ui.scheme != scheme {
+            self.ui.scheme = scheme;
+            self.save_ui();
+            cx.notify();
+        }
     }
     fn drain(&mut self, cx: &mut Context<Self>) {
         let mut changed = false;
@@ -1805,6 +1814,7 @@ include!("render.rs");
 
 fn button(
     label: impl Into<gpui::SharedString>,
+    palette: Palette,
     handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     let label = label.into();
@@ -1818,15 +1828,16 @@ fn button(
         .flex_shrink_0()
         .text_sm()
         .border_1()
-        .border_color(gpui::rgba(0x57856d66))
-        .bg(gpui::rgba(0x50836b22))
-        .hover(|style| style.bg(gpui::rgba(0x50836b44)))
+        .border_color(palette.ghost_border)
+        .bg(palette.ghost_bg)
+        .hover(move |style| style.bg(palette.ghost_hover))
         .on_click(handler)
         .child(label)
 }
 fn chip(
     label: &'static str,
     active: bool,
+    palette: Palette,
     handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     let chip = div()
@@ -1837,21 +1848,21 @@ fn chip(
         .py_1()
         .text_sm()
         .bg(if active {
-            rgb(0x247c66)
+            palette.primary_bg
         } else {
-            gpui::rgba(0x50836b22)
+            palette.ghost_bg
         })
         .hover(move |style| {
             style.bg(if active {
-                rgb(0x195d4c)
+                palette.primary_hover
             } else {
-                gpui::rgba(0x50836b55)
+                palette.ghost_hover
             })
         })
         .on_click(handler)
         .child(label);
     if active {
-        chip.text_color(rgb(0xffffff))
+        chip.text_color(palette.primary_text)
     } else {
         chip
     }
