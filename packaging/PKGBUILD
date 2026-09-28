@@ -4,7 +4,7 @@ pkgver=${CAPTUREPORT_VERSION:-0.1.0}
 pkgrel=1
 pkgdesc='Linux photo and video ingest application'
 arch=('x86_64' 'aarch64')
-license=('MIT')
+license=('MIT' 'OFL-1.1')
 depends=('glib2' 'gtk3' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'libgphoto2' 'libxcb' 'fontconfig' 'freetype2' 'vulkan-icd-loader')
 makedepends=('cargo' 'rust')
 options=(!lto)
@@ -19,6 +19,8 @@ build() {
 package() {
   install -Dm755 "$startdir/../target/release/captureport" "$pkgdir/usr/bin/captureport"
   install -Dm644 "$startdir/../LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$startdir/../crates/captureport/assets/fonts/OFL.txt" \
+    "$pkgdir/usr/share/licenses/$pkgname/OFL.txt"
   install -Dm644 "$startdir/captureport.desktop" \
     "$pkgdir/usr/share/applications/captureport.desktop"
 }

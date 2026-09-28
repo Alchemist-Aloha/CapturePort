@@ -2254,8 +2254,12 @@ The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 mi
 The thumbnail grid adapts its column count to the available window width and
 keeps image previews and labels within their tiles. Card image height also
 shrinks with shorter windows, leaving room for the card's filename and status.
-Every card keeps a visible media-type badge beside its size even after its
-thumbnail loads; video and still formats are clearly distinguished.
+Every card keeps a visible media-type badge after its thumbnail loads; video
+and still formats are clearly distinguished. File size appears alongside the
+timestamp beneath the image. Image previews preserve the complete frame inside
+a neutral well. Selected and partly selected captures have explicit text labels
+in addition to the selection border. Import status remains visible on bundled
+captures, with a separate disclosure for their member files.
 A five-step slider in the browser changes the preferred thumbnail size; the
 actual displayed size adjusts to fit the window. Long filenames are truncated
 in the grid while sidebar action labels remain fully visible. A header
@@ -2264,11 +2268,19 @@ Settings screen repeats that choice in its Appearance section. Four color
 schemes are available: Pine, Darkroom, Graphite, and Ink. Each defines a
 complete light and a complete dark palette, so the scheme and the light/dark
 mode are independent choices. The active scheme drives every visual surface,
-including the header, primary buttons, and secondary button tints. Scheme, mode,
+including the neutral header, primary buttons, and secondary button surfaces. Scheme, mode,
 and thumbnail size are saved separately from import presets in `ui.json` under
 the XDG configuration directory. Pine is the default for a fresh configuration,
 and a `ui.json` written before color schemes existed keeps its saved mode and
 thumbnail size while using Pine.
+The desktop interface uses bundled Adwaita Sans for consistent typography across
+Linux installations. A compact 48-pixel neutral header, outlined secondary
+buttons, quiet filter tabs, and a 52-pixel selection footer keep the media grid
+central. The sidebar is 232 pixels wide, reducing to 184 pixels below a 760-pixel
+window width. Interactive controls use a 4-pixel radius; settings forms keep a
+readable maximum width. Existing shortcuts, source actions, planning, copying,
+verification, and recovery behavior are unchanged by the visual treatment.
+
 Every vertically scrollable surface shows a palette-matched scrollbar at its
 right edge when content exceeds the viewport: the Sources sidebar, media grid,
 expanded media group, import preview, history, recovery, settings, and timezone

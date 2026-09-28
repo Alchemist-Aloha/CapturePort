@@ -42,6 +42,10 @@ CapturePort-owned partial files. It can build a new preview of remaining files
 from the reconnected source. Cleanup and post-import source deletion each
 require a separate explicit action.
 
+The desktop interface embeds Adwaita Sans; its SIL Open Font License ships
+with the application packages. Appearance offers Pine, Darkroom, Graphite, and
+Ink schemes in both light and dark mode.
+
 Deterministic UI fixtures are available with `--demo empty`, `--demo camera`,
 `--demo importing`, `--demo errors`, and `--demo 10000`. Packaging and
 benchmark commands are described in [docs/build-and-benchmarks.md](docs/build-and-benchmarks.md).

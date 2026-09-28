@@ -11,6 +11,7 @@ cd "$repo_root"
 cargo build --locked --release --package captureport
 install -Dm755 target/release/captureport "$stage/captureport/bin/captureport"
 install -Dm644 LICENSE "$stage/captureport/LICENSE"
+install -Dm644 crates/captureport/assets/fonts/OFL.txt "$stage/captureport/OFL.txt"
 install -Dm644 README.md "$stage/captureport/README.md"
 install -Dm755 /dev/stdin "$stage/captureport/run-captureport" <<'EOF'
 #!/usr/bin/env sh

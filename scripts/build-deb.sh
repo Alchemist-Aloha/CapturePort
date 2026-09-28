@@ -12,6 +12,8 @@ cd "$repo_root"
 cargo build --locked --release --package captureport
 install -Dm755 target/release/captureport "$package_root/usr/bin/captureport"
 install -Dm644 LICENSE "$package_root/usr/share/doc/captureport/copyright"
+install -Dm644 crates/captureport/assets/fonts/OFL.txt \
+  "$package_root/usr/share/doc/captureport/OFL.txt"
 install -Dm644 packaging/captureport.desktop \
   "$package_root/usr/share/applications/captureport.desktop"
 mkdir -p "$metadata_root/debian" "$package_root/DEBIAN"

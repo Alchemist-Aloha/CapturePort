@@ -1993,10 +1993,10 @@ fn button(
     div()
         .id(label.clone())
         .cursor_pointer()
-        .rounded_md()
+        .rounded_sm()
         .px_3()
-        .py_2()
-        .min_h(px(36.))
+        .py_1()
+        .min_h(px(34.))
         .flex_shrink_0()
         .text_sm()
         .border_1()
@@ -2015,18 +2015,23 @@ fn chip(
     let chip = div()
         .id(label)
         .cursor_pointer()
-        .rounded_md()
+        .rounded_sm()
         .px_3()
         .py_1()
         .text_sm()
-        .bg(if active {
-            palette.primary_bg
+        .font_weight(if active {
+            gpui::FontWeight::SEMIBOLD
         } else {
-            palette.ghost_bg
+            gpui::FontWeight::NORMAL
+        })
+        .bg(if active {
+            palette.selected
+        } else {
+            gpui::rgba(0)
         })
         .hover(move |style| {
             style.bg(if active {
-                palette.primary_hover
+                palette.selected
             } else {
                 palette.ghost_hover
             })
@@ -2034,7 +2039,7 @@ fn chip(
         .on_click(handler)
         .child(label);
     if active {
-        chip.text_color(palette.primary_text)
+        chip.text_color(palette.text)
     } else {
         chip
     }
@@ -2603,6 +2608,14 @@ fn main() {
     let demo_importing = args.get(1).is_some_and(|arg| arg == "--demo")
         && args.get(2).is_some_and(|arg| arg == "importing");
     Application::new().run(move |cx: &mut App| {
+        if let Err(error) =
+            cx.text_system()
+                .add_fonts(vec![std::borrow::Cow::Borrowed(include_bytes!(
+                    "../assets/fonts/AdwaitaSans-Regular.ttf"
+                ))])
+        {
+            tracing::warn!(%error, "Could not load bundled interface font");
+        }
         cx.bind_keys([
             KeyBinding::new("cmd-o", OpenFolder, None),
             KeyBinding::new("cmd-d", OpenDemo, None),

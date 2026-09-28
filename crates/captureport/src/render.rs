@@ -47,84 +47,84 @@ impl Palette {
     fn new(scheme: ColorScheme, dark: bool) -> Self {
         match (scheme, dark) {
             (ColorScheme::Pine, true) => Self {
-                canvas: rgb(0x0e1813), panel: rgb(0x15251d), card: rgb(0x213329),
-                border: rgb(0x3b5543), muted: rgb(0xb8cebd), placeholder: rgb(0x2b4033),
-                selected: rgb(0x29543a), accent: rgb(0xa5e0ae), danger: rgb(0x613b35),
-                text: rgb(0xf3f3e9),
-                header: rgb(0x193c34), header_text: rgb(0xffffff), header_muted: rgb(0xb9dfc9),
-                primary_bg: rgb(0xa5e0ae), primary_hover: rgb(0xa1e8bf), primary_text: rgb(0x0e1813),
-                ghost_bg: gpui::rgba(0x50836b22), ghost_hover: gpui::rgba(0x50836b44),
-                ghost_border: gpui::rgba(0x57856d66),
+                canvas: rgb(0x171a19), panel: rgb(0x202422), card: rgb(0x282d2a),
+                border: rgb(0x424a45), muted: rgb(0xaeb8b1), placeholder: rgb(0x303632),
+                selected: rgb(0x303e35), accent: rgb(0x9ccbad), danger: rgb(0x613b35),
+                text: rgb(0xe8ede9),
+                header: rgb(0x202422), header_text: rgb(0xe8ede9), header_muted: rgb(0xaeb8b1),
+                primary_bg: rgb(0x9ccbad), primary_hover: rgb(0xa1e8bf), primary_text: rgb(0x171a19),
+                ghost_bg: rgb(0x282d2a), ghost_hover: rgb(0x303632),
+                ghost_border: rgb(0x424a45),
             },
             (ColorScheme::Pine, false) => Self {
-                canvas: rgb(0xf7f7f2), panel: rgb(0xeff2e9), card: rgb(0xfffef9),
-                border: rgb(0xd3dfd2), muted: rgb(0x4d6355), placeholder: rgb(0xe5ede3),
-                selected: rgb(0xdcefdc), accent: rgb(0x276f51), danger: rgb(0xf5e3dc),
-                text: rgb(0x1d2f24),
-                header: rgb(0x193c34), header_text: rgb(0xffffff), header_muted: rgb(0xb9dfc9),
+                canvas: rgb(0xfafbf9), panel: rgb(0xf0f2ef), card: rgb(0xffffff),
+                border: rgb(0xd2d8d2), muted: rgb(0x58625b), placeholder: rgb(0xe8ece7),
+                selected: rgb(0xe1eae1), accent: rgb(0x276f51), danger: rgb(0xf5e3dc),
+                text: rgb(0x242b26),
+                header: rgb(0xf0f2ef), header_text: rgb(0x242b26), header_muted: rgb(0x58625b),
                 primary_bg: rgb(0x247c66), primary_hover: rgb(0x195d4c), primary_text: rgb(0xffffff),
-                ghost_bg: gpui::rgba(0x50836b22), ghost_hover: gpui::rgba(0x50836b44),
-                ghost_border: gpui::rgba(0x57856d66),
+                ghost_bg: rgb(0xffffff), ghost_hover: rgb(0xe8ece7),
+                ghost_border: rgb(0xd2d8d2),
             },
             (ColorScheme::Darkroom, true) => Self {
-                canvas: rgb(0x1a1512), panel: rgb(0x241d18), card: rgb(0x2f261f),
-                border: rgb(0x4d4034), muted: rgb(0xcbb9a4), placeholder: rgb(0x3a2f26),
-                selected: rgb(0x46382a), accent: rgb(0xe8b06a), danger: rgb(0x6b3630),
+                canvas: rgb(0x1c1a18), panel: rgb(0x25221f), card: rgb(0x2f2b26),
+                border: rgb(0x4b443c), muted: rgb(0xbfb3a5), placeholder: rgb(0x37322c),
+                selected: rgb(0x42392e), accent: rgb(0xe8b06a), danger: rgb(0x6b3630),
                 text: rgb(0xf2ece2),
-                header: rgb(0x3a2a1e), header_text: rgb(0xfff9f0), header_muted: rgb(0xe0c9a6),
-                primary_bg: rgb(0xe8b06a), primary_hover: rgb(0xf0c489), primary_text: rgb(0x1a1512),
-                ghost_bg: gpui::rgba(0x8a6a3f22), ghost_hover: gpui::rgba(0x8a6a3f44),
-                ghost_border: gpui::rgba(0x8a6a3f66),
+                header: rgb(0x25221f), header_text: rgb(0xf2ece2), header_muted: rgb(0xbfb3a5),
+                primary_bg: rgb(0xe8b06a), primary_hover: rgb(0xf0c489), primary_text: rgb(0x1c1a18),
+                ghost_bg: rgb(0x2f2b26), ghost_hover: rgb(0x37322c),
+                ghost_border: rgb(0x4b443c),
             },
             (ColorScheme::Darkroom, false) => Self {
-                canvas: rgb(0xfaf6ef), panel: rgb(0xf3ece0), card: rgb(0xfffdf8),
-                border: rgb(0xe0d3c0), muted: rgb(0x66574a), placeholder: rgb(0xefe6d8),
-                selected: rgb(0xf0e2c9), accent: rgb(0xa4653a), danger: rgb(0xf7e6da),
+                canvas: rgb(0xfaf9f6), panel: rgb(0xf1eee8), card: rgb(0xfffefa),
+                border: rgb(0xd9d3c8), muted: rgb(0x655e53), placeholder: rgb(0xeae6de),
+                selected: rgb(0xeee4d6), accent: rgb(0xa4653a), danger: rgb(0xf7e6da),
                 text: rgb(0x2b2119),
-                header: rgb(0x4a3320), header_text: rgb(0xfff9f0), header_muted: rgb(0xdcc4a2),
-                primary_bg: rgb(0xa4653a), primary_hover: rgb(0x8a4f2b), primary_text: rgb(0xfffdf8),
-                ghost_bg: gpui::rgba(0x8a6a3f22), ghost_hover: gpui::rgba(0x8a6a3f3d),
-                ghost_border: gpui::rgba(0x8a6a3f55),
+                header: rgb(0xf1eee8), header_text: rgb(0x2b2119), header_muted: rgb(0x655e53),
+                primary_bg: rgb(0xa4653a), primary_hover: rgb(0x8a4f2b), primary_text: rgb(0xfffefa),
+                ghost_bg: rgb(0xfffefa), ghost_hover: rgb(0xeae6de),
+                ghost_border: rgb(0xd9d3c8),
             },
             (ColorScheme::Graphite, true) => Self {
-                canvas: rgb(0x131519), panel: rgb(0x1b1e23), card: rgb(0x262a30),
-                border: rgb(0x3d434b), muted: rgb(0xb9c0c9), placeholder: rgb(0x2d323a),
-                selected: rgb(0x38404a), accent: rgb(0x8fb4d9), danger: rgb(0x5e3835),
+                canvas: rgb(0x191b1e), panel: rgb(0x22252a), card: rgb(0x2b2e34),
+                border: rgb(0x464b53), muted: rgb(0xb4bbc5), placeholder: rgb(0x33373e),
+                selected: rgb(0x333d49), accent: rgb(0x8fb4d9), danger: rgb(0x5e3835),
                 text: rgb(0xf1f3f5),
-                header: rgb(0x20262e), header_text: rgb(0xffffff), header_muted: rgb(0xb6c3d1),
-                primary_bg: rgb(0x8fb4d9), primary_hover: rgb(0xa6c6e6), primary_text: rgb(0x131519),
-                ghost_bg: gpui::rgba(0x6f829622), ghost_hover: gpui::rgba(0x6f829644),
-                ghost_border: gpui::rgba(0x8598ac66),
+                header: rgb(0x22252a), header_text: rgb(0xf1f3f5), header_muted: rgb(0xb4bbc5),
+                primary_bg: rgb(0x8fb4d9), primary_hover: rgb(0xa6c6e6), primary_text: rgb(0x191b1e),
+                ghost_bg: rgb(0x2b2e34), ghost_hover: rgb(0x33373e),
+                ghost_border: rgb(0x464b53),
             },
             (ColorScheme::Graphite, false) => Self {
-                canvas: rgb(0xf6f7f9), panel: rgb(0xeef0f3), card: rgb(0xffffff),
-                border: rgb(0xd3d8de), muted: rgb(0x566068), placeholder: rgb(0xe6e9ee),
+                canvas: rgb(0xf9fafb), panel: rgb(0xf0f2f4), card: rgb(0xffffff),
+                border: rgb(0xd2d7de), muted: rgb(0x566068), placeholder: rgb(0xe6e9ee),
                 selected: rgb(0xdfe6ef), accent: rgb(0x2f5f8f), danger: rgb(0xf4e3e0),
                 text: rgb(0x1c2126),
-                header: rgb(0x27313d), header_text: rgb(0xffffff), header_muted: rgb(0xb8c4d2),
+                header: rgb(0xf0f2f4), header_text: rgb(0x1c2126), header_muted: rgb(0x566068),
                 primary_bg: rgb(0x2f5f8f), primary_hover: rgb(0x24496e), primary_text: rgb(0xffffff),
-                ghost_bg: gpui::rgba(0x6f829622), ghost_hover: gpui::rgba(0x6f829640),
-                ghost_border: gpui::rgba(0x8598ac55),
+                ghost_bg: rgb(0xffffff), ghost_hover: rgb(0xe6e9ee),
+                ghost_border: rgb(0xd2d7de),
             },
             (ColorScheme::Ink, true) => Self {
-                canvas: rgb(0x0f1420), panel: rgb(0x161c2a), card: rgb(0x1f2738),
-                border: rgb(0x36415a), muted: rgb(0xb6c0d6), placeholder: rgb(0x27314a),
-                selected: rgb(0x2c3a56), accent: rgb(0x86a6ff), danger: rgb(0x5c3630),
+                canvas: rgb(0x181b23), panel: rgb(0x222630), card: rgb(0x2b303d),
+                border: rgb(0x444d62), muted: rgb(0xb3bdd1), placeholder: rgb(0x323a4b),
+                selected: rgb(0x333e58), accent: rgb(0x86a6ff), danger: rgb(0x5c3630),
                 text: rgb(0xeef1f8),
-                header: rgb(0x101828), header_text: rgb(0xffffff), header_muted: rgb(0xaebbd6),
-                primary_bg: rgb(0x86a6ff), primary_hover: rgb(0xa3bcff), primary_text: rgb(0x0f1420),
-                ghost_bg: gpui::rgba(0x6b82c922), ghost_hover: gpui::rgba(0x6b82c944),
-                ghost_border: gpui::rgba(0x8b9fd166),
+                header: rgb(0x222630), header_text: rgb(0xeef1f8), header_muted: rgb(0xb3bdd1),
+                primary_bg: rgb(0x86a6ff), primary_hover: rgb(0xa3bcff), primary_text: rgb(0x181b23),
+                ghost_bg: rgb(0x2b303d), ghost_hover: rgb(0x323a4b),
+                ghost_border: rgb(0x444d62),
             },
             (ColorScheme::Ink, false) => Self {
-                canvas: rgb(0xfbfaf7), panel: rgb(0xf2f1ec), card: rgb(0xfffffe),
-                border: rgb(0xdcdcd2), muted: rgb(0x5a6272), placeholder: rgb(0xeae9e2),
+                canvas: rgb(0xfafafd), panel: rgb(0xf0f1f6), card: rgb(0xffffff),
+                border: rgb(0xd5d7e0), muted: rgb(0x5a6272), placeholder: rgb(0xe8eaf1),
                 selected: rgb(0xe3e6f2), accent: rgb(0x2b48b8), danger: rgb(0xf6e4df),
                 text: rgb(0x1a1e2b),
-                header: rgb(0x1c2a4a), header_text: rgb(0xffffff), header_muted: rgb(0xb4c0dc),
-                primary_bg: rgb(0x2b48b8), primary_hover: rgb(0x1f3691), primary_text: rgb(0xfffffe),
-                ghost_bg: gpui::rgba(0x6b82c922), ghost_hover: gpui::rgba(0x6b82c940),
-                ghost_border: gpui::rgba(0x8b9fd155),
+                header: rgb(0xf0f1f6), header_text: rgb(0x1a1e2b), header_muted: rgb(0x5a6272),
+                primary_bg: rgb(0x2b48b8), primary_hover: rgb(0x1f3691), primary_text: rgb(0xffffff),
+                ghost_bg: rgb(0xffffff), ghost_hover: rgb(0xe8eaf1),
+                ghost_border: rgb(0xd5d7e0),
             },
         }
     }
@@ -140,7 +140,7 @@ fn thumbnail_layout(window_width: f32, window_height: f32, sidebar_width: f32, s
     let columns = thumbnail_columns(available, target);
     let card_width = ((available - 12. * (columns - 1) as f32) / columns as f32).max(1.);
     let extra_chrome = if view_options { 86. } else { 0. } + if bundle_open { 240. } else { 0. };
-    let viewport_height = (window_height - 70. - 42. - 140. - 82. - extra_chrome).max(1.);
+    let viewport_height = (window_height - 48. - 52. - 208. - 112. - extra_chrome).max(1.);
     let image_height = (card_width - 2.).max(1.).min(target).min(viewport_height);
     (columns, image_height)
 }
@@ -384,12 +384,13 @@ impl Browser {
             .scrollbar_width(px(14.))
             .child(
                 div()
-                    .text_lg()
+                    .text_xs()
+                    .text_color(p.muted)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .flex_shrink_0()
                     .child("Sources"),
             )
-            .child(primary_button(
+            .child(button(
                 "Open folder…",
                 p,
                 cx.listener(|t, _, w, c| t.open_folder(&OpenFolder, w, c)),
@@ -424,7 +425,8 @@ impl Browser {
                     .p_2()
                     .min_h(px(34.))
                     .flex_shrink_0()
-                    .rounded_md()
+                    .rounded_sm()
+                    .border_1().border_color(p.border)
                     .bg(if self.state.source.as_ref().is_some_and(|source| source.stable_id.as_deref() == Some(discovered.stable_id())) { p.selected } else { p.card })
                     .hover(move |style| style.bg(p.selected))
                     .on_click(cx.listener(move |t, _, _, c| t.open_discovered(index, c)))
@@ -455,7 +457,8 @@ impl Browser {
             .child(
                 div()
                     .mt_5()
-                    .text_lg()
+                    .text_xs()
+                    .text_color(p.muted)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child("Workspace"),
             )
@@ -542,11 +545,11 @@ impl Browser {
             .and_then(|source| source.display_name.clone()))
             .unwrap_or_else(|| "No source open".into());
         div().flex_1().min_w_0().min_h_0().flex().flex_col()
-            .child(div().px_5().py_3().flex().flex_wrap().items_center().gap_2().border_b_1().border_color(p.border)
-                .child(div().mr_3().min_w_0().flex().flex_col()
-                    .child(div().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_name))
+            .child(div().px_5().pt_4().pb_2().flex().flex_col().gap_3().border_b_1().border_color(p.border)
+                .child(div().min_w_0().flex().items_baseline().justify_between().gap_3()
+                    .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_name))
                     .child(div().text_xs().text_color(p.muted).child(format!("{visible} captures in view · {} selected overall", self.state.selection_summary().count))))
-                .child(div().flex().flex_wrap().gap_2()
+                .child(div().flex().flex_wrap().gap_1()
                     .child(chip("All",self.state.filter==MediaFilter::All, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
                     .child(chip("Photos",self.state.filter==MediaFilter::Photos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
                     .child(chip("Videos",self.state.filter==MediaFilter::Videos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Videos,c))))
@@ -559,7 +562,7 @@ impl Browser {
                     .child(button("Select new", p, cx.listener(|t,_,w,c|t.select_new(&SelectAllNew,w,c))))
                     .child(button("Clear", p, cx.listener(|t,_,w,c|t.select_none(&SelectNone,w,c))))
                     .child(div().id("mark-selected-imported").min_h(px(36.))
-                        .px_3().py_2().rounded_md().text_sm().bg(p.card)
+                        .px_3().py_2().rounded_sm().text_sm().bg(p.card)
                         .text_color(if self.can_mark_selected_imported() { p.text } else { p.muted })
                         .when(self.can_mark_selected_imported(), |button| button.cursor_pointer()
                             .hover(move |style| style.bg(p.selected))
@@ -649,25 +652,28 @@ impl Browser {
                                 let time_label=t.thumbnail_modified.get(&id).copied().map(|seconds| format_file_time_compact(seconds,timezone)).unwrap_or_default();
                                 let picture = {
                                     let base = if let Some(path)=t.thumbnail_paths.get(&id) {
-                                        div().w_full().h(px(image_height)).overflow_hidden()
-                                            .child(img(path.clone()).size_full().object_fit(ObjectFit::Cover))
+                                        div().w_full().h(px(image_height)).bg(p.placeholder).overflow_hidden()
+                                            .child(img(path.clone()).size_full().object_fit(ObjectFit::Contain))
                                     } else {
                                         div().w_full().h(px(image_height)).bg(p.placeholder)
                                     };
-                                    div().id(("media-open", id.0)).w_full().cursor_pointer()
+                                    div().id(("media-open", id.0)).relative().w_full().cursor_pointer()
                                         .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .child(base)
                                         .child(div().absolute().top_1().right_1().px_1().rounded_sm()
                                             .bg(gpui::rgba(0x00000099)).text_color(rgb(0xffffff))
                                             .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
                                             .child(badge))
-                                        .child(div().absolute().bottom_1().left_1().px_1().rounded_sm()
-                                            .bg(gpui::rgba(0x00000099)).text_color(rgb(0xffffff))
-                                            .text_xs()
-                                            .child(size_label))
+                                        .child(if partly_selected {
+                                            div().absolute().top_1().left_1().px_2().py_1().rounded_sm()
+                                                .bg(p.card).text_color(p.text).text_xs()
+                                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                                .child(if selected { "Selected" } else { "Part selected" })
+                                                .into_any_element()
+                                        } else { div().into_any_element() })
                                         .into_any_element()
                                 };
-                                let metadata = div().w_full().px_2().py_1().min_w_0()
+                                let metadata = div().w_full().px_2().py_2().min_w_0()
                                     .child(div().id(("media-name", id.0)).min_w_0().cursor_pointer().rounded_sm()
                                         .on_click(cx.listener(move |t, _, _, c| {
                                             c.stop_propagation();
@@ -676,24 +682,26 @@ impl Browser {
                                         .hover(move |style| style.bg(p.selected))
                                         .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
                                             .truncate().child(item.source_name.clone())))
-                                    .child(div().text_xs().text_color(p.muted).truncate().child(time_label))
-                                    .child(div().id(("media-status", id.0)).text_xs().font_weight(gpui::FontWeight::SEMIBOLD).cursor_pointer()
+                                    .child(div().text_xs().text_color(p.muted).truncate().child(
+                                        if time_label.is_empty() { size_label } else { format!("{time_label} · {size_label}") }))
+                                    .child(div().id(("media-status", id.0)).truncate().text_xs().font_weight(gpui::FontWeight::SEMIBOLD).cursor_pointer()
                                         .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .text_color(if partly_selected { p.text } else { p.muted })
+                                        .child(import_status_line(item)))
+                                    .child(div().id(("media-disclosure", id.0)).text_xs().text_color(p.muted).cursor_pointer()
+                                        .on_click(cx.listener(move |t,_,_,c| t.toggle_bundle(id,c)))
                                         .child(if members.is_some() {
-                                            if expanded { "Hide files" } else { "View files" }.to_string()
-                                        } else {
-                                            import_status_line(item)
-                                        }));
+                                            if expanded { "Hide files" } else { "View files" }
+                                        } else { "" }));
                                 cards=cards.child(div().id(("media",id.0)).flex_1().min_w_0()
-                                    .overflow_hidden().rounded_md().border_1()
-                                    .border_color(if partly_selected || expanded {p.accent}else{p.border})
-                                    .bg(if selected{p.selected}else{p.card})
+                                    .overflow_hidden().rounded_sm().border_1()
+                                    .border_color(if partly_selected || expanded {p.accent}else{p.canvas})
+                                    .bg(if selected{p.selected}else{p.canvas})
                                     .child(picture).child(metadata));
                             }
                         } else { cards=cards.child(div().flex_1()); }
                     }
-                    let mut view=div().w_full().h(px(image_height + 82. + if grouped { 42. } else { 0. })).flex().flex_col().px_5().py_2();
+                    let mut view=div().w_full().h(px(image_height + 112. + if grouped { 42. } else { 0. })).flex().flex_col().px_5().py_2();
                     if grouped {
                         let heading = if let Some((key, title)) = header {
                             if t.gallery_edit_key.as_ref() == Some(key) {
@@ -892,7 +900,7 @@ impl Browser {
                         .into_any_element()
                 } else if blocked > 0 {
                     div().flex().items_center().gap_2()
-                        .child(div().px_3().py_2().rounded_md().bg(p.border).text_sm().text_color(p.muted).child("Import blocked"))
+                        .child(div().px_3().py_2().rounded_sm().bg(p.border).text_sm().text_color(p.muted).child("Import blocked"))
                         .child(button("Edit import settings", p,  cx.listener(|t, _, _, c| t.show_settings(c))))
                         .into_any_element()
                 } else { div().into_any_element() }))
@@ -908,7 +916,7 @@ impl Browser {
                             .justify_between()
                             .gap_3()
                             .p_3()
-                            .rounded_md()
+                            .rounded_sm()
                             .border_1()
                             .border_color(p.danger)
                             .child(
@@ -945,7 +953,7 @@ impl Browser {
                                             .cursor_pointer()
                                             .px_3()
                                             .py_2()
-                                            .rounded_md()
+                                            .rounded_sm()
                                             .bg(p.danger)
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
                                             .on_click(
@@ -1229,11 +1237,11 @@ impl Browser {
                 self.partial_files.len()
             )));
         if self.incomplete_sessions.is_empty() && self.partial_files.is_empty() {
-            panel = panel.child(div().mt_4().p_4().rounded_md().bg(p.card)
+            panel = panel.child(div().mt_4().p_4().rounded_sm().bg(p.card)
                 .child("Nothing needs recovery. Interrupted imports and incomplete files will appear here."));
         }
         for session in &self.incomplete_sessions {
-            panel = panel.child(div().p_3().bg(p.card).rounded_md().child(format!(
+            panel = panel.child(div().p_3().bg(p.card).rounded_sm().child(format!(
                 "Session {} · started {} · {} recorded copies",
                 session.session.id,
                 session.session.started_at,
@@ -1251,7 +1259,7 @@ impl Browser {
                 div()
                     .p_3()
                     .bg(p.card)
-                    .rounded_md()
+                    .rounded_sm()
                     .flex()
                     .items_center()
                     .justify_between()
@@ -1276,7 +1284,7 @@ impl Browser {
                                     .cursor_pointer()
                                     .px_3()
                                     .py_2()
-                                    .rounded_md()
+                                    .rounded_sm()
                                     .bg(p.danger)
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
                                     .on_click(
@@ -1304,6 +1312,7 @@ impl Browser {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let panel = div()
             .id("settings-panel")
+            .w_full().max_w(px(820.))
             .flex_1()
             .min_h_0()
             .min_w_0()
@@ -1444,7 +1453,7 @@ impl Browser {
                             .id("verification")
                             .cursor_pointer()
                             .p_2()
-                            .bg(p.card).rounded_md().border_1().border_color(p.border)
+                            .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
                             .child(format!("Verification: {:?}", self.preset.verification))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_verification(c))),
@@ -1454,7 +1463,7 @@ impl Browser {
                             .id("bundle-policy")
                             .cursor_pointer()
                             .p_2()
-                            .bg(p.card).rounded_md().border_1().border_color(p.border)
+                            .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
                             .child(format!("Bundles: {:?}", self.preset.bundle_policy))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_bundle_policy(c))),
@@ -1470,7 +1479,7 @@ impl Browser {
                             .id("grouping")
                             .cursor_pointer()
                             .p_2()
-                            .bg(p.card).rounded_md().border_1().border_color(p.border)
+                            .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
                             .child(format!("Grouping: {:?}", self.preset.grouping))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_grouping(c))),
@@ -1480,7 +1489,7 @@ impl Browser {
                             .id("collision")
                             .cursor_pointer()
                             .p_2()
-                            .bg(p.card).rounded_md().border_1().border_color(p.border)
+                            .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
                             .child(format!("Collision: {:?}", self.preset.collision))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_collision(c))),
@@ -1624,7 +1633,7 @@ impl Browser {
                     .id("backup-required")
                     .cursor_pointer()
                     .p_2()
-                    .bg(p.card).rounded_md().border_1().border_color(p.border)
+                    .bg(p.card).rounded_sm().border_1().border_color(p.border)
                     .hover(move |style| style.bg(p.selected))
                     .child(format!("Backup required: {}", self.backup_required_choice))
                     .on_click(cx.listener(|t, _, _, c| t.toggle_backup_required(c))),
@@ -1653,7 +1662,7 @@ fn timezone_choice(
         .cursor_pointer()
         .px_3()
         .py_2()
-        .rounded_md()
+        .rounded_sm()
         .text_sm()
         .bg(if active { palette.selected } else { palette.card })
         .hover(move |style| style.bg(palette.selected))
@@ -1662,8 +1671,8 @@ fn timezone_choice(
 }
 
 fn settings_section(label: &'static str, palette: Palette) -> impl IntoElement {
-    div().mt_5().pb_1().border_b_1().border_color(palette.border)
-        .text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child(label)
+    div().mt_6().pb_2().border_b_1().border_color(palette.border)
+        .text_base().font_weight(gpui::FontWeight::SEMIBOLD).child(label)
 }
 fn settings_field(
     label: &'static str,
@@ -1735,7 +1744,7 @@ fn settings_template_field(
             let target = input.clone();
             let syntax = token.syntax;
             reference = reference.child(div().flex().flex_wrap().items_center().gap_2()
-                .child(div().id((label, index)).cursor_pointer().rounded_md()
+                .child(div().id((label, index)).cursor_pointer().rounded_sm()
                     .px_2().py_1().border_1().border_color(p.border).bg(p.card)
                     .text_sm().hover(move |style| style.bg(p.selected))
                     .on_click(cx.listener(move |_, _, window, cx| {
@@ -1764,7 +1773,7 @@ fn themed_input(
         .border_1()
         .border_color(palette.border)
         .focus(move |style| style.border_color(palette.accent))
-        .rounded_md()
+        .rounded_sm()
         .overflow_hidden()
         .bg(palette.card)
         .text_color(palette.text)
@@ -1780,10 +1789,10 @@ fn sidebar_nav(
 ) -> impl IntoElement {
     div()
         .id(label)
-        .min_h(px(36.))
+        .min_h(px(34.))
         .px_3()
-        .py_2()
-        .rounded_md()
+        .py_1()
+        .rounded_sm()
         .cursor_pointer()
         .text_sm()
         .font_weight(if active { gpui::FontWeight::SEMIBOLD } else { gpui::FontWeight::NORMAL })
@@ -1800,10 +1809,10 @@ fn primary_button(
 ) -> impl IntoElement {
     div()
         .id(label)
-        .min_h(px(38.))
+        .min_h(px(34.))
         .px_4()
-        .py_2()
-        .rounded_md()
+        .py_1()
+        .rounded_sm()
         .cursor_pointer()
         .text_sm()
         .font_weight(gpui::FontWeight::SEMIBOLD)
@@ -1817,7 +1826,7 @@ fn primary_button(
 impl Render for Browser {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
-        let sidebar_width = if f32::from(window.bounds().size.width) < 760. { 200. } else { 238. };
+        let sidebar_width = if f32::from(window.bounds().size.width) < 760. { 184. } else { 232. };
         let summary = self.state.selection_summary();
         let status = self.message.clone().unwrap_or_else(|| {
             if self.importing {
@@ -1852,6 +1861,8 @@ impl Render for Browser {
             .flex()
             .flex_col()
             .bg(p.canvas)
+            .font_family("Adwaita Sans")
+            .text_size(px(14.))
             .text_color(p.text)
             .track_focus(&self.focus_handle(cx))
             .on_action(cx.listener(Self::open_folder))
@@ -1869,7 +1880,7 @@ impl Render for Browser {
             .on_action(cx.listener(Self::discover_sources))
             .child(
                 div()
-                    .h(px(70.))
+                    .h(px(48.)).flex_shrink_0().border_b_1().border_color(p.border)
                     .px_6()
                     .flex()
                     .items_center()
@@ -1878,8 +1889,8 @@ impl Render for Browser {
                     .text_color(p.header_text)
                     .child(
                         div()
-                            .flex().flex_col()
-                            .child(div().text_xl().font_weight(gpui::FontWeight::BOLD).child("CapturePort"))
+                            .flex().items_baseline().gap_4()
+                            .child(div().text_base().font_weight(gpui::FontWeight::SEMIBOLD).child("CapturePort"))
                             .child(div().text_xs().text_color(p.header_muted).child("Photo and video ingest")),
                     )
                     .child(button(
@@ -1897,7 +1908,7 @@ impl Render for Browser {
             )
             .child(
                 div()
-                    .min_h(px(42.))
+                    .min_h(px(52.)).flex_shrink_0()
                     .px_5()
                     .flex()
                     .items_center()
