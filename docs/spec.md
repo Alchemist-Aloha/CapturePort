@@ -2269,6 +2269,13 @@ and thumbnail size are saved separately from import presets in `ui.json` under
 the XDG configuration directory. Pine is the default for a fresh configuration,
 and a `ui.json` written before color schemes existed keeps its saved mode and
 thumbnail size while using Pine.
+Every vertically scrollable surface shows a palette-matched scrollbar at its
+right edge when content exceeds the viewport: the Sources sidebar, media grid,
+expanded media group, import preview, history, recovery, settings, and timezone
+menu. The thumb reflects the visible fraction and current position. Users can
+drag it or click the track to navigate; wheel scrolling remains available.
+Scrollbar space is reserved so controls and media are not covered by the thumb.
+
 Editable text fields in import settings and gallery names use the active light
 or dark palette for their surface, text, border, selection, and focus state.
 

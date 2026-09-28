@@ -1,6 +1,7 @@
 mod logging;
 mod paths;
 mod scan;
+mod scrollbar;
 mod template_help;
 mod text_input;
 
@@ -506,6 +507,7 @@ impl SettingsInputs {
 }
 
 struct Browser {
+    scrollbars: scrollbar::Scrollbars,
     state: AppState,
     visible_ids: Vec<MediaId>,
     gallery_groups: Vec<GalleryGroup>,
@@ -688,6 +690,7 @@ impl Browser {
             }
         });
         let mut browser = Self {
+            scrollbars: scrollbar::Scrollbars::default(),
             state: AppState::new(),
             visible_ids: Vec::new(),
             gallery_groups: Vec::new(),

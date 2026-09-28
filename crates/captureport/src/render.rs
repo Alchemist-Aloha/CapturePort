@@ -369,7 +369,7 @@ impl Browser {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let mut panel = div()
             .id("sidebar")
-            .w(px(sidebar_width))
+            .w_full()
             .flex_shrink_0()
             .h_full()
             .p_4()
@@ -380,6 +380,8 @@ impl Browser {
             .flex_col()
             .gap_2()
             .overflow_y_scroll()
+            .track_scroll(&self.scrollbars.sidebar.handle)
+            .scrollbar_width(px(14.))
             .child(
                 div()
                     .text_lg()
@@ -440,7 +442,7 @@ impl Browser {
                     .and_then(|s| s.display_name.clone())
             })
             .unwrap_or_else(|| "No source selected".into());
-        panel
+        panel = panel
             .child(
                 div()
                     .mt_1()
@@ -506,7 +508,10 @@ impl Browser {
                     .text_xs()
                     .text_color(p.muted)
                     .child(format!("Preset: {}", self.preset.name)),
-            )
+            );
+        div().w(px(sidebar_width)).flex_shrink_0().h_full().relative()
+            .child(panel)
+            .child(self.scrollbars.sidebar.element(p.border, p.muted, p.accent))
             .into_any_element()
     }
 
@@ -623,6 +628,7 @@ impl Browser {
                         } else { div().into_any_element() }))
                     .into_any_element()
             } else {
+                div().relative().flex_1().min_h_0().flex().flex_col().child(
                 uniform_list(("media-grid", columns * 5 + self.ui.thumbnail_size as usize + if grouped { 100 } else { 0 }),row_count,cx.processor(move |t,range:std::ops::Range<usize>,_,cx|range.map(|row| {
                     let GalleryRow { header, ids } = &rows[row];
                     let mut cards=div().w_full().flex().gap_3();
@@ -716,7 +722,9 @@ impl Browser {
                         view=view.child(heading);
                     }
                     view.child(cards)
-                }).collect())).flex_1().into_any_element()
+                }).collect())).track_scroll(self.scrollbars.media.list.clone()).pr(px(14.)).min_h_0().flex_1())
+                    .child(self.scrollbars.media.element(p.border, p.muted, p.accent))
+                    .into_any_element()
             }).into_any_element()
     }
 
@@ -747,6 +755,8 @@ impl Browser {
             .flex_shrink_0()
             .max_h(px(240.))
             .overflow_y_scroll()
+            .track_scroll(&self.scrollbars.bundle.handle)
+            .scrollbar_width(px(14.))
             .px_5()
             .py_3()
             .border_b_1()
@@ -837,7 +847,10 @@ impl Browser {
                     )),
             );
         }
-        panel.into_any_element()
+        div().relative().flex_shrink_0().max_h(px(240.)).min_h_0().flex().flex_col()
+            .child(panel)
+            .child(self.scrollbars.bundle.element(p.border, p.muted, p.accent))
+            .into_any_element()
     }
 
     fn preview_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
@@ -957,6 +970,7 @@ impl Browser {
                 },
             )
             .child(
+                div().relative().flex_1().min_h_0().flex().flex_col().child(
                 uniform_list(
                     "preview-list",
                     groups.len(),
@@ -1034,7 +1048,11 @@ impl Browser {
                             .collect()
                     }),
                 )
-                .flex_1(),
+                .track_scroll(self.scrollbars.preview.list.clone())
+                .pr(px(14.))
+                .min_h_0()
+                .flex_1())
+                    .child(self.scrollbars.preview.element(p.border, p.muted, p.accent)),
             )
             .into_any_element()
     }
@@ -1044,10 +1062,13 @@ impl Browser {
         let mut panel = div()
             .id("history-panel")
             .flex_1()
+            .min_h_0()
             .min_w_0()
             .flex()
             .flex_col()
             .overflow_y_scroll()
+            .track_scroll(&self.scrollbars.history.handle)
+            .scrollbar_width(px(14.))
             .child(
                 div()
                     .px_5()
@@ -1177,19 +1198,25 @@ impl Browser {
                 index = group_end;
             }
         }
-        panel.into_any_element()
+        div().relative().flex_1().min_w_0().min_h_0().flex().flex_col()
+            .child(panel)
+            .child(self.scrollbars.history.element(p.border, p.muted, p.accent))
+            .into_any_element()
     }
     fn recovery_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let mut panel = div()
             .id("recovery-panel")
             .flex_1()
+            .min_h_0()
             .min_w_0()
             .p_5()
             .flex()
             .flex_col()
             .gap_2()
             .overflow_y_scroll()
+            .track_scroll(&self.scrollbars.recovery.handle)
+            .scrollbar_width(px(14.))
             .child(
                 div()
                     .text_lg()
@@ -1268,19 +1295,25 @@ impl Browser {
                     }),
             );
         }
-        panel.into_any_element()
+        div().relative().flex_1().min_w_0().min_h_0().flex().flex_col()
+            .child(panel)
+            .child(self.scrollbars.recovery.element(p.border, p.muted, p.accent))
+            .into_any_element()
     }
     fn settings_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
-        div()
+        let panel = div()
             .id("settings-panel")
             .flex_1()
+            .min_h_0()
             .min_w_0()
             .p_5()
             .flex()
             .flex_col()
             .gap_2()
             .overflow_y_scroll()
+            .track_scroll(&self.scrollbars.settings.handle)
+            .scrollbar_width(px(14.))
             .child(
                 div()
                     .text_lg()
@@ -1520,10 +1553,13 @@ impl Browser {
                         }),
                     ))
                     .child(if self.timezone_menu_open {
-                        div()
+                        div().relative().flex_shrink_0().max_h(px(200.)).flex().flex_col()
+                            .child(div()
                             .id("timezone-menu")
                             .max_h(px(200.))
                             .overflow_y_scroll()
+                            .track_scroll(&self.scrollbars.timezone.handle)
+                            .scrollbar_width(px(14.))
                             .flex()
                             .flex_col()
                             .gap_1()
@@ -1551,7 +1587,8 @@ impl Browser {
                                         t.set_timezone_offset(Some(*seconds), c)
                                     }),
                                 )
-                            }))
+                            })))
+                            .child(self.scrollbars.timezone.element(p.border, p.muted, p.accent))
                             .into_any_element()
                     } else {
                         div().into_any_element()
@@ -1597,6 +1634,10 @@ impl Browser {
                 p,
                 cx.listener(|t, _, _, c| t.apply_settings(c)),
             ))
+            .into_any_element();
+        div().relative().flex_1().min_w_0().min_h_0().flex().flex_col()
+            .child(panel)
+            .child(self.scrollbars.settings.element(p.border, p.muted, p.accent))
             .into_any_element()
     }
 }
