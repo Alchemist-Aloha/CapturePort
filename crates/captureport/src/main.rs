@@ -191,6 +191,12 @@ const TIMEZONE_CHOICES: &[(&str, i32)] = &[
     ("UTC+14:00", 50_400),
 ];
 
+/// A stored name left over from the old `Session N` default, not a user rename.
+fn is_legacy_session_name(name: &str) -> bool {
+    name.strip_prefix("Session ")
+        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
+}
+
 /// Append a, b, c, ... to default gallery names that share a date.
 fn suffix_duplicate_titles(groups: &mut [GalleryGroup], is_custom: impl Fn(&str) -> bool) {
     let mut totals = HashMap::<String, usize>::new();
@@ -971,6 +977,7 @@ impl Browser {
                 let title = self
                     .gallery_names
                     .get(&key)
+                    .filter(|name| !is_legacy_session_name(name))
                     .cloned()
                     .unwrap_or_else(|| times[index].format("%Y-%m-%d").to_string());
                 self.gallery_groups.push(GalleryGroup {
@@ -990,7 +997,9 @@ impl Browser {
         }
         self.gallery_groups.retain(|group| !group.ids.is_empty());
         suffix_duplicate_titles(&mut self.gallery_groups, |key| {
-            self.gallery_names.contains_key(key)
+            self.gallery_names
+                .get(key)
+                .is_some_and(|name| !is_legacy_session_name(name))
         });
     }
     fn set_gap_minutes(&mut self, minutes: u32, cx: &mut Context<Self>) {
@@ -2458,6 +2467,16 @@ mod integration_tests {
             titles,
             ["2026-09-18a", "2026-09-18b", "2026-09-19", "2026-09-18"]
         );
+    }
+
+    #[test]
+    fn legacy_session_names_are_treated_as_defaults() {
+        assert!(is_legacy_session_name("Session 2"));
+        assert!(is_legacy_session_name("Session 12"));
+        assert!(!is_legacy_session_name("Session"));
+        assert!(!is_legacy_session_name("Session a"));
+        assert!(!is_legacy_session_name("2026-09-18"));
+        assert!(!is_legacy_session_name("My trip"));
     }
 
     #[test]
