@@ -44,6 +44,8 @@ pub enum AppEvent {
         generation: ScanGeneration,
         media_id: MediaId,
         status: crate::ImportStatus,
+        /// Present when the catalog could name the prior import behind the status.
+        prior_import: Option<crate::PriorImport>,
     },
     ImportProgress {
         generation: ScanGeneration,

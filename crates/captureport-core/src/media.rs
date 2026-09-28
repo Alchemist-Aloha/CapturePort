@@ -56,6 +56,9 @@ pub struct MediaItem {
     pub media_type: MediaType,
     pub metadata: MetadataState,
     pub import_status: ImportStatus,
+    /// Set when `import_status` is `Imported` or `PossibleDuplicate` and the
+    /// catalog could name the prior import behind that classification.
+    pub prior_import: Option<PriorImport>,
     pub bundle_id: Option<BundleId>,
 }
 
@@ -78,6 +81,7 @@ impl MediaItem {
             media_type,
             metadata: MetadataState::Pending,
             import_status: ImportStatus::New,
+            prior_import: None,
             bundle_id: None,
         }
     }
@@ -90,6 +94,15 @@ pub enum ImportStatus {
     Imported,
     PossibleDuplicate,
     Unknown,
+}
+
+/// Names the prior import that a file matched, so the browser can say *why* a
+/// frame looks already-present instead of only asserting that it does.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PriorImport {
+    pub session_id: i64,
+    pub imported_at: String,
+    pub destination: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

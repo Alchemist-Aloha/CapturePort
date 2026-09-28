@@ -301,6 +301,40 @@ pub(crate) fn imported_match(c: &Connection, m: &MediaIdentity) -> Result<bool, 
     Ok(imported.is_some())
 }
 
+/// Names the prior import matched by source identity, for the case where the
+/// identity is strong evidence but not strong enough to call the file imported.
+pub(crate) fn imported_session(
+    c: &Connection,
+    m: &MediaIdentity,
+) -> Result<Option<ImportedMatch>, CatalogError> {
+    c.query_row(
+        "SELECT i.session_id, s.started_at, i.destination_path FROM media m JOIN imports i ON i.media_id=m.id JOIN import_sessions s ON s.id=i.session_id WHERE m.source_id=?1 AND m.source_path=?2 AND m.source_filename=?3 AND m.source_size=?4 AND (m.capture_time=?5 OR (m.capture_time IS NULL AND ?5 IS NULL)) AND i.status IN ('completed','verified') ORDER BY s.started_at DESC LIMIT 1",
+        params![
+            m.source_id,
+            m.source_path,
+            m.source_filename,
+            m.source_size as i64,
+            m.capture_time
+        ],
+        |row| {
+            Ok(ImportedMatch {
+                session_id: row.get(0)?,
+                started_at: row.get(1)?,
+                destination_path: row.get(2)?,
+            })
+        },
+    )
+    .optional()
+    .map_err(Into::into)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ImportedMatch {
+    pub session_id: i64,
+    pub started_at: String,
+    pub destination_path: String,
+}
+
 pub(crate) fn imported_fingerprint_match(
     c: &Connection,
     source_size: u64,
@@ -327,6 +361,40 @@ pub(crate) fn imported_fingerprint_match(
         .optional()?
     };
     Ok(imported.is_some())
+}
+
+/// The same evidence rules as [`imported_fingerprint_match`], but it also names
+/// the prior import so the browser can explain *why* a file looks imported
+/// instead of only asserting that it does.
+pub(crate) fn imported_fingerprint_session(
+    c: &Connection,
+    source_size: u64,
+    quick_fingerprint: &str,
+    content_hash: Option<&str>,
+) -> Result<Option<ImportedMatch>, CatalogError> {
+    let map = |row: &Row| -> rusqlite::Result<ImportedMatch> {
+        Ok(ImportedMatch {
+            session_id: row.get(0)?,
+            started_at: row.get(1)?,
+            destination_path: row.get(2)?,
+        })
+    };
+    let matched = if let Some(content_hash) = content_hash {
+        c.query_row(
+            "SELECT i.session_id, s.started_at, i.destination_path FROM media m JOIN imports i ON i.media_id=m.id JOIN import_sessions s ON s.id=i.session_id WHERE m.source_size=?1 AND m.quick_fingerprint=?2 AND m.content_hash=?3 AND i.status IN ('completed','verified') ORDER BY s.started_at DESC LIMIT 1",
+            params![source_size as i64, quick_fingerprint, content_hash],
+            map,
+        )
+        .optional()?
+    } else {
+        c.query_row(
+            "SELECT i.session_id, s.started_at, i.destination_path FROM media m JOIN imports i ON i.media_id=m.id JOIN import_sessions s ON s.id=i.session_id WHERE m.source_size=?1 AND m.quick_fingerprint=?2 AND i.status IN ('completed','verified') ORDER BY s.started_at DESC LIMIT 1",
+            params![source_size as i64, quick_fingerprint],
+            map,
+        )
+        .optional()?
+    };
+    Ok(matched)
 }
 pub(crate) fn session(c: &Connection, id: i64) -> Result<SessionRecord, CatalogError> {
     c.query_row("SELECT id,source_id,preset_id,started_at,completed_at,status,error FROM import_sessions WHERE id=?1",[id],|r|Ok(SessionRecord{id:r.get(0)?,source_id:r.get(1)?,preset_id:r.get(2)?,started_at:r.get(3)?,completed_at:r.get(4)?,status:SessionStatus::from(r.get::<_,String>(5)?),error:r.get(6)?})).map_err(Into::into)

@@ -150,8 +150,23 @@ fn import_status_label(status: &captureport_core::ImportStatus) -> &'static str 
         captureport_core::ImportStatus::Checking => "Checking…",
         captureport_core::ImportStatus::New => "New",
         captureport_core::ImportStatus::Imported => "✓ Imported",
-        captureport_core::ImportStatus::PossibleDuplicate => "Imported",
+        captureport_core::ImportStatus::PossibleDuplicate => "! Possible duplicate",
         captureport_core::ImportStatus::Unknown => "? Unknown",
+    }
+}
+
+/// The tile status line. When the catalog named the prior import behind the
+/// classification, say which one: an unexplained "possible duplicate" is the
+/// state this product must never leave the user guessing about.
+fn import_status_line(item: &captureport_core::MediaItem) -> String {
+    let label = import_status_label(&item.import_status);
+    match &item.prior_import {
+        Some(prior) => {
+            // Stored RFC 3339; the date is what fits on a tile.
+            let day = prior.imported_at.get(..10).unwrap_or(prior.imported_at.as_str());
+            format!("{label} · session {} · {day}", prior.session_id)
+        }
+        None => label.to_string(),
     }
 }
 
@@ -588,7 +603,7 @@ impl Browser {
                             .child(if self.scanning { "Media will appear here as it is found." } else if self.state.source.is_none() { "Open a folder or connect a camera to browse media." } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." }))
                         .child(if self.state.source.is_none() && !self.scanning {
                             div().flex().flex_wrap().justify_center().gap_2()
-                                .child(primary_button("Open folder…", p,
+                                .child(primary_button("Open a folder…", p,
                                     cx.listener(|t, _, w, c| t.open_folder(&OpenFolder, w, c))))
                                 .child(button("Scan for cameras", p,
                                     cx.listener(|t, _, w, c| t.discover_sources(&DiscoverSources, w, c))))
@@ -652,7 +667,7 @@ impl Browser {
                                         .child(if members.is_some() {
                                             if expanded { "Hide files" } else { "View files" }.to_string()
                                         } else {
-                                            import_status_label(&item.import_status).to_string()
+                                            import_status_line(item)
                                         }));
                                 cards=cards.child(div().id(("media",id.0)).flex_1().min_w_0()
                                     .overflow_hidden().rounded_md().border_1()
@@ -804,7 +819,7 @@ impl Browser {
                                 "{} · {} · {}{modified}",
                                 media_type_badge(item.media_type),
                                 format_size(item.size),
-                                import_status_label(&item.import_status)
+                                import_status_line(item)
                             ))),
                     )
                     .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child(
@@ -860,19 +875,73 @@ impl Browser {
                 } else { div().into_any_element() }))
             .child(
                 if self.last_import_result.is_some() && self.filesystem_root.is_some() {
-                    div()
-                        .id("delete-verified-sources")
-                        .cursor_pointer()
-                        .p_2()
-                        .bg(p.danger)
-                        .rounded_md()
-                        .on_click(cx.listener(|t, _, _, c| t.delete_sources(c)))
-                        .child(if self.deletion_armed {
-                            "Confirm deleting originals"
-                        } else {
-                            "Delete verified originals…"
-                        })
+                    if self.deletion_armed {
+                        // State the scope before acting: this is the only
+                        // irreversible action in the product.
+                        div()
+                            .flex()
+                            .flex_wrap()
+                            .items_center()
+                            .justify_between()
+                            .gap_3()
+                            .p_3()
+                            .rounded_md()
+                            .border_1()
+                            .border_color(p.danger)
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .min_w_0()
+                                    .gap_1()
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .child(self.deletion_scope().unwrap_or_else(|| {
+                                                "Delete verified originals from this source".into()
+                                            })),
+                                    )
+                                    .child(div().text_xs().text_color(p.muted).child(
+                                        "This cannot be undone. Only files whose required copies verified are removed.",
+                                    )),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .child(button(
+                                        "Keep originals",
+                                        p,
+                                        cx.listener(|t, _, _, c| t.cancel_delete_sources(c)),
+                                    ))
+                                    .child(
+                                        div()
+                                            .id("confirm-delete-originals")
+                                            .cursor_pointer()
+                                            .px_3()
+                                            .py_2()
+                                            .rounded_md()
+                                            .bg(p.danger)
+                                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .on_click(
+                                                cx.listener(|t, _, _, c| t.delete_sources(c)),
+                                            )
+                                            .child("Delete originals"),
+                                    ),
+                            )
+                            .into_any_element()
+                    } else {
+                        // Quiet by default: the loudest thing on this screen
+                        // must not be the invitation to erase the originals.
+                        button(
+                            "Delete verified originals…",
+                            p,
+                            cx.listener(|t, _, _, c| t.delete_sources(c)),
+                        )
                         .into_any_element()
+                    }
                 } else {
                     div().into_any_element()
                 },
@@ -1154,16 +1223,39 @@ impl Browser {
                         partial.path.display(),
                         format_size(partial.size)
                     ))
-                    .child(
+                    .child(if self.armed_partial == Some(index) {
                         div()
-                            .id(gpui::ElementId::named_usize("clean-partial", index))
-                            .cursor_pointer()
-                            .p_2()
-                            .bg(p.danger)
-                            .rounded_md()
-                            .on_click(cx.listener(move |t, _, _, c| t.clean_partial(index, c)))
-                            .child("Clean incomplete file"),
-                    ),
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(button(
+                                "Keep file",
+                                p,
+                                cx.listener(|t, _, _, c| t.cancel_clean_partial(c)),
+                            ))
+                            .child(
+                                div()
+                                    .id(gpui::ElementId::named_usize("confirm-clean-partial", index))
+                                    .cursor_pointer()
+                                    .px_3()
+                                    .py_2()
+                                    .rounded_md()
+                                    .bg(p.danger)
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .on_click(
+                                        cx.listener(move |t, _, _, c| t.clean_partial(index, c)),
+                                    )
+                                    .child("Confirm delete"),
+                            )
+                            .into_any_element()
+                    } else {
+                        button(
+                            "Clean incomplete file",
+                            p,
+                            cx.listener(move |t, _, _, c| t.clean_partial(index, c)),
+                        )
+                        .into_any_element()
+                    }),
             );
         }
         panel.into_any_element()

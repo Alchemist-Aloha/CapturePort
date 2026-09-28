@@ -11,7 +11,7 @@ pub use events::{AppEvent, ImportProgress};
 pub use fake_source::{FakeMediaSource, FakeSourceBuilder, FakeSourceScenario};
 pub use media::{
     classify_path, BundleId, ImportStatus, MediaId, MediaItem, MediaLocator, MediaMetadata,
-    MediaType, MetadataState, Orientation, ScanGeneration, SourceId, TimestampSource,
+    MediaType, MetadataState, Orientation, PriorImport, ScanGeneration, SourceId, TimestampSource,
 };
 pub use source::{
     CancellationToken, MediaSource, ScanContext, SourceError, SourceIdentity, SourceType,

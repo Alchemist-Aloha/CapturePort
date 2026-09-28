@@ -57,9 +57,20 @@ pub enum CatalogCommand {
     LookupImported {
         media: MediaIdentity,
     },
+    /// As `LookupImported`, but names the prior import rather than answering yes/no.
+    LookupImportedSessionByIdentity {
+        media: MediaIdentity,
+    },
     /// Look up a previously imported file by its content identity.  This is
     /// used after a source scan when path based matching is unavailable.
     LookupImportedFingerprint {
+        source_size: u64,
+        quick_fingerprint: String,
+        content_hash: Option<String>,
+    },
+    /// As above, but also names the prior import so the browser can show which
+    /// session a possible duplicate matched.
+    LookupImportedSession {
         source_size: u64,
         quick_fingerprint: String,
         content_hash: Option<String>,
@@ -119,6 +130,7 @@ pub enum CatalogResponse {
     Media(MediaRecord),
     MediaMatch(Option<MediaRecord>),
     Imported(bool),
+    ImportedSession(Option<ImportedMatch>),
     Session(SessionRecord),
     Import(ImportRecord),
     Sessions(Vec<SessionRecord>),
@@ -272,6 +284,30 @@ impl CatalogHandle {
             content_hash,
         })? {
             CatalogResponse::Imported(v) => Ok(v),
+            _ => unreachable!(),
+        }
+    }
+    pub fn lookup_imported_session(
+        &self,
+        source_size: u64,
+        quick_fingerprint: impl Into<String>,
+        content_hash: Option<String>,
+    ) -> Result<Option<ImportedMatch>, CatalogError> {
+        match self.execute(CatalogCommand::LookupImportedSession {
+            source_size,
+            quick_fingerprint: quick_fingerprint.into(),
+            content_hash,
+        })? {
+            CatalogResponse::ImportedSession(v) => Ok(v),
+            _ => unreachable!(),
+        }
+    }
+    pub fn lookup_imported_session_by_identity(
+        &self,
+        media: MediaIdentity,
+    ) -> Result<Option<ImportedMatch>, CatalogError> {
+        match self.execute(CatalogCommand::LookupImportedSessionByIdentity { media })? {
+            CatalogResponse::ImportedSession(v) => Ok(v),
             _ => unreachable!(),
         }
     }
@@ -433,6 +469,9 @@ fn execute(c: &Connection, cmd: CatalogCommand) -> Result<CatalogResponse, Catal
         CatalogCommand::LookupImported { media } => {
             Ok(CatalogResponse::Imported(imported_match(c, &media)?))
         }
+        CatalogCommand::LookupImportedSessionByIdentity { media } => Ok(
+            CatalogResponse::ImportedSession(imported_session(c, &media)?),
+        ),
         CatalogCommand::LookupImportedFingerprint {
             source_size,
             quick_fingerprint,
@@ -443,6 +482,18 @@ fn execute(c: &Connection, cmd: CatalogCommand) -> Result<CatalogResponse, Catal
             &quick_fingerprint,
             content_hash.as_deref(),
         )?)),
+        CatalogCommand::LookupImportedSession {
+            source_size,
+            quick_fingerprint,
+            content_hash,
+        } => Ok(CatalogResponse::ImportedSession(
+            imported_fingerprint_session(
+                c,
+                source_size,
+                &quick_fingerprint,
+                content_hash.as_deref(),
+            )?,
+        )),
         CatalogCommand::UpdateMediaFingerprints {
             media_id,
             quick_fingerprint,

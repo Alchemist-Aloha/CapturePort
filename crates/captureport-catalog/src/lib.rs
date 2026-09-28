@@ -11,8 +11,9 @@ mod worker;
 
 pub use database::{CatalogError, CatalogPath};
 pub use repository::{
-    ImportRecord, ImportStatus, IncompleteSession, MediaIdentity, MediaRecord, MediaType,
-    PresetRecord, SessionDetail, SessionRecord, SessionStatus, SourceIdentity, SourceRecord,
+    ImportRecord, ImportStatus, ImportedMatch, IncompleteSession, MediaIdentity, MediaRecord,
+    MediaType, PresetRecord, SessionDetail, SessionRecord, SessionStatus, SourceIdentity,
+    SourceRecord,
 };
 pub use worker::{
     CatalogCommand, CatalogHandle, CatalogResponse, ImportInput, ReconciledImportInput,

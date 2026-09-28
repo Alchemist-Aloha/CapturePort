@@ -515,6 +515,8 @@ struct Browser {
     reconcile_cancellation: Option<CancellationToken>,
     last_import_result: Option<captureport_ingest::ImportResult>,
     deletion_armed: bool,
+    /// Which incomplete file's destructive control has been armed for confirmation.
+    armed_partial: Option<usize>,
     source: Option<Arc<dyn MediaSource>>,
     filesystem_root: Option<PathBuf>,
     catalog: CatalogHandle,
@@ -686,6 +688,7 @@ impl Browser {
             reconcile_cancellation: None,
             last_import_result: None,
             deletion_armed: false,
+            armed_partial: None,
             source: None,
             filesystem_root: None,
             catalog,
@@ -1477,7 +1480,55 @@ impl Browser {
         self.invalidate_plan();
         self.start_plan(cx);
     }
+    /// The sources a confirmed deletion would actually remove: every required
+    /// copy reached its exact planned destination. Shared by the confirmation
+    /// text and the importer so the stated scope cannot drift from the scope.
+    fn arm_delete_sources(&mut self, cx: &mut Context<Self>) {
+        self.deletion_armed = true;
+        self.message = Some(match self.deletion_scope() {
+            Some(scope) => format!(
+                "{scope}. Deleting originals cannot be undone; only files whose required copies verified are removed"
+            ),
+            None => "Review the verified copies, then confirm source deletion separately".into(),
+        });
+        cx.notify();
+    }
+    fn cancel_delete_sources(&mut self, cx: &mut Context<Self>) {
+        self.deletion_armed = false;
+        self.message = Some("Original deletion cancelled".into());
+        cx.notify();
+    }
+    /// "Delete 47 originals (2.1 GB) from Card · X", or `None` when the scope is
+    /// not yet knowable. Never claims a scope it cannot justify.
+    fn deletion_scope(&self) -> Option<String> {
+        let plan = self.plan.as_ref()?;
+        let result = self.last_import_result.as_ref()?;
+        let deletable = deletable_sources(plan, result);
+        if deletable.is_empty() {
+            return None;
+        }
+        let bytes: u64 = deletable.iter().map(|item| item.expected_size).sum();
+        let source = self
+            .source_alias
+            .clone()
+            .or_else(|| {
+                self.state
+                    .source
+                    .as_ref()
+                    .and_then(|source| source.display_name.clone())
+            })
+            .unwrap_or_else(|| "this source".into());
+        Some(format!(
+            "Delete {} original(s) ({}) from {source}",
+            deletable.len(),
+            format_size(bytes)
+        ))
+    }
     fn delete_sources(&mut self, cx: &mut Context<Self>) {
+        if !self.deletion_armed {
+            self.arm_delete_sources(cx);
+            return;
+        }
         let (Some(root), Some(plan), Some(result)) = (
             self.filesystem_root.clone(),
             self.plan.clone(),
@@ -1488,13 +1539,6 @@ impl Browser {
             cx.notify();
             return;
         };
-        if !self.deletion_armed {
-            self.deletion_armed = true;
-            self.message =
-                Some("Review the verified copies, then confirm source deletion separately".into());
-            cx.notify();
-            return;
-        }
         self.deletion_armed = false;
         self.last_import_result = None;
         let (tx, rx) = mpsc::channel();
@@ -1519,10 +1563,28 @@ impl Browser {
         });
         cx.notify();
     }
+    fn cancel_clean_partial(&mut self, cx: &mut Context<Self>) {
+        self.armed_partial = None;
+        self.message = Some("Incomplete file kept".into());
+        cx.notify();
+    }
     fn clean_partial(&mut self, index: usize, cx: &mut Context<Self>) {
         let Some(partial) = self.partial_files.get(index).cloned() else {
             return;
         };
+        if self.armed_partial != Some(index) {
+            // Deleting an incomplete file is permanent, so the first click only
+            // says which file is about to go.
+            self.armed_partial = Some(index);
+            self.message = Some(format!(
+                "Confirm deleting {} ({}) — this cannot be undone",
+                partial.path.display(),
+                format_size(partial.size)
+            ));
+            cx.notify();
+            return;
+        }
+        self.armed_partial = None;
         let roots = [
             self.preset.photo.root.clone(),
             self.preset.video.root.clone(),
@@ -2125,29 +2187,16 @@ fn run_import(
                 .filter(|copy| copy.state == captureport_ingest::ImportItemState::Failed)
                 .count();
             for item in &result.items {
-                let completed_required = plan
-                    .items
+                let completed_required = deletable_sources(&plan, &result)
                     .iter()
-                    .find(|planned| planned.media_id == item.media_id)
-                    .is_some_and(|planned| {
-                        planned
-                            .copies
-                            .iter()
-                            .filter(|copy| copy.required)
-                            .all(|planned_copy| {
-                                item.copies.iter().any(|actual| {
-                                    actual.destination == planned_copy.final_destination
-                                        && actual.state
-                                            == captureport_ingest::ImportItemState::Completed
-                                })
-                            })
-                    });
+                    .any(|planned| planned.media_id == item.media_id);
                 if completed_required {
                     let _ = sender.send(WorkMessage::Event(Box::new(
                         AppEvent::ImportStatusChanged {
                             generation,
                             media_id: item.media_id,
                             status: captureport_core::ImportStatus::Imported,
+                            prior_import: None,
                         },
                     )));
                 }
@@ -2336,6 +2385,38 @@ fn aliases_for_sources(
 fn now() -> String {
     Utc::now().to_rfc3339()
 }
+/// The sources a confirmed deletion would actually remove: every required copy
+/// reached its exact planned destination. Shared by the confirmation text, the
+/// post-import status update, and the deletion itself, so the scope the user is
+/// shown cannot drift from the scope that runs.
+fn deletable_sources<'a>(
+    plan: &'a ImportPlan,
+    result: &captureport_ingest::ImportResult,
+) -> Vec<&'a PlannedImport> {
+    plan.items
+        .iter()
+        .filter(|planned| {
+            result
+                .items
+                .iter()
+                .find(|item| item.media_id == planned.media_id)
+                .is_some_and(|item| {
+                    planned
+                        .copies
+                        .iter()
+                        .filter(|copy| copy.required)
+                        .all(|planned_copy| {
+                            item.copies.iter().any(|actual| {
+                                actual.destination == planned_copy.final_destination
+                                    && actual.state
+                                        == captureport_ingest::ImportItemState::Completed
+                            })
+                        })
+                })
+        })
+        .collect()
+}
+
 fn format_size(bytes: u64) -> String {
     const U: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
     let (mut v, mut i) = (bytes as f64, 0);
@@ -2759,6 +2840,7 @@ mod integration_tests {
             catalog.list_sessions(10).unwrap()[0].status,
             captureport_catalog::SessionStatus::Completed
         );
+        let recorded_session = catalog.list_sessions(10).unwrap()[0].id;
 
         let (tx, rx) = mpsc::channel();
         scan_source(
@@ -2768,9 +2850,24 @@ mod integration_tests {
             tx,
             catalog,
         );
-        let imported=rx.into_iter().any(|message|matches!(message,ScanMessage::Event(event)
-            if matches!(*event,AppEvent::ImportStatusChanged {status:captureport_core::ImportStatus::Imported,..})));
-        assert!(imported);
+        // Classifying the file as imported is not enough: the status must name
+        // the prior import it matched, which is what the evidence line shows.
+        let prior_import = rx.into_iter().find_map(|message| match message {
+            ScanMessage::Event(event) => match *event {
+                AppEvent::ImportStatusChanged {
+                    status: captureport_core::ImportStatus::Imported,
+                    prior_import,
+                    ..
+                } => Some(prior_import),
+                _ => None,
+            },
+            _ => None,
+        });
+        let prior = prior_import
+            .expect("the rescan should classify the file as imported")
+            .expect("an imported file must name the session it came from");
+        assert_eq!(prior.session_id, recorded_session);
+        assert!(!prior.imported_at.is_empty());
         let mut remover = VerifiedFilesystemRemover::new(source_dir.path().to_path_buf(), &plan);
         let deleted = captureport_ingest::delete_verified_sources(
             &mut remover,
@@ -2784,5 +2881,112 @@ mod integration_tests {
         assert_eq!(deleted.deleted.len(), 1);
         assert!(!source_dir.path().join("IMG0001.JPG").exists());
         assert_eq!(fs::read(destination).unwrap(), b"captureport test photo");
+    }
+
+    /// The P0 this critique found: media the engine had *not* cleared as safe
+    /// was labelled "Imported". The label must differ, and must say what matched.
+    #[test]
+    fn status_line_names_the_prior_import_and_never_reads_as_imported() {
+        let mut item =
+            captureport_core::MediaItem::new(MediaId(1), SourceId(1), "DCIM/IMG0001.JPG", 1024);
+        item.import_status = captureport_core::ImportStatus::PossibleDuplicate;
+        assert_eq!(import_status_line(&item), "! Possible duplicate");
+        assert_ne!(
+            import_status_line(&item),
+            import_status_label(&captureport_core::ImportStatus::Imported)
+        );
+        item.prior_import = Some(captureport_core::PriorImport {
+            session_id: 12,
+            imported_at: "2026-09-27T20:35:29Z".into(),
+            destination: "Pictures/IMG0001.JPG".into(),
+        });
+        assert_eq!(
+            import_status_line(&item),
+            "! Possible duplicate · session 12 · 2026-09-27"
+        );
+    }
+
+    /// Deleting originals is the one irreversible action in the product, so the
+    /// scope shown to the user and the scope that runs must be the same
+    /// predicate — this pins that predicate's edges.
+    #[test]
+    fn deletion_scope_covers_only_sources_whose_required_copies_landed() {
+        use captureport_core::{SourceId, SourceType};
+        use captureport_ingest::{CopyResult, ImportItemState, ImportResult, ItemResult};
+
+        let copy = |media: u64, index: u64, required: bool| PlannedCopy {
+            destination_root: PathBuf::from("/library"),
+            final_destination: PathBuf::from(format!("/library/{media}-{index}.jpg")),
+            temporary_destination: PathBuf::from(format!("/library/.partial/{media}-{index}.jpg")),
+            expected_size: 1024,
+            required,
+            status: PlanStatus::Ready,
+        };
+        let planned = |media: u64, copies: Vec<PlannedCopy>| PlannedImport {
+            media_id: MediaId(media),
+            source: MediaLocator(format!("DCIM/{media}.jpg")),
+            source_name: format!("{media}.jpg"),
+            expected_size: 1024,
+            effective_time: DateTime::parse_from_rfc3339("2026-09-27T12:00:00Z")
+                .expect("valid timestamp"),
+            sequence: media,
+            session: 1,
+            copies,
+            status: PlanStatus::Ready,
+        };
+        let observed =
+            |media: u64, required: ImportItemState, optional: ImportItemState| ItemResult {
+                media_id: MediaId(media),
+                copies: vec![
+                    CopyResult {
+                        destination: PathBuf::from(format!("/library/{media}-0.jpg")),
+                        state: required,
+                        error: None,
+                    },
+                    CopyResult {
+                        destination: PathBuf::from(format!("/library/{media}-1.jpg")),
+                        state: optional,
+                        error: None,
+                    },
+                ],
+            };
+
+        let plan = ImportPlan {
+            source: captureport_core::SourceIdentity {
+                id: SourceId(1),
+                source_type: SourceType::Filesystem,
+                stable_id: None,
+                serial: None,
+                manufacturer: None,
+                model: None,
+                volume_uuid: None,
+                display_name: Some("Card".into()),
+            },
+            preset_name: "Everyday".into(),
+            verification: VerificationMode::Standard,
+            items: vec![
+                planned(1, vec![copy(1, 0, true)]),
+                planned(2, vec![copy(2, 0, true), copy(2, 1, false)]),
+                planned(3, vec![copy(3, 0, true)]),
+            ],
+        };
+        let result = ImportResult {
+            cancelled: false,
+            items: vec![
+                observed(1, ImportItemState::Completed, ImportItemState::Completed),
+                // A failed optional backup copy must not block deleting the source.
+                observed(2, ImportItemState::Completed, ImportItemState::Failed),
+                // A failed required copy must block it.
+                observed(3, ImportItemState::Failed, ImportItemState::Completed),
+            ],
+        };
+
+        let deletable = deletable_sources(&plan, &result);
+        let ids: Vec<u64> = deletable.iter().map(|item| item.media_id.0).collect();
+        assert_eq!(ids, vec![1, 2]);
+        assert_eq!(
+            deletable.iter().map(|item| item.expected_size).sum::<u64>(),
+            2048
+        );
     }
 }

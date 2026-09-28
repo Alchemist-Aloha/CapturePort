@@ -248,8 +248,9 @@ components = [
     },
     {
         "name": "Status Readout", "kind": "custom", "refersTo": "chip-idle",
-        "description": "Import status as icon plus text; colour never carries the state on its own.",
-        "html": ('<ul class="ds-status"><li class="ds-status-item">\u2713 Imported</li>'
+        "description": "Import status as icon plus text, naming the prior import for imported and possible-duplicate states; colour never carries the state on its own.",
+        "html": ('<ul class="ds-status"><li class="ds-status-item">\u2713 Imported \u00b7 session 12 \u00b7 2026-09-27</li>'
+                 '<li class="ds-status-item">! Possible duplicate \u00b7 session 9 \u00b7 2026-09-20</li>'
                  '<li class="ds-status-item">? Unknown</li><li class="ds-status-item">New</li>'
                  '<li class="ds-status-item">Checking\u2026</li></ul>'),
         "css": (".ds-status { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }"

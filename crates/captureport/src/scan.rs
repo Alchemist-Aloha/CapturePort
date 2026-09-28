@@ -242,23 +242,33 @@ fn process_job(job: MetadataJob) {
             })
             .ok();
         let mut status = captureport_core::ImportStatus::New;
+        let mut prior_import = None;
         if let Some(fingerprint) = &quick {
-            if catalog
-                .lookup_imported_fingerprint(item.size, fingerprint.hex.clone(), None)
-                .unwrap_or(false)
+            if let Ok(Some(found)) =
+                catalog.lookup_imported_session(item.size, fingerprint.hex.clone(), None)
             {
                 status = captureport_core::ImportStatus::Imported;
+                prior_import = Some(prior_import_from(found));
             } else if existing.is_some() {
                 status = captureport_core::ImportStatus::PossibleDuplicate;
             }
         } else if imported_by_identity || existing.is_some() {
             status = captureport_core::ImportStatus::PossibleDuplicate;
         }
+        // Identity is enough to suspect a duplicate but not enough to call it
+        // imported, so name the prior import behind the suspicion.
+        if status == captureport_core::ImportStatus::PossibleDuplicate
+            && prior_import.is_none()
+            && let Ok(Some(found)) = catalog.lookup_imported_session_by_identity(media.clone())
+        {
+            prior_import = Some(prior_import_from(found));
+        }
         let _ = sender.send(ScanMessage::Event(Box::new(
             AppEvent::ImportStatusChanged {
                 generation,
                 media_id: item.id,
                 status,
+                prior_import,
             },
         )));
         record.and_then(|response| match response {
@@ -268,6 +278,16 @@ fn process_job(job: MetadataJob) {
     });
     if let Some(catalog_media_id) = catalog_media_id {
         let _ = sender.send(ScanMessage::CatalogMedia(item.id, catalog_media_id));
+    }
+}
+
+/// A possible duplicate is only actionable when the browser can say *what* it
+/// matched, so the catalog's prior-import record travels with the status.
+fn prior_import_from(found: captureport_catalog::ImportedMatch) -> captureport_core::PriorImport {
+    captureport_core::PriorImport {
+        session_id: found.session_id,
+        imported_at: found.started_at,
+        destination: found.destination_path,
     }
 }
 

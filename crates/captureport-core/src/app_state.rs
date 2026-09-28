@@ -113,10 +113,14 @@ impl AppState {
                 }
             }
             AppEvent::ImportStatusChanged {
-                media_id, status, ..
+                media_id,
+                status,
+                prior_import,
+                ..
             } => {
                 if let Some(item) = self.items.get_mut(&media_id) {
                     item.import_status = status.clone();
+                    item.prior_import = prior_import.clone();
                     if status != ImportStatus::New {
                         self.selected.remove(&media_id);
                     }

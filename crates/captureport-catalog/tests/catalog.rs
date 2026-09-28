@@ -218,6 +218,11 @@ fn imported_lookup_requires_an_exact_completed_or_verified_row() {
 
     let (_, verified_media, _) = imported_fixture(&catalog, ImportStatus::Verified);
     assert!(catalog.lookup_imported(verified_media.clone()).unwrap());
+    // A partial or failed import must not be named as the prior import either.
+    assert!(catalog
+        .lookup_imported_session_by_identity(verified_media.clone())
+        .unwrap()
+        .is_some());
     let mut different_size = verified_media.clone();
     different_size.source_size += 1;
     assert!(!catalog.lookup_imported(different_size).unwrap());
@@ -283,6 +288,30 @@ fn imported_lookup_by_quick_and_full_fingerprint_requires_successful_import() {
     assert!(!catalog
         .lookup_imported_fingerprint(255, "quick-blake3-v1:abc", None)
         .unwrap());
+
+    // The session variants name the prior import instead of answering yes/no,
+    // because a "possible duplicate" the user cannot trace is an unsafe label.
+    let found = catalog
+        .lookup_imported_session(256, "quick-blake3-v1:abc", None)
+        .unwrap()
+        .expect("verified import should be named");
+    assert_eq!(found.session_id, session.id);
+    assert_eq!(found.destination_path, "Pictures/A.JPG");
+    assert!(!found.started_at.is_empty());
+    assert!(catalog
+        .lookup_imported_session(255, "quick-blake3-v1:abc", None)
+        .unwrap()
+        .is_none());
+    assert!(catalog
+        .lookup_imported_session(256, "quick-blake3-v1:abc", Some("blake3:other".into()))
+        .unwrap()
+        .is_none());
+    let by_identity = catalog
+        .lookup_imported_session_by_identity(media.clone())
+        .unwrap()
+        .expect("identity match should name the prior import");
+    assert_eq!(by_identity.session_id, session.id);
+    assert_eq!(by_identity.destination_path, "Pictures/A.JPG");
 }
 
 #[test]
