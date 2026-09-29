@@ -188,6 +188,47 @@ fn plan_status_label(status: captureport_ingest::PlanStatus) -> &'static str {
     }
 }
 
+/// A source's label. `secondary` is the detected removable mount's actual mount
+/// directory, which is too long to share a line with the model in the rail.
+struct SourceLabel {
+    primary: String,
+    secondary: Option<String>,
+}
+
+impl SourceLabel {
+    fn joined(&self) -> String {
+        match &self.secondary {
+            Some(secondary) => format!("{} · {secondary}", self.primary),
+            None => self.primary.clone(),
+        }
+    }
+}
+
+/// Label for a detected removable mount: the device model on the first line and
+/// the actual mount directory on the second. A `Card · Disk` basename label is
+/// not enough to tell one inserted volume from another. When the block device
+/// reports no model, the mount directory stands alone.
+fn removable_source_label(model: Option<&str>, path: &std::path::Path) -> SourceLabel {
+    let directory = path.display().to_string();
+    match model {
+        Some(model) => SourceLabel {
+            primary: model.to_string(),
+            secondary: Some(directory),
+        },
+        None => SourceLabel {
+            primary: directory,
+            secondary: None,
+        },
+    }
+}
+
+/// The display voice: Spectral, bundled at
+/// `crates/captureport/assets/fonts/Spectral-{SemiBold,Bold}.ttf` with its OFL
+/// license. It carries the wordmark and every page, panel, section, and
+/// empty-state heading. Dense UI — controls, navigation, filenames, metadata,
+/// and labels — stays Adwaita Sans.
+const DISPLAY_FONT: &str = "Spectral";
+
 /// The tile's media-type badge: a real Material icon plus its label, replacing
 /// the leading Unicode marks that stood in for an icon system.
 fn media_type_badge(media_type: captureport_core::MediaType) -> (crate::icons::Icon, &'static str) {
@@ -229,6 +270,40 @@ fn bundle_type_label(
     (crate::icons::Icon::Bundle, label)
 }
 
+/// The surface and ink shared by every overlay drawn on a photograph.
+///
+/// An overlay sits on an image of unknown luminance, so it must carry its own
+/// surface instead of borrowing a theme one. A 60% black scrim keeps white ink
+/// at 5.7:1 even over a blown white frame; the `card`-on-photograph treatment
+/// this replaces measured 1.19:1 over a bright frame. DESIGN.md records the rule
+/// as "image badges use a solid black scrim".
+fn image_badge_surface() -> (Rgba, Rgba) {
+    (gpui::rgba(0x00000099), rgb(0xffffff))
+}
+
+/// Ink for the border-filled status chip.
+///
+/// Deliberately `text`, not `muted`: muted ink on a border fill measures 4.27:1
+/// in Ink/light, under the floor for the chip's 14px label. Kept as its own
+/// function so `palette_tests::status_chip_ink_clears_the_text_floor` exercises
+/// the exact value the chip renders rather than a lookalike palette pair.
+fn status_chip_ink(palette: Palette) -> Rgba {
+    palette.text
+}
+
+/// The one status chip filled with the border token ("Import blocked" on the
+/// import preview).
+fn status_chip(label: &'static str, palette: Palette) -> impl IntoElement {
+    div()
+        .px(px(spacing::CONTENT))
+        .py(px(spacing::CONTROL_GAP))
+        .rounded_sm()
+        .bg(palette.border)
+        .text_sm()
+        .text_color(status_chip_ink(palette))
+        .child(label)
+}
+
 fn group_plan_items(items: &[captureport_ingest::PlannedImport]) -> Vec<Vec<usize>> {
     let mut groups = Vec::new();
     let mut index = 0;
@@ -257,8 +332,24 @@ fn group_plan_items(items: &[captureport_ingest::PlannedImport]) -> Vec<Vec<usiz
 
 #[cfg(test)]
 mod thumbnail_layout_tests {
-    use super::{media_type_badge, segment_help_label, thumbnail_columns, thumbnail_layout};
+    use super::{
+        media_type_badge, removable_source_label, segment_help_label, thumbnail_columns,
+        thumbnail_layout,
+    };
     use crate::icons::Icon;
+    use std::path::Path;
+
+    #[test]
+    fn removable_source_labels_split_model_and_mount_dir() {
+        let mount = Path::new("/run/media/user/Disk");
+        let labelled = removable_source_label(Some("Sony A7C II"), mount);
+        assert_eq!(labelled.primary, "Sony A7C II");
+        assert_eq!(labelled.secondary.as_deref(), Some("/run/media/user/Disk"));
+        assert_eq!(labelled.joined(), "Sony A7C II · /run/media/user/Disk");
+        let unlabelled = removable_source_label(None, mount);
+        assert_eq!(unlabelled.primary, "/run/media/user/Disk");
+        assert_eq!(unlabelled.secondary, None);
+    }
 
     #[test]
     fn segment_help_buttons_have_distinct_ids_and_toggle_labels() {
@@ -382,6 +473,33 @@ impl Browser {
         }
     }
 
+    /// Label for the open source: a user alias first, then a detected removable
+    /// mount as its model over its mount dir, then the source's own display name.
+    fn source_label(&self) -> Option<SourceLabel> {
+        if let Some(alias) = &self.source_alias {
+            return Some(SourceLabel {
+                primary: alias.clone(),
+                secondary: None,
+            });
+        }
+        if let Some(root) = &self.filesystem_root
+            && captureport_gphoto::discovery::likely_removable_mount(root)
+        {
+            return Some(removable_source_label(
+                self.mounted_models.get(root).map(String::as_str),
+                root,
+            ));
+        }
+        self.state
+            .source
+            .as_ref()
+            .and_then(|source| source.display_name.clone())
+            .map(|name| SourceLabel {
+                primary: name,
+                secondary: None,
+            })
+    }
+
     fn sidebar(&mut self, sidebar_width: f32, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let mut panel = div()
@@ -426,24 +544,27 @@ impl Browser {
                     cx.listener(move |t, _, _, c| t.mount_card(index, c)))));
         }
         for (index, discovered) in self.discovered_sources.iter().enumerate() {
-            let name = match discovered {
-                captureport_gphoto::discovery::DiscoveredSource::Ptp(camera) => {
-                    format!("Camera · {}", camera.model)
-                }
+            let label = match discovered {
+                captureport_gphoto::discovery::DiscoveredSource::Ptp(camera) => SourceLabel {
+                    primary: format!("Camera · {}", camera.model),
+                    secondary: None,
+                },
                 captureport_gphoto::discovery::DiscoveredSource::MountedFilesystem {
+                    path, ..
+                } => removable_source_label(
+                    self.mounted_models.get(path).map(String::as_str),
                     path,
-                    label,
-                    ..
-                } => format!(
-                    "Card · {}",
-                    label.clone().unwrap_or_else(|| path.display().to_string())
                 ),
             };
-            let name = self
+            let label = self
                 .discovery_aliases
                 .get(discovered.stable_id())
                 .cloned()
-                .unwrap_or(name);
+                .map(|alias| SourceLabel {
+                    primary: alias,
+                    secondary: None,
+                })
+                .unwrap_or(label);
             panel = panel.child(
                 div()
                     .id(gpui::ElementId::named_usize("source", index))
@@ -457,19 +578,14 @@ impl Browser {
                     .bg(if self.state.source.as_ref().is_some_and(|source| source.stable_id.as_deref() == Some(discovered.stable_id())) { p.selected } else { p.card })
                     .hover(move |style| style.bg(p.selected))
                     .on_click(cx.listener(move |t, _, _, c| t.open_discovered(index, c)))
-                    .truncate()
-                    .child(name),
+                    .child(div().flex_1().min_w_0().flex().flex_col()
+                        .child(div().w_full().truncate().child(label.primary))
+                        .children(label.secondary.map(|secondary| div().w_full().truncate().text_xs().text_color(p.muted).child(secondary)))),
             );
         }
         let source = self
-            .source_alias
-            .clone()
-            .or_else(|| {
-                self.state
-                    .source
-                    .as_ref()
-                    .and_then(|s| s.display_name.clone())
-            })
+            .source_label()
+            .map(|label| label.joined())
             .unwrap_or_else(|| "No source selected".into());
         panel = panel
             .child(
@@ -573,13 +689,16 @@ impl Browser {
         };
         let row_count = rows.len();
         let rows = std::sync::Arc::new(rows);
-        let source_name = self.source_alias.clone().or_else(|| self.state.source.as_ref()
-            .and_then(|source| source.display_name.clone()))
-            .unwrap_or_else(|| "No source open".into());
+        let source_label = self.source_label().unwrap_or(SourceLabel {
+            primary: "No source open".into(),
+            secondary: None,
+        });
         div().flex_1().min_w_0().min_h_0().flex().flex_col()
             .child(div().px(px(spacing::CONTENT)).pt(px(spacing::CONTENT)).pb(px(spacing::CONTROL_GAP)).flex().flex_col().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border)
                 .child(div().min_w_0().flex().items_baseline().justify_between().gap(px(spacing::CONTENT))
-                    .child(div().flex_1().min_w_0().text_lg().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_name))
+                    .child(div().flex_1().min_w_0().flex().flex_col()
+                        .child(div().w_full().font_family(DISPLAY_FONT).text_lg().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_label.primary))
+                        .children(source_label.secondary.map(|secondary| div().w_full().text_xs().text_color(p.muted).truncate().child(secondary))))
                     .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(format!("{visible} ready · {} loading · {failed} unavailable · {} selected{}", waiting.saturating_sub(failed), self.state.selection_summary().count,
                         if hidden_selected > 0 { format!(" ({hidden_selected} without previews; review import paths)") } else { String::new() }))))
                 .child(div().flex().flex_wrap().gap(px(spacing::TIGHT))
@@ -650,7 +769,7 @@ impl Browser {
             .child(if visible==0 {
                 div().flex_1().flex().items_center().justify_center().px(px(spacing::CONTENT))
                     .child(div().flex().flex_col().items_center().gap(px(spacing::CONTENT))
-                        .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
+                        .child(div().font_family(DISPLAY_FONT).text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
                             .child(if self.scanning { "Scanning source…" } else if waiting > failed { "Preparing previews…" } else if failed > 0 { "Previews unavailable" } else if self.state.source.is_none() { "Start with a source" } else if self.state.filter == MediaFilter::All { "No media found in this source" } else { "No media matches this filter" }))
                         .child(div().text_sm().text_color(p.muted)
                             .child(if self.scanning { "Media appears after metadata and its thumbnail are ready." } else if failed > 0 && waiting == failed { "Some files could not be previewed. Check the source or video decoder, then reopen it to retry." } else if waiting > 0 { "Metadata and thumbnails are loading." } else if self.state.source.is_none() { if self.discovered_sources.is_empty() && !self.unmounted_cards.is_empty() { "Mount the card in Sources to browse media." } else if self.discovered_sources.is_empty() { "Open a folder or connect a camera to browse media." } else { "Choose a discovered camera or card in Sources to browse media." } } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." }))
@@ -695,14 +814,14 @@ impl Browser {
                                         .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .child(base)
                                         .child(div().absolute().top(px(spacing::TIGHT)).right(px(spacing::TIGHT)).px(px(spacing::TIGHT)).py(px(1.)).rounded_sm()
-                                            .bg(gpui::rgba(0x00000099)).text_color(rgb(0xffffff))
+                                            .bg(image_badge_surface().0).text_color(image_badge_surface().1)
                                             .flex().items_center().gap(px(spacing::TIGHT))
                                             .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
-                                            .child(icons::icon_sized(badge.0, icons::ICON_SIZE_COMPACT, rgb(0xffffff)))
+                                            .child(icons::icon_sized(badge.0, icons::ICON_SIZE_COMPACT, image_badge_surface().1))
                                             .child(badge.1))
                                         .child(if partly_selected {
                                             div().absolute().top(px(spacing::TIGHT)).left(px(spacing::TIGHT)).px(px(spacing::CONTROL_GAP)).py(px(spacing::TIGHT)).rounded_sm()
-                                                .bg(p.card).text_color(p.text).text_xs()
+                                                .bg(image_badge_surface().0).text_color(image_badge_surface().1).text_xs()
                                                 .font_weight(gpui::FontWeight::SEMIBOLD)
                                                 .child(if selected { "Selected" } else { "Part selected" })
                                                 .into_any_element()
@@ -711,7 +830,11 @@ impl Browser {
                                 };
                                 // Block flow keeps truncated text out of flex's intrinsic-width
                                 // measurement, where GPUI can cache an ellipsis-only filename.
+                                // The caption carries its own surface: an unselected tile's
+                                // canvas background is the page background, so the title and
+                                // metadata would otherwise float on the grid with no tile edge.
                                 let metadata = div().w_full().h(px(spacing::MEDIA_DETAILS_HEIGHT)).px(px(spacing::CONTROL_GAP)).py(px(spacing::CONTROL_GAP)).min_w_0()
+                                    .bg(if selected { p.selected } else { p.card })
                                     .child(div().id(("media-name", id.0)).w_full().min_w_0().cursor_pointer().rounded_sm()
                                         .on_click(cx.listener(move |t, _, _, c| {
                                             c.stop_propagation();
@@ -754,7 +877,7 @@ impl Browser {
                                     .child(
                                         div()
                                             .id(gpui::ElementId::Name(format!("gallery-name-{key}").into()))
-                                            .flex_1().min_w_0().font_weight(gpui::FontWeight::SEMIBOLD).truncate()
+                                            .flex_1().min_w_0().font_family(DISPLAY_FONT).text_base().font_weight(gpui::FontWeight::SEMIBOLD).truncate()
                                             .cursor_pointer().rounded_sm()
                                             .hover(move |style| style.bg(p.selected))
                                             .on_click(cx.listener(move |t, _, _, c| {
@@ -923,7 +1046,7 @@ impl Browser {
             .flex_col()
             .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).border_b_1().border_color(p.border)
                 .child(div().flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTROL_GAP))
-                    .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
+                    .child(div().font_family(DISPLAY_FONT).text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
                         .child(format!("Review import · {count} files")))
                     .child(button(Icon::Back, "Back to media", p,  cx.listener(|t, _, _, c| { t.page = Page::Browser; c.notify() }))))
                 .child(div().text_sm().text_color(p.muted)
@@ -939,7 +1062,7 @@ impl Browser {
                         .into_any_element()
                 } else if blocked > 0 {
                     div().flex().items_center().gap(px(spacing::CONTROL_GAP))
-                        .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP)).rounded_sm().bg(p.border).text_sm().text_color(p.muted).child("Import blocked"))
+                        .child(status_chip("Import blocked", p))
                         .child(button(Icon::Settings, "Edit import settings", p,  cx.listener(|t, _, _, c| t.show_settings(c))))
                         .into_any_element()
                 } else { div().hidden().into_any_element() }))
@@ -1116,6 +1239,8 @@ impl Browser {
                     .py(px(spacing::CONTENT))
                     .border_b_1()
                     .border_color(p.border)
+                    .font_family(DISPLAY_FONT)
+                    .text_lg()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child(format!("Import history · {} sessions", self.history.len())),
             );
@@ -1260,6 +1385,7 @@ impl Browser {
             .scrollbar_width(px(spacing::SCROLLBAR_GUTTER))
             .child(
                 div()
+                    .font_family(DISPLAY_FONT)
                     .text_lg()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child("Import recovery"),
@@ -1352,6 +1478,7 @@ impl Browser {
             .scrollbar_width(px(spacing::SCROLLBAR_GUTTER))
             .child(
                 div()
+                    .font_family(DISPLAY_FONT)
                     .text_lg()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child("Settings"),
@@ -1672,7 +1799,7 @@ fn timezone_choice(
 
 fn settings_section(label: &'static str, palette: Palette) -> impl IntoElement {
     div().mt(px(spacing::CONTROL_GAP)).pb(px(spacing::TIGHT)).border_b_1().border_color(palette.border)
-        .text_base().font_weight(gpui::FontWeight::SEMIBOLD).child(label)
+        .font_family(DISPLAY_FONT).text_base().font_weight(gpui::FontWeight::SEMIBOLD).child(label)
 }
 fn settings_field(
     label: &'static str,
@@ -1906,9 +2033,10 @@ impl Render for Browser {
                     .text_color(p.header_text)
                     .child(
                         div()
-                            .flex().items_baseline().gap(px(spacing::CONTENT))
-                            .child(div().text_base().font_weight(gpui::FontWeight::SEMIBOLD).child("CapturePort"))
-                            .child(div().text_xs().text_color(p.header_muted).child("Photo and video ingest")),
+                            .flex().items_center().gap(px(spacing::CONTENT))
+                            .child(div().font_family(DISPLAY_FONT).text_size(px(22.)).font_weight(gpui::FontWeight::BOLD).child("CapturePort"))
+                            .child(div().w(px(1.)).h(px(20.)).flex_shrink_0().bg(p.border))
+                            .child(div().text_sm().text_color(p.header_muted).child("Photo and video ingest")),
                     )
                     .child(button(
                         if self.ui.dark_mode { Icon::LightMode } else { Icon::DarkMode },
@@ -2010,18 +2138,78 @@ mod palette_tests {
                 let ratio = contrast(p.text, background);
                 assert!(ratio >= 4.5, "{context}: text on {surface} is {ratio:.2}:1");
             }
-            for (surface, background) in [("canvas", p.canvas), ("panel", p.panel), ("card", p.card)] {
+            // 12-14px helper, label and metadata copy is normal-size text, so its
+            // WCAG AA floor is 4.5:1 — not the 3.0 reserved for large text.
+            for (surface, background) in [
+                ("canvas", p.canvas),
+                ("panel", p.panel),
+                ("card", p.card),
+                ("selected", p.selected),
+            ] {
                 let ratio = contrast(p.muted, background);
-                assert!(ratio >= 3.0, "{context}: muted on {surface} is {ratio:.2}:1");
+                assert!(
+                    ratio >= 4.5,
+                    "{context}: muted on {surface} is {ratio:.2}:1 (needs 4.5 for 12px text)"
+                );
             }
             let ratio = contrast(p.primary_text, p.primary_bg);
             assert!(ratio >= 4.5, "{context}: primary button label is {ratio:.2}:1");
             let ratio = contrast(p.header_text, p.header);
             assert!(ratio >= 4.5, "{context}: wordmark on header is {ratio:.2}:1");
             let ratio = contrast(p.header_muted, p.header);
-            assert!(ratio >= 3.0, "{context}: header subtitle is {ratio:.2}:1");
+            assert!(
+                ratio >= 4.5,
+                "{context}: header subtitle is {ratio:.2}:1 (it is 12px text)"
+            );
+            // Region separators, not control boundaries: the border-before-background
+            // rule keeps these deliberately quiet. The separate control-boundary
+            // case — a button, chip or field whose outline is the only marker of its
+            // own extent, measuring 1.44-1.56:1 — is a recorded gap, not pinned here.
+            // Raising the boundary role to 3:1 collides with the accent focus ring
+            // (1.25:1 apart in Darkroom/light), so it needs the focus-indicator
+            // system retuned in the same change. See docs/spec.md.
+            // The "Import blocked" status chip is the one surface in the
+            // interface filled with the border token. Its ink is exercised by
+            // `status_chip_ink_clears_the_text_floor` below, which reads the value
+            // the chip renders.
             let ratio = contrast(p.border, p.canvas);
             assert!(ratio >= 1.2, "{context}: border on canvas is invisible ({ratio:.2}:1)");
+        }
+    }
+
+    /// Exercises the value the blocked-import chip actually renders: ink on its
+    /// border fill. Muted ink on that fill measures 4.27:1 in Ink/light, so the
+    /// chip's own ink choice is asserted here rather than a lookalike pair.
+    #[test]
+    fn status_chip_ink_clears_the_text_floor() {
+        for (scheme, dark, p) in every_palette() {
+            let ratio = contrast(status_chip_ink(p), p.border);
+            assert!(
+                ratio >= 4.5,
+                "{scheme:?} dark={dark}: status chip ink on its border fill is {ratio:.2}:1"
+            );
+        }
+    }
+
+    /// Every overlay drawn on a photograph must stay readable over any frame,
+    /// including a blown-out white one. The selection label borrowed the `card`
+    /// surface over the photo and measured 1.19:1 on a bright frame, while the
+    /// type badge already used the scrim. Both now share `image_badge_surface`.
+    #[test]
+    fn image_badges_stay_legible_over_any_photograph() {
+        let (scrim, ink) = image_badge_surface();
+        let over = |photo: f32| -> Rgba {
+            let blend = |front: f32, back: f32| front * scrim.a + back * (1.0 - scrim.a);
+            Rgba {
+                r: blend(scrim.r, photo),
+                g: blend(scrim.g, photo),
+                b: blend(scrim.b, photo),
+                a: 1.0,
+            }
+        };
+        for (label, photo) in [("white", 1.0), ("mid grey", 0.5), ("black", 0.0)] {
+            let ratio = contrast(ink, over(photo));
+            assert!(ratio >= 4.5, "badge ink on a {label} photograph is {ratio:.2}:1");
         }
     }
 
@@ -2037,6 +2225,19 @@ mod palette_tests {
                     "{scheme:?}/dark={dark} and {other_scheme:?}/dark={other_dark} render identically"
                 );
             }
+        }
+    }
+
+    /// The unselected tile's caption sits on its own surface. If a palette
+    /// retune collapses `card` onto `canvas`, the title and metadata lose the
+    /// backdrop that separates them from the grid.
+    #[test]
+    fn unselected_tile_caption_has_its_own_surface() {
+        for (scheme, dark, p) in every_palette() {
+            assert!(
+                differs(p.card, p.canvas),
+                "{scheme:?} dark={dark}: unselected caption surface equals the page canvas"
+            );
         }
     }
 

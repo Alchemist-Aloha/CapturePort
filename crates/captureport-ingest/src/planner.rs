@@ -16,6 +16,9 @@ use uuid::Uuid;
 pub struct PlanInput {
     pub item: MediaItem,
     pub capture_time: DateTime<FixedOffset>,
+    /// Gallery display name for the item's shooting session, when one exists.
+    /// `None` renders `{session_name}` as `unknown`.
+    pub session_name: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -420,6 +423,7 @@ fn make_copies(
         },
         sequence,
         session,
+        session_name: input.session_name.as_deref().unwrap_or(""),
         metadata,
         file_size: input.item.size,
         source_name: identity.display_name.as_deref().unwrap_or(""),
@@ -675,6 +679,7 @@ mod tests {
         PlanInput {
             item,
             capture_time: time,
+            session_name: None,
         }
     }
     #[test]
@@ -705,6 +710,29 @@ mod tests {
         assert_ne!(
             plan.items[0].copies[0].final_destination,
             plan.items[1].copies[0].final_destination
+        );
+    }
+
+    #[test]
+    fn session_name_reaches_destination_templates() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut preset = ImportPreset::organized(dir.path());
+        preset.photo.root = dir.path().into();
+        preset.photo.folder_template = "{session_name}/{session:02}".into();
+        preset.filename_template = "{original_name}".into();
+        let zone = FixedOffset::east_opt(0).unwrap();
+        let mut selected = input(
+            1,
+            "a.JPG",
+            zone.with_ymd_and_hms(2026, 1, 1, 12, 0, 0).unwrap(),
+        );
+        selected.session_name = Some("Iceland trip".into());
+        let source = FakeMediaSource::new(1);
+        let plan = ImportPlanner::build(&source, vec![selected], &preset);
+        assert_eq!(plan.items[0].status, PlanStatus::Ready);
+        assert_eq!(
+            plan.items[0].copies[0].final_destination,
+            dir.path().join("Iceland trip/01/a.JPG")
         );
     }
 

@@ -178,7 +178,7 @@ fn unescape_mount(value: &str) -> PathBuf {
             .replace("\\134", "\\"),
     )
 }
-fn likely_removable_mount(path: &Path) -> bool {
+pub fn likely_removable_mount(path: &Path) -> bool {
     let value = path.to_string_lossy();
     value.starts_with("/media/") || value.starts_with("/run/media/")
 }

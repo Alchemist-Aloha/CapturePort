@@ -68,6 +68,14 @@ struct UnmountedCard {
     label: String,
 }
 
+/// Removable volumes found by `lsblk`: the ones that still need mounting, plus
+/// the device model of those already mounted, keyed by mount point.
+#[derive(Default)]
+struct RemovableVolumes {
+    unmounted: Vec<UnmountedCard>,
+    mounted_models: HashMap<PathBuf, String>,
+}
+
 #[derive(Deserialize)]
 struct BlockListing {
     blockdevices: Vec<BlockDevice>,
@@ -86,7 +94,7 @@ struct BlockDevice {
     serial: Option<String>,
 }
 
-fn unmounted_cards() -> Result<Vec<UnmountedCard>, String> {
+fn removable_volumes() -> Result<RemovableVolumes, String> {
     let output = Command::new("lsblk")
         .args([
             "-J",
@@ -103,8 +111,8 @@ fn unmounted_cards() -> Result<Vec<UnmountedCard>, String> {
     Ok(cards_from_blocks(&listing.blockdevices))
 }
 
-fn cards_from_blocks(blocks: &[BlockDevice]) -> Vec<UnmountedCard> {
-    let mut cards = Vec::new();
+fn cards_from_blocks(blocks: &[BlockDevice]) -> RemovableVolumes {
+    let mut volumes = RemovableVolumes::default();
     let mut parent: Option<&BlockDevice> = None;
     for block in blocks {
         if block.kind == "disk" {
@@ -118,25 +126,34 @@ fn cards_from_blocks(blocks: &[BlockDevice]) -> Vec<UnmountedCard> {
                 .fstype
                 .as_deref()
                 .is_some_and(|fs| !fs.is_empty() && fs != "crypto_LUKS" && fs != "swap")
-            && block.mountpoint.is_none()
         {
-            cards.push(UnmountedCard {
-                path: block.path.clone(),
-                identity: format!(
-                    "{}:{}:{}",
-                    drive.path.display(),
-                    drive.serial.as_deref().unwrap_or(""),
-                    block.path.display()
-                ),
-                label: block
-                    .label
-                    .clone()
-                    .or_else(|| drive.model.clone())
-                    .unwrap_or_else(|| block.path.display().to_string()),
-            });
+            if let Some(mountpoint) = &block.mountpoint {
+                volumes.mounted_models.insert(
+                    PathBuf::from(mountpoint),
+                    drive
+                        .model
+                        .clone()
+                        .unwrap_or_else(|| drive.path.display().to_string()),
+                );
+            } else {
+                volumes.unmounted.push(UnmountedCard {
+                    path: block.path.clone(),
+                    identity: format!(
+                        "{}:{}:{}",
+                        drive.path.display(),
+                        drive.serial.as_deref().unwrap_or(""),
+                        block.path.display()
+                    ),
+                    label: block
+                        .label
+                        .clone()
+                        .or_else(|| drive.model.clone())
+                        .unwrap_or_else(|| block.path.display().to_string()),
+                });
+            }
         }
     }
-    cards
+    volumes
 }
 
 type DiscoveryResult = Result<
@@ -608,6 +625,8 @@ struct Browser {
     visible_ids: Vec<MediaId>,
     gallery_groups: Vec<GalleryGroup>,
     gallery_names: HashMap<String, String>,
+    /// Session display title per item, so `{session_name}` survives filters.
+    gallery_item_names: HashMap<MediaId, String>,
     gallery_names_path: PathBuf,
     gallery_edit_key: Option<String>,
     gallery_edit_input: Entity<text_input::TextInput>,
@@ -648,10 +667,12 @@ struct Browser {
     session_detail: Option<SessionDetail>,
     discovered_sources: Vec<captureport_gphoto::discovery::DiscoveredSource>,
     discovery_aliases: HashMap<String, String>,
-    discovery_receiver: Receiver<(bool, DiscoveryResult, Vec<UnmountedCard>)>,
+    discovery_receiver: Receiver<(bool, DiscoveryResult, RemovableVolumes)>,
     discovery_requests: mpsc::Sender<()>,
     discovering: bool,
     unmounted_cards: Vec<UnmountedCard>,
+    /// Device model keyed by mount point, for detected removable sources.
+    mounted_models: HashMap<PathBuf, String>,
     mounting: Option<PathBuf>,
     discovery_stop: Arc<AtomicBool>,
     incomplete_sessions: Vec<IncompleteSession>,
@@ -778,7 +799,7 @@ impl Browser {
                     })
                     .map_err(|error| error.to_string());
                 if discovery_tx
-                    .send((manual, result, unmounted_cards().unwrap_or_default()))
+                    .send((manual, result, removable_volumes().unwrap_or_default()))
                     .is_err()
                 {
                     break;
@@ -792,6 +813,7 @@ impl Browser {
             visible_ids: Vec::new(),
             gallery_groups: Vec::new(),
             gallery_names,
+            gallery_item_names: HashMap::new(),
             gallery_names_path,
             gallery_edit_key: None,
             gallery_edit_input,
@@ -835,6 +857,7 @@ impl Browser {
             discovery_requests: request_tx,
             discovering: false,
             unmounted_cards: Vec::new(),
+            mounted_models: HashMap::new(),
             mounting: None,
             discovery_stop,
             incomplete_sessions: Vec::new(),
@@ -907,8 +930,9 @@ impl Browser {
     }
     fn drain(&mut self, cx: &mut Context<Self>) {
         let mut changed = false;
-        while let Ok((manual, result, cards)) = self.discovery_receiver.try_recv() {
-            self.unmounted_cards = cards;
+        while let Ok((manual, result, volumes)) = self.discovery_receiver.try_recv() {
+            self.unmounted_cards = volumes.unmounted;
+            self.mounted_models = volumes.mounted_models;
             if manual {
                 self.discovering = false;
             }
@@ -1177,6 +1201,7 @@ impl Browser {
     }
     fn rebuild_gallery_groups(&mut self) {
         self.gallery_groups.clear();
+        self.gallery_item_names.clear();
         let Grouping::TimeGap { .. } = self.preset.grouping else {
             return;
         };
@@ -1207,6 +1232,7 @@ impl Browser {
             .collect::<Vec<_>>();
         let sessions = session_numbers(&times, &self.preset.grouping);
         let visible = self.visible_ids.iter().copied().collect::<HashSet<_>>();
+        let mut item_group = Vec::new();
         for (index, item) in items.into_iter().enumerate() {
             if self
                 .gallery_groups
@@ -1227,6 +1253,14 @@ impl Browser {
                     ids: Vec::new(),
                 });
             }
+            item_group.push((
+                item.id,
+                self.gallery_groups
+                    .last()
+                    .expect("group exists")
+                    .key
+                    .clone(),
+            ));
             if visible.contains(&item.id) {
                 self.gallery_groups
                     .last_mut()
@@ -1235,12 +1269,28 @@ impl Browser {
                     .push(item.id);
             }
         }
+        // Keep the pre-retain titles so items hidden by the current filter still
+        // carry the session name the user typed.
+        let mut titles = self
+            .gallery_groups
+            .iter()
+            .map(|group| (group.key.clone(), group.title.clone()))
+            .collect::<HashMap<_, _>>();
         self.gallery_groups.retain(|group| !group.ids.is_empty());
         suffix_duplicate_titles(&mut self.gallery_groups, |key| {
             self.gallery_names
                 .get(key)
                 .is_some_and(|name| !is_legacy_session_name(name))
         });
+        for group in &self.gallery_groups {
+            titles.insert(group.key.clone(), group.title.clone());
+        }
+        self.gallery_item_names.clear();
+        for (id, key) in item_group {
+            if let Some(title) = titles.get(&key) {
+                self.gallery_item_names.insert(id, title.clone());
+            }
+        }
     }
     fn set_gap_minutes(&mut self, minutes: u32, cx: &mut Context<Self>) {
         self.preset.grouping = Grouping::TimeGap {
@@ -1698,6 +1748,7 @@ impl Browser {
             .cloned()
             .map(|item| PlanInput {
                 capture_time: capture_time(&item),
+                session_name: self.gallery_item_names.get(&item.id).cloned(),
                 item,
             })
             .collect();
@@ -2139,7 +2190,7 @@ impl Browser {
         self.work_receivers.push(rx);
         thread::spawn(move || {
             let result = (|| -> Result<String, String> {
-                if !unmounted_cards()?.contains(&card) {
+                if !removable_volumes()?.unmounted.contains(&card) {
                     return Err("Device changed or is no longer available. Refresh devices.".into());
                 }
                 let output = Command::new("udisksctl")
@@ -2901,12 +2952,13 @@ fn main() {
     Application::new()
         .with_assets(icons::Icons)
         .run(move |cx: &mut App| {
-            if let Err(error) =
-                cx.text_system()
-                    .add_fonts(vec![std::borrow::Cow::Borrowed(include_bytes!(
-                        "../assets/fonts/AdwaitaSans-Regular.ttf"
-                    ))])
-            {
+            if let Err(error) = cx.text_system().add_fonts(vec![
+                std::borrow::Cow::Borrowed(include_bytes!(
+                    "../assets/fonts/AdwaitaSans-Regular.ttf"
+                )),
+                std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Spectral-SemiBold.ttf")),
+                std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Spectral-Bold.ttf")),
+            ]) {
                 tracing::warn!(%error, "Could not load bundled interface font");
             }
             cx.bind_keys([
@@ -3026,9 +3078,13 @@ mod integration_tests {
             {"path":"/dev/sdb2","type":"part","rm":true,"tran":null,"fstype":"exfat","mountpoint":"/run/media/card","label":null,"model":null,"serial":null}
         ]}"#).unwrap();
         let cards = cards_from_blocks(&blocks.blockdevices);
-        assert_eq!(cards.len(), 1);
-        assert_eq!(cards[0].path, PathBuf::from("/dev/sdb1"));
-        assert_eq!(cards[0].label, "Camera");
+        assert_eq!(cards.unmounted.len(), 1);
+        assert_eq!(cards.unmounted[0].path, PathBuf::from("/dev/sdb1"));
+        assert_eq!(cards.unmounted[0].label, "Camera");
+        assert_eq!(
+            cards.mounted_models.get(&PathBuf::from("/run/media/card")),
+            Some(&"Camera".to_string())
+        );
     }
     use std::fs;
 
@@ -3291,6 +3347,7 @@ mod integration_tests {
             .cloned()
             .map(|item| PlanInput {
                 capture_time: capture_time(&item),
+                session_name: None,
                 item,
             })
             .collect();
@@ -3330,6 +3387,7 @@ mod integration_tests {
             .cloned()
             .map(|item| PlanInput {
                 capture_time: capture_time(&item),
+                session_name: None,
                 item,
             })
             .collect();
@@ -3416,6 +3474,7 @@ mod integration_tests {
             .cloned()
             .map(|item| PlanInput {
                 capture_time: capture_time(&item),
+                session_name: None,
                 item,
             })
             .collect();

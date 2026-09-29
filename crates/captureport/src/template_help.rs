@@ -37,6 +37,7 @@ pub fn example(source: &str, filename: bool, video: bool) -> Result<String, Temp
         media_type: if video { "video" } else { "photo" },
         sequence: 1,
         session: 2,
+        session_name: "Iceland trip",
         metadata: Some(&metadata),
         file_size: 24000000,
         source_name: "Camera card",

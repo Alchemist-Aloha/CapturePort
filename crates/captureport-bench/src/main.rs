@@ -165,6 +165,7 @@ fn benchmark_templates(items: &[MediaItem]) -> Result<Sample, Box<dyn std::error
             },
             sequence: index as u64 + 1,
             session: 1,
+            session_name: "Benchmark session",
             metadata: None,
             file_size: item.size,
             source_name: "Benchmark",
@@ -197,6 +198,7 @@ fn benchmark_planner(
         .map(|item| PlanInput {
             item,
             capture_time: time,
+            session_name: None,
         })
         .collect();
     let started = Instant::now();

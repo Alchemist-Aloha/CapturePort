@@ -14,6 +14,8 @@ install -Dm755 target/release/captureport "$package_root/usr/bin/captureport"
 install -Dm644 LICENSE "$package_root/usr/share/doc/captureport/copyright"
 install -Dm644 crates/captureport/assets/fonts/OFL.txt \
   "$package_root/usr/share/doc/captureport/OFL.txt"
+install -Dm644 crates/captureport/assets/fonts/Spectral-OFL.txt \
+  "$package_root/usr/share/doc/captureport/Spectral-OFL.txt"
 install -Dm644 crates/captureport/assets/icons/LICENSE.txt \
   "$package_root/usr/share/doc/captureport/Apache-2.0-Material-Symbols.txt"
 install -Dm644 packaging/captureport.desktop \

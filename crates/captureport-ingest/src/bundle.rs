@@ -212,6 +212,7 @@ mod tests {
         .map(|item| PlanInput {
             item,
             capture_time: time,
+            session_name: None,
         })
         .collect();
         let result = apply_bundle_policy(inputs, BundlePolicy::RawOnly);
@@ -238,6 +239,7 @@ mod tests {
         .map(|item| PlanInput {
             item,
             capture_time: time,
+            session_name: None,
         })
         .collect();
         let result = apply_bundle_policy_with_overrides(

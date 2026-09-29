@@ -463,6 +463,7 @@ mod tests {
                 .map(|item| PlanInput {
                     item,
                     capture_time: time,
+                    session_name: None,
                 })
                 .collect(),
             &preset,
@@ -644,6 +645,7 @@ mod tests {
                 .map(|item| PlanInput {
                     item,
                     capture_time: time,
+                    session_name: None,
                 })
                 .collect(),
             &preset,

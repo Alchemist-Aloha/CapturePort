@@ -32,7 +32,9 @@ for formats and missing-metadata behavior. Review the import preview for the
 actual final paths.
 
 Time-gap grouping creates galleries and session numbers without adding a folder
-layer. Add `{date}_{session}` to a folder template if you want session folders.
+layer. Add `{date}_{session}` to a folder template if you want session folders,
+or `{session_name}` to use the name you gave the gallery (the gallery date until
+renamed, `unknown` when grouping is off).
 
 In the media browser, **Mark as imported** records selected files that you have
 already imported elsewhere. Their `marked manually` status survives rescans and
@@ -44,10 +46,10 @@ CapturePort-owned partial files. It can build a new preview of remaining files
 from the reconnected source. Cleanup and post-import source deletion each
 require a separate explicit action.
 
-The desktop interface embeds Adwaita Sans and the Material Symbols Outlined
-icon set; the font's SIL Open Font License and the icon set's Apache License
-ship with the application packages. Appearance offers Pine, Darkroom, Graphite, and
-Ink schemes in both light and dark mode.
+The desktop interface embeds the Spectral serif and Adwaita Sans, and the
+Material Symbols Outlined icon set; both fonts' SIL Open Font Licenses and the
+icon set's Apache License ship with the application packages. Appearance offers
+Pine, Darkroom, Graphite, and Ink schemes in both light and dark mode.
 
 Deterministic UI fixtures are available with `--demo empty`, `--demo camera`,
 `--demo importing`, `--demo errors`, and `--demo 10000`. A fixture run opens an

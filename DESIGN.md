@@ -18,12 +18,16 @@ colors:
   primary-text: "#ffffff"
 typography:
   display:
-    fontFamily: "Adwaita Sans, sans-serif"
-    fontSize: "16px"
-    fontWeight: 600
+    fontFamily: "Spectral, serif"
+    fontSize: "22px"
+    fontWeight: 700
   headline:
-    fontFamily: "Adwaita Sans, sans-serif"
+    fontFamily: "Spectral, serif"
     fontSize: "18px"
+    fontWeight: 600
+  section:
+    fontFamily: "Spectral, serif"
+    fontSize: "16px"
     fontWeight: 600
   title:
     fontFamily: "Adwaita Sans, sans-serif"
@@ -90,13 +94,13 @@ components:
 
 CapturePort is a quiet picture-desk instrument for reviewing media before import. The visual overhaul gives the photographs and their import decisions priority: neutral chrome, a restrained scheme accent, compact controls, and explicit state labels. The four named schemes remain recognizable, while light and dark modes change the full surface system rather than only the accent.
 
-The bundled Adwaita Sans face gives the desktop UI a consistent Linux-native voice. Flat surfaces, 1px borders, and a contained image well keep the contact sheet calm during long review sessions. Core import behavior and safety language remain unchanged.
+The bundled Spectral serif carries the wordmark and every page, panel, section, and empty-state heading; Adwaita Sans handles the dense interface — controls, navigation, filenames, metadata, and labels. Flat surfaces, 1px borders, and a contained image well keep the contact sheet calm during long review sessions. Core import behavior and safety language remain unchanged.
 
 **Key Characteristics:**
 
-- 48px neutral header, 232px source rail (184px below 760px), and 52px footer.
+- 48px neutral header carrying the Spectral wordmark, 232px source rail (184px below 760px), and 52px footer.
 - 4px control radius and 36px minimum button, navigation, and filter height.
-- Adwaita Sans from the bundled OFL-licensed font asset.
+- Spectral for the display voice and Adwaita Sans for the interface, both bundled with their OFL licenses.
 - Quiet filter selection, explicit “Selected” / “Part selected” labels, and status text with icon.
 - Material Symbols Outlined action icons, tinted from their control's text color.
 - Full palette parity across Pine, Darkroom, Graphite, and Ink in light and dark modes.
@@ -130,17 +134,20 @@ The active Pine light tokens above are the frontmatter source. The complete sour
 
 ## Typography
 
-**Display / Body / Label Font:** Adwaita Sans, with a generic sans-serif fallback. The regular face is bundled at `crates/captureport/assets/fonts/AdwaitaSans-Regular.ttf` with its OFL text alongside it.
+**Display / Headline / Section Font:** Spectral, with a generic serif fallback. The SemiBold and Bold faces are bundled at `crates/captureport/assets/fonts/Spectral-SemiBold.ttf` and `crates/captureport/assets/fonts/Spectral-Bold.ttf`, with `Spectral-OFL.txt` alongside.
 
-**Character:** Compact, legible, and native to the Linux desktop. Weight carries hierarchy while the 12px/14px rhythm keeps dense media review readable.
+**Interface Font:** Adwaita Sans, with a generic sans-serif fallback. The regular face is bundled at `crates/captureport/assets/fonts/AdwaitaSans-Regular.ttf` with its OFL text alongside it.
+
+**Character:** An editorial serif voice over a compact, native interface. Spectral marks where the reader is — the wordmark, the page, the section — while Adwaita Sans keeps dense media review legible at 12px and 14px. The split is by job, never by surface: Spectral never sets interface chrome, data, or type below 16px, and Adwaita Sans never sets a page heading.
 
 ### Hierarchy
 
-- **Display** (600, 16px): CapturePort wordmark.
-- **Headline** (600, 18px): panel and empty-state titles.
-- **Title** (600, 14px): filenames, navigation labels, and leading row text.
-- **Body** (400, 14px): controls, summaries, and explanatory copy.
-- **Label** (400, 12px): time, size, status, counts, and image overlays.
+- **Display** (Bold 700, 22px, Spectral): the CapturePort wordmark.
+- **Headline** (SemiBold 600, 18px, Spectral): page, panel, and empty-state titles.
+- **Section** (SemiBold 600, 16px, Spectral): settings sections and gallery session headings.
+- **Title** (SemiBold 600, 14px, Adwaita Sans): filenames, navigation labels, and leading row text.
+- **Body** (400, 14px, Adwaita Sans): controls, summaries, and explanatory copy.
+- **Label** (400, 12px, Adwaita Sans): time, size, status, counts, and image overlays.
 
 ## Iconography
 
@@ -175,7 +182,7 @@ have to guess its meaning.
 
 ## Layout
 
-The desktop shell is vertical: a 48px header, a flexible body, and a 52px footer. The body places a fixed source rail beside a fluid content area. The rail is 232px wide at normal windows and 184px below the single 760px window-width breakpoint.
+The desktop shell is vertical: a 48px header, a flexible body, and a 52px footer. The header carries the wordmark lockup on the left — the Spectral logotype, a 1px vertical rule, and the descriptor — with the theme toggle at the right. The body places a fixed source rail beside a fluid content area. The rail is 232px wide at normal windows and 184px below the single 760px window-width breakpoint.
 
 The browser uses a reflowing contact sheet with 16px grid gaps and 16px content gutters. Thumbnail targets remain the existing stepped sizes; each image well uses `ObjectFit::Contain` so photographs are never cropped. The layout reserves 208px for browser control chrome and 104px for media metadata; the resulting media row chrome is 122px (104px details + 16px grid gap + 2px borders). A grouped gallery heading contributes 44px (36px control height + 8px control gap).
 
@@ -185,7 +192,7 @@ Every page uses 16px header/footer gutters. Settings fields use 16px group separ
 
 ## Elevation & Depth
 
-CapturePort is flat by default. Depth comes from tonal surface changes and 1px borders; there are no shadows, blur layers, or decorative motion. Image badges use a solid black scrim for legibility over photographs.
+CapturePort is flat by default. Depth comes from tonal surface changes and 1px borders; there are no shadows, blur layers, or decorative motion. Every overlay drawn on a photograph — the media-type badge and the selection label — uses a solid black scrim for legibility over photographs, because a theme surface cannot promise contrast against an image of unknown luminance.
 
 **The Border-Before-Background Rule.** Use a border or a quiet tonal shift to separate states before adding visual weight.
 
@@ -194,6 +201,11 @@ CapturePort is flat by default. Depth comes from tonal surface changes and 1px b
 The system uses a 4px radius for buttons, filters, navigation rows, fields, cards, and media tiles. Image overlays use the same compact radius. Borders are 1px and palette-derived. Buttons, navigation rows, and filters use a 36px minimum height with 16px horizontal and 4px vertical padding. Inputs use a 34px inner height plus 2px of borders for a 36px outer control.
 
 ## Components
+
+### Header
+
+- A 48px neutral bar. On the left, the wordmark lockup: `CapturePort` in Spectral Bold 22px, then a 1px `border` rule 20px tall, then the descriptor `Photo and video ingest` in Adwaita Sans 14px `header_muted`. The theme toggle sits at the right.
+- The serif logotype is the one display element always on screen; it replaced the former 16px sans wordmark and is where the bar gets its weight. The bar keeps its 48px height, `header` surface, and 1px bottom border.
 
 ### Buttons
 
@@ -210,8 +222,8 @@ The system uses a 4px radius for buttons, filters, navigation rows, fields, card
 ### Media Tile
 
 - The tile is a flat, bordered 4px card with a contained image well and a placeholder while thumbnails load.
-- Type badge, file size, and explicit selection label sit over or beside the image without cropping it.
-- Metadata is separate: filename, time plus size, import status, then “View files” / “Hide files” for bundles.
+- Type badge, file size, and explicit selection label sit over or beside the image without cropping it. The type badge and the selection label both carry the black scrim; the selection label is never a themed surface.
+- Metadata is separate: filename, time plus size, import status, then “View files” / “Hide files” for bundles. The metadata caption carries its own surface — `card` when unselected, `selected` when selected — so the title and metadata never float directly on the page canvas.
 - The filename wrapper is explicitly full width before ellipsis truncation, so long source names remain stable in the grid.
 - Import status always uses icon plus text, including prior-session detail when available.
 
@@ -225,7 +237,7 @@ The 52px footer presents item totals, selected totals, byte totals, status text,
 
 - **Do** preserve all four schemes and both modes as complete source palettes.
 - **Do** keep the 48px header, 232/184px rail, 52px footer, and 4px/36px control language coherent.
-- **Do** use Adwaita Sans for every surface and keep the OFL asset with its license.
+- **Do** use Spectral for the wordmark and page, panel, section, and empty-state headings, and Adwaita Sans for everything else; keep both OFL assets with their licenses.
 - **Do** keep thumbnails contained and expose file size, import status, and bundle disclosure as separate metadata.
 - **Do** keep every control icon on the Material Symbols grid at 16px, or 12px inside a 12px badge label.
 - **Do** keep action icons tinted from the same token as their label text.

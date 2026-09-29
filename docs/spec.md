@@ -241,9 +241,16 @@ requesting the mount and refreshes Sources afterward. Mount errors remain visibl
 without clearing usable sources. A libgphoto2 detection failure must not hide
 mounted filesystem sources.
 
+A detected removable mount is labelled with its device model on the first line
+and its actual mount directory on the second, both in the Sources list button
+and as the browse page title; the Sources "Current:" line joins them with a
+middle dot. The volume's own label (for example `Card · Disk`) is not shown,
+because it does not distinguish one inserted card from another; when the block
+device reports no model, the mount directory stands alone.
+
 Libgphoto2's generic **Mass Storage Camera** and `disk:` camera adapters are
-hidden from the Sources sidebar. Mounted storage remains available as the
-**Card** source through the filesystem adapter. Actual PTP cameras remain
+hidden from the Sources sidebar. Mounted storage remains available through the
+filesystem adapter as a model-and-mount-dir source. Actual PTP cameras remain
 listed; matching USB mounts are suppressed only for those PTP cameras.
 
 Device discovery starts at launch and polls every three seconds. **Refresh devices**
@@ -842,6 +849,7 @@ Supported initial variables:
 
 {sequence}
 {session}
+{session_name}
 ```
 
 Formatting should be supported:
@@ -861,6 +869,14 @@ producing:
 `{session}` is the one-based deterministic shooting-session number assigned
 after timestamp correction and grouping. It can be used in destination or
 filename templates.
+
+`{session_name}` is the gallery display name of the item's shooting session:
+the user's rename when one is set, otherwise the gallery's default name (its
+earliest media's date, with the `a`/`b`/`c` duplicate suffix). It renders
+`unknown` when time-gap grouping is off, so the segment never empties a folder
+level or turns a path invalid. Because it follows the visible gallery grouping,
+an import of a subset can merge galleries that had different names; each item
+keeps the name of the gallery it came from.
 
 Folder and filename templates also expose the normalized metadata available to
 the importer. All segments work in both kinds of template:
@@ -2273,10 +2289,13 @@ Filesystem scanning is recursive and read-only. Hidden entries and common system
 
 Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions regardless of folder, including media under `Pictures/`, `Movies/`, or `DCIM/`. It skips non-media files (including sidecars) before showing them in the browser. Folder traversal remains recursive so camera media outside `DCIM/` is not lost. Explicitly opened ordinary filesystem folders retain the broader unknown-file behavior above.
 
-The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. A tile overlays its media-type badge at the thumbnail's top-right and its file size at the bottom-left, with the source file's modification time in a compact format below the filename; camera items without a local file omit the time. The status line below that is icon plus text (`✓ Imported`, `! Possible duplicate`, `? Unknown`, `New`, `Checking…`); for a file classified as imported or a possible duplicate it also names the prior import that matched, as a session number and date, so an uncertain classification is traceable rather than asserted. Selection is shown by the tile background and border rather than a text label. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Bulk selection preserves explicit bundle-member choices, including members hidden by the current filter; unavailable previews remain counted in selection and listed in the import preview. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
+The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. A tile overlays its media-type badge at the thumbnail's top-right and its file size at the bottom-left, with the source file's modification time in a compact format below the filename; camera items without a local file omit the time. The filename and metadata caption carries its own surface — the `card` tone when unselected and the `selected` tone when selected — so the text never sits directly on the page canvas. The status line below that is icon plus text (`✓ Imported`, `! Possible duplicate`, `? Unknown`, `New`, `Checking…`); for a file classified as imported or a possible duplicate it also names the prior import that matched, as a session number and date, so an uncertain classification is traceable rather than asserted. Selection is shown by the tile background, the tile border, and a `Selected` / `Part selected` label drawn on the image over the same black scrim as the media-type badge. The label never uses a themed surface: a card-coloured chip measures 1.19:1 against a bright frame and disappears over a blown-out photograph, while white ink on the 60% black scrim holds 5.7:1 against the brightest possible frame. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Bulk selection preserves explicit bundle-member choices, including members hidden by the current filter; unavailable previews remain counted in selection and listed in the import preview. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
 
 The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Until renamed, a gallery's default name is the creation date of its earliest media (`YYYY-MM-DD`), not a session number; when several galleries share a date, they are suffixed `a`, `b`, `c`, … in chronological order. Stored names that match the old auto-generated `Session N` pattern are ignored so they fall back to the date. Clicking a gallery's display name selects every visible media item in that gallery, or clears them when all are already selected (bundle members are included). Rename focuses the gallery name field immediately; Save keeps the editor open
-and reports an error if persistence fails. Display names never enter destination templates; actual output folders continue to come from the import preset's photo/video destination rules and their date/time/session variables. Import previews remain authoritative for the exact paths and session numbers of the selected import subset.
+and reports an error if persistence fails. Display names enter destination templates only through the explicit
+`{session_name}` segment; otherwise they are display-only, and actual output
+folders continue to come from the import preset's photo/video destination rules
+and their date/time/session variables. Import previews remain authoritative for the exact paths and session numbers of the selected import subset.
 
 The thumbnail grid adapts its column count to the available window width and
 keeps image previews and labels within their tiles. Card image height also
@@ -2300,12 +2319,16 @@ and thumbnail size are saved separately from import presets in `ui.json` under
 the XDG configuration directory. Pine is the default for a fresh configuration,
 and a `ui.json` written before color schemes existed keeps its saved mode and
 thumbnail size while using Pine.
-The desktop interface uses bundled Adwaita Sans for consistent typography across
-Linux installations. A compact 48-pixel neutral header, outlined secondary
-buttons, quiet filter tabs, and a 52-pixel selection footer keep the media grid
-central. The sidebar is 232 pixels wide, reducing to 184 pixels below a 760-pixel
-window width. Interactive controls use a 4-pixel radius; settings forms keep a
-readable maximum width. Existing shortcuts, source actions, planning, copying,
+The desktop interface uses bundled Spectral for its display voice and bundled
+Adwaita Sans for the interface, for consistent typography across Linux
+installations. Spectral, an OFL-licensed serif, sets the wordmark and every
+page, panel, section, and empty-state heading; Adwaita Sans sets controls,
+navigation, filenames, metadata, and labels. A compact 48-pixel neutral header
+carries the Spectral wordmark lockup; outlined secondary buttons, quiet filter
+tabs, and a 52-pixel selection footer keep the media grid central. The sidebar
+is 232 pixels wide, reducing to 184 pixels below a 760-pixel window width.
+Interactive controls use a 4-pixel radius; settings forms keep a readable
+maximum width. Existing shortcuts, source actions, planning, copying,
 verification, and recovery behavior are unchanged by the visual treatment.
 
 Spacing uses shared logical-pixel roles: 4 for tight detail groups, 8 for
@@ -2336,6 +2359,35 @@ expanded media group, import preview, history, recovery, settings, and timezone
 menu. The thumb reflects the visible fraction and current position. Users can
 drag it or click the track to navigate; wheel scrolling remains available.
 Scrollbar space is reserved so controls and media are not covered by the thumb.
+
+### Text contrast floors
+
+Every text and surface pairing the interface renders is asserted at **4.5:1**,
+the WCAG AA floor for normal-size text, across all four schemes in both modes.
+The interface has no large-text pairing, so no paragraph carries the 3:1
+allowance. Two pairings are pinned by dedicated tests because they are the ones
+a palette retune is most likely to break silently:
+
+- The **import-preview status chip** ("Import blocked") is filled with the
+  `border` token and uses ink, not muted text. Muted text on that fill measures
+  4.27:1 in Ink/light, below the floor; ink measures 7.5:1 at worst. A test reads
+  the chip's own ink choice rather than a lookalike pair.
+- **Image overlays** (the media-type badge and the selection label) carry their
+  own black scrim instead of a themed surface, so they are legible over any
+  frame. White ink on the 60% black scrim holds 5.7:1 against a pure white
+  photograph, the worst case a frame can present; the card-surface treatment it
+  replaces measured 1.19:1 against a bright frame in light mode.
+
+**Known gap — control boundaries.** The outline of a button, chip or text field
+measures 1.44–1.56:1 against its own surface, below the 3:1 that WCAG 1.4.11 asks
+of a component whose outline is the only marker of its extent. This is recorded
+rather than fixed because raising the boundary role to 3:1 collides with the
+accent focus ring: the two would sit 1.25:1 apart in Darkroom/light, so the focus
+indicator would stop reading as a change of state. The correct fix raises both
+together — a stronger resting outline *and* a focus indicator that still clears
+3:1 against it — which is a change to the palette's signal colours, not a
+contrast-token adjustment. Region separators (panel, tile and footer hairlines)
+are decorative and are deliberately exempt; they are asserted only at 1.2:1.
 
 Editable text fields in import settings and gallery names use the active light
 or dark palette for their surface, text, border, selection, and focus state.

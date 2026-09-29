@@ -46,6 +46,7 @@ enum Token {
     MediaType,
     Sequence(usize),
     Session(usize),
+    SessionName,
     Hour,
     Minute,
     Second,
@@ -79,6 +80,7 @@ pub struct TemplateContext<'a> {
     pub media_type: &'a str,
     pub sequence: u64,
     pub session: u32,
+    pub session_name: &'a str,
     pub metadata: Option<&'a MediaMetadata>,
     pub file_size: u64,
     pub source_name: &'a str,
@@ -217,6 +219,11 @@ pub const TEMPLATE_TOKENS: &[TemplateTokenHelp] = &[
         group: "File and numbering",
         syntax: "{session:03}",
         description: "Zero-pad session to 3 digits; widths 1–12",
+    },
+    TemplateTokenHelp {
+        group: "File and numbering",
+        syntax: "{session_name}",
+        description: "The session's gallery display name: your rename when set, otherwise its date; unknown when time-gap grouping is off",
     },
     TemplateTokenHelp {
         group: "Media metadata",
@@ -367,6 +374,7 @@ fn parse_token(name: &str) -> Result<Token, TemplateError> {
         "extension" => Token::Extension,
         "media_type" => Token::MediaType,
         "session" => Token::Session(2),
+        "session_name" => Token::SessionName,
         "hour" => Token::Hour,
         "minute" => Token::Minute,
         "second" => Token::Second,
@@ -448,6 +456,13 @@ fn token_value(token: &Token, context: &TemplateContext<'_>) -> String {
         Token::MediaType => context.media_type.into(),
         Token::Sequence(width) => format!("{:0width$}", context.sequence, width = *width),
         Token::Session(width) => format!("{:0width$}", context.session, width = *width),
+        Token::SessionName => {
+            if context.session_name.is_empty() {
+                "unknown".into()
+            } else {
+                context.session_name.into()
+            }
+        }
         Token::Hour => format!("{:02}", time.hour()),
         Token::Minute => format!("{:02}", time.minute()),
         Token::Second => format!("{:02}", time.second()),
@@ -590,6 +605,7 @@ mod tests {
             media_type: "photo",
             sequence: 1,
             session: 2,
+            session_name: "Iceland trip",
             metadata: None,
             file_size: 1024,
             source_name: "SD Card",
@@ -635,6 +651,21 @@ mod tests {
                 .render_filename(&ctx)
                 .unwrap(),
             "14-20-33_142033.ARW"
+        );
+    }
+
+    #[test]
+    fn session_name_falls_back_to_unknown() {
+        let template = Template::parse("{session_name}/{session}_{original_name}").unwrap();
+        assert_eq!(
+            template.render_relative_path(&context()).unwrap(),
+            "Iceland trip/02_DSC0001.ARW"
+        );
+        let mut ctx = context();
+        ctx.session_name = "";
+        assert_eq!(
+            template.render_relative_path(&ctx).unwrap(),
+            "unknown/02_DSC0001.ARW"
         );
     }
 
