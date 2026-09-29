@@ -298,6 +298,21 @@ fn imported_lookup_by_quick_and_full_fingerprint_requires_successful_import() {
     assert_eq!(found.session_id, session.id);
     assert_eq!(found.destination_path, "Pictures/A.JPG");
     assert!(!found.started_at.is_empty());
+    catalog
+        .execute(CatalogCommand::UpsertMedia {
+            media: media.clone(),
+            media_type: MediaType::Photo,
+            observed_at: "rescan".into(),
+            quick_fingerprint: Some("quick-blake3-v1:changed".into()),
+            content_hash: None,
+        })
+        .unwrap();
+    assert!(catalog
+        .lookup_imported_fingerprint(256, "quick-blake3-v1:abc", Some("blake3:def".into()))
+        .unwrap());
+    assert!(!catalog
+        .lookup_imported_fingerprint(256, "quick-blake3-v1:changed", None)
+        .unwrap());
     assert!(catalog
         .lookup_imported_session(255, "quick-blake3-v1:abc", None)
         .unwrap()

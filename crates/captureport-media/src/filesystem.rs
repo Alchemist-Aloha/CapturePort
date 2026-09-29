@@ -105,14 +105,25 @@ fn volume_identity(root: &Path) -> (String, Option<String>) {
         }
         best = Some((mountpoint, device));
     }
-    let Some((_, device)) = best else {
+    let Some((mountpoint, device)) = best else {
         return (format!("filesystem:{}", root.display()), None);
     };
+    let location = root.strip_prefix(&mountpoint).unwrap_or(root);
     if let Some(uuid) = volume_uuid_for_device(&device) {
-        return (format!("filesystem:uuid:{uuid}"), Some(uuid));
+        return (
+            format!("filesystem:uuid:{uuid}:{}", location.display()),
+            Some(uuid),
+        );
     }
     if device.starts_with("/dev/") {
-        return (format!("filesystem:device:{}", device.display()), None);
+        return (
+            format!(
+                "filesystem:device:{}:{}",
+                device.display(),
+                location.display()
+            ),
+            None,
+        );
     }
     (format!("filesystem:{}", root.display()), None)
 }
@@ -233,6 +244,16 @@ mod tests {
 
     fn scan() -> ScanContext {
         ScanContext::new(ScanGeneration(1), CancellationToken::new())
+    }
+
+    #[test]
+    fn folders_on_one_volume_have_distinct_source_identities() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("a")).unwrap();
+        fs::create_dir_all(dir.path().join("b")).unwrap();
+        let a = FilesystemSource::new(dir.path().join("a")).unwrap();
+        let b = FilesystemSource::new(dir.path().join("b")).unwrap();
+        assert_ne!(a.identity().stable_id, b.identity().stable_id);
     }
 
     #[test]

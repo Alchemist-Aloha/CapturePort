@@ -17,8 +17,8 @@ use captureport_core::{
 };
 use captureport_ingest::{
     BackupRule, BundlePolicy, CollisionPolicy, CopyDigest, DestinationRule, Grouping, ImportEngine,
-    ImportPlan, ImportPlanner, ImportPreset, ImportRecorder, PlanInput, PlannedCopy, PlannedImport,
-    VerificationMode, effective_time, session_numbers,
+    ImportPlan, ImportPlanner, ImportPreset, ImportRecorder, PlanInput, PlanStatus, PlannedCopy,
+    PlannedImport, VerificationMode, effective_time, session_numbers,
 };
 use captureport_metadata::{ThumbnailPipeline, ThumbnailRequest, ThumbnailState};
 use chrono::{DateTime, FixedOffset, Local, NaiveDateTime, TimeZone, Utc};
@@ -153,7 +153,7 @@ enum WorkMessage {
     PartialCleaned(PathBuf),
     ImportResult(captureport_ingest::ImportResult),
     CacheCleared(usize),
-    SourceAlias(Option<String>),
+    SourceAlias(i64, Option<String>),
     MarkedImported {
         generation: ScanGeneration,
         media_ids: Vec<MediaId>,
@@ -239,6 +239,10 @@ fn visible_capture_ids(
         .map(|id| bundle_owner.get(&id).copied().unwrap_or(id))
         .filter(|id| seen.insert(*id))
         .collect()
+}
+
+fn blocks_import(status: PlanStatus) -> bool {
+    !status.can_execute() && status != PlanStatus::Skipped
 }
 
 fn append_ready_ids(displayed: &mut Vec<MediaId>, ready: Vec<MediaId>) {
@@ -1018,10 +1022,12 @@ impl Browser {
                         self.message = Some(format!("Cleared {count} cached thumbnail(s)"));
                         changed = true;
                     }
-                    Ok(WorkMessage::SourceAlias(alias)) => {
-                        self.source_alias = alias;
-                        self.message = Some("Source alias saved".into());
-                        changed = true;
+                    Ok(WorkMessage::SourceAlias(source_id, alias)) => {
+                        if self.catalog_source_id == Some(source_id) {
+                            self.source_alias = alias;
+                            self.message = Some("Source alias saved".into());
+                            changed = true;
+                        }
                     }
                     Ok(WorkMessage::MarkedImported {
                         generation,
@@ -1520,20 +1526,45 @@ impl Browser {
         )
     }
     fn select_all(&mut self, _: &SelectAll, _: &mut Window, cx: &mut Context<Self>) {
+        if self.page != Page::Browser {
+            return;
+        }
+        let ids = self
+            .state
+            .visible_items()
+            .into_iter()
+            .map(|item| item.id)
+            .collect::<Vec<_>>();
         self.state.select_all(true);
+        self.explicit_bundle_selection.extend(ids);
         self.invalidate_plan();
         self.page = Page::Browser;
         cx.notify()
     }
     fn select_new(&mut self, _: &SelectAllNew, _: &mut Window, cx: &mut Context<Self>) {
+        if self.page != Page::Browser {
+            return;
+        }
+        let ids = self
+            .state
+            .visible_items()
+            .into_iter()
+            .filter(|item| item.import_status == captureport_core::ImportStatus::New)
+            .map(|item| item.id)
+            .collect::<Vec<_>>();
         self.state.select_all_new();
+        self.explicit_bundle_selection.extend(ids);
         self.invalidate_plan();
         self.page = Page::Browser;
         cx.notify()
     }
     fn select_none(&mut self, _: &SelectNone, _: &mut Window, cx: &mut Context<Self>) {
+        if self.page != Page::Browser {
+            return;
+        }
         self.state.select_all(false);
-        self.explicit_bundle_selection.clear();
+        self.explicit_bundle_selection
+            .retain(|id| self.state.is_selected(*id));
         self.invalidate_plan();
         self.page = Page::Browser;
         cx.notify()
@@ -1609,15 +1640,20 @@ impl Browser {
             cx.notify();
             return;
         }
-        if self.plan.is_none() {
+        if self.plan.is_none() || self.last_import_result.is_some() {
             self.start_plan(cx);
+            return;
+        }
+        if self.page != Page::Preview {
+            self.page = Page::Preview;
+            cx.notify();
             return;
         }
         let Some(source) = self.source.clone() else {
             return;
         };
         let plan = self.plan.clone().expect("plan checked above");
-        if plan.items.iter().any(|i| !i.status.can_execute()) {
+        if plan.items.iter().any(|i| blocks_import(i.status)) {
             self.message = Some("Import preview contains blocked destinations".into());
             cx.notify();
             return;
@@ -1671,6 +1707,7 @@ impl Browser {
         }
         let preset = self.preset.clone();
         let explicit_members = self.explicit_bundle_selection.clone();
+        self.last_import_result = None;
         self.plan_revision = self.plan_revision.wrapping_add(1);
         let revision = self.plan_revision;
         let (tx, rx) = mpsc::channel();
@@ -1757,7 +1794,15 @@ impl Browser {
         for id in ids {
             self.state.select(id, false);
         }
-        self.state.select_all_new();
+        let new_ids = self
+            .state
+            .items()
+            .filter(|item| item.import_status == captureport_core::ImportStatus::New)
+            .map(|item| item.id)
+            .collect::<Vec<_>>();
+        for id in new_ids {
+            self.state.select(id, true);
+        }
         self.invalidate_plan();
         self.start_plan(cx);
     }
@@ -1784,7 +1829,7 @@ impl Browser {
     fn deletion_scope(&self) -> Option<String> {
         let plan = self.plan.as_ref()?;
         let result = self.last_import_result.as_ref()?;
-        let deletable = deletable_sources(plan, result);
+        let deletable = deletable_sources(plan, result, true);
         if deletable.is_empty() {
             return None;
         }
@@ -1947,7 +1992,7 @@ impl Browser {
         thread::spawn(
             move || match catalog.set_source_alias(source_id, alias.clone()) {
                 Ok(_) => {
-                    let _ = tx.send(WorkMessage::SourceAlias(alias));
+                    let _ = tx.send(WorkMessage::SourceAlias(source_id, alias));
                 }
                 Err(error) => {
                     let _ = tx.send(WorkMessage::Done(Err(error.to_string())));
@@ -1957,7 +2002,6 @@ impl Browser {
         cx.notify();
     }
     fn choose_preset(&mut self, organized: bool, cx: &mut Context<Self>) {
-        let replan = self.plan.is_some() || self.planning;
         let home = std::env::var_os("HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/"));
@@ -1970,9 +2014,6 @@ impl Browser {
         self.backup_required_choice = false;
         self.invalidate_plan();
         self.page = Page::Settings;
-        if replan && !self.scanning {
-            self.start_plan(cx);
-        }
         cx.notify();
     }
     fn cycle_verification(&mut self, cx: &mut Context<Self>) {
@@ -2506,7 +2547,7 @@ fn run_import(
                 .filter(|copy| copy.state == captureport_ingest::ImportItemState::Failed)
                 .count();
             for item in &result.items {
-                let completed_required = deletable_sources(&plan, &result)
+                let completed_required = deletable_sources(&plan, &result, false)
                     .iter()
                     .any(|planned| planned.media_id == item.media_id);
                 if completed_required {
@@ -2723,13 +2764,12 @@ fn manual_mark_selection(
 fn now() -> String {
     Utc::now().to_rfc3339()
 }
-/// The sources a confirmed deletion would actually remove: every required copy
-/// reached its exact planned destination. Shared by the confirmation text, the
-/// post-import status update, and the deletion itself, so the scope the user is
-/// shown cannot drift from the scope that runs.
+/// Required-copy completion drives import status; deletion confirmation must
+/// additionally require every planned destination, matching the remover.
 fn deletable_sources<'a>(
     plan: &'a ImportPlan,
     result: &captureport_ingest::ImportResult,
+    all_destinations: bool,
 ) -> Vec<&'a PlannedImport> {
     plan.items
         .iter()
@@ -2742,7 +2782,7 @@ fn deletable_sources<'a>(
                     planned
                         .copies
                         .iter()
-                        .filter(|copy| copy.required)
+                        .filter(|copy| all_destinations || copy.required)
                         .all(|planned_copy| {
                             item.copies.iter().any(|actual| {
                                 actual.destination == planned_copy.final_destination
@@ -2874,6 +2914,12 @@ fn main() {
 mod integration_tests {
     use super::*;
     #[test]
+    fn skipped_collisions_do_not_block_other_imports() {
+        assert!(!blocks_import(PlanStatus::Skipped));
+        assert!(!blocks_import(PlanStatus::Ready));
+        assert!(blocks_import(PlanStatus::DestinationCollision));
+    }
+    #[test]
     fn ready_tiles_do_not_jump_when_earlier_media_finishes() {
         let mut displayed = vec![MediaId(2)];
         append_ready_ids(&mut displayed, vec![MediaId(1), MediaId(2)]);
@@ -2895,7 +2941,6 @@ mod integration_tests {
         assert_eq!(cards[0].path, PathBuf::from("/dev/sdb1"));
         assert_eq!(cards[0].label, "Camera");
     }
-    use captureport_ingest::PlanStatus;
     use std::fs;
 
     #[test]
@@ -3334,12 +3379,12 @@ mod integration_tests {
             tx,
             catalog,
         );
-        // Classifying the file as imported is not enough: the status must name
-        // the prior import it matched, which is what the evidence line shows.
+        // A quick sample is only a possible match; retain the prior session
+        // for review without claiming the source bytes were fully verified.
         let prior_import = rx.into_iter().find_map(|message| match message {
             ScanMessage::Event(event) => match *event {
                 AppEvent::ImportStatusChanged {
-                    status: captureport_core::ImportStatus::Imported,
+                    status: captureport_core::ImportStatus::PossibleDuplicate,
                     prior_import,
                     ..
                 } => Some(prior_import),
@@ -3348,8 +3393,8 @@ mod integration_tests {
             _ => None,
         });
         let prior = prior_import
-            .expect("the rescan should classify the file as imported")
-            .expect("an imported file must name the session it came from");
+            .expect("the rescan should identify the possible duplicate")
+            .expect("a possible duplicate should name the prior session");
         assert_eq!(prior.session_id, recorded_session);
         assert!(!prior.imported_at.is_empty());
         let mut remover = VerifiedFilesystemRemover::new(source_dir.path().to_path_buf(), &plan);
@@ -3465,7 +3510,7 @@ mod integration_tests {
             ],
         };
 
-        let deletable = deletable_sources(&plan, &result);
+        let deletable = deletable_sources(&plan, &result, false);
         let ids: Vec<u64> = deletable.iter().map(|item| item.media_id.0).collect();
         assert_eq!(ids, vec![1, 2]);
         assert_eq!(

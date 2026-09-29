@@ -185,7 +185,7 @@ pub(crate) fn upsert_source(
         None
     };
     let id = id.or_else(|| {
-        if identity.serial.is_none() && identity.volume_uuid.is_none() {
+        if identity.stable_id.is_some() || (identity.serial.is_none() && identity.volume_uuid.is_none()) {
             None
         } else {
             c.query_row("SELECT id FROM sources WHERE source_type=?1 AND ifnull(serial,'')=ifnull(?2,'') AND ifnull(volume_uuid,'')=ifnull(?3,'')",params![identity.source_type,identity.serial,identity.volume_uuid],|r|r.get(0)).optional().ok().flatten()
@@ -239,7 +239,9 @@ pub(crate) fn upsert_media(
 ) -> Result<MediaRecord, CatalogError> {
     let existing:Option<i64>=c.query_row("SELECT id FROM media WHERE source_id=?1 AND source_path=?2 AND source_filename=?3 AND source_size=?4 AND (capture_time=?5 OR (capture_time IS NULL AND ?5 IS NULL))",params![m.source_id,m.source_path,m.source_filename,m.source_size as i64,m.capture_time],|r|r.get(0)).optional()?;
     let id = if let Some(id) = existing {
-        c.execute("UPDATE media SET quick_fingerprint=coalesce(?1,quick_fingerprint),content_hash=coalesce(?2,content_hash) WHERE id=?3",params![quick,hash,id])?;
+        // Observing a changed source must not rewrite fingerprint evidence
+        // attached to an earlier successful import.
+        c.execute("UPDATE media SET quick_fingerprint=coalesce(?1,quick_fingerprint),content_hash=coalesce(?2,content_hash) WHERE id=?3 AND NOT EXISTS (SELECT 1 FROM imports WHERE media_id=?3 AND status IN ('completed','verified'))",params![quick,hash,id])?;
         id
     } else {
         c.execute("INSERT INTO media(source_id,source_path,source_filename,source_size,capture_time,media_type,quick_fingerprint,content_hash,first_seen_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",params![m.source_id,m.source_path,m.source_filename,m.source_size as i64,m.capture_time,media_type.as_str(),quick,hash,now])?;

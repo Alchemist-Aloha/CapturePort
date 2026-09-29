@@ -154,7 +154,9 @@ The importer must never assume the source is seekable, writable, permanently mou
 
 # 6. Source Identity
 
-A connected device should receive the most stable identity possible.
+A connected device should receive the most stable identity possible. Opened
+folders on the same volume remain distinct catalog sources: source identity
+includes the folder's path within its mounted volume.
 
 Identity sources may include:
 
@@ -569,9 +571,9 @@ file size
 capture timestamp
 ```
 
-A strong database match can classify the item immediately.
-
-No source data needs to be read.
+A database identity match alone suggests a possible duplicate, not a verified
+match: a source file may have changed in place. Import-time fingerprints must
+remain intact when subsequent scans observe that file again.
 
 ---
 
@@ -600,7 +602,9 @@ hashed using BLAKE3.
 
 The exact chunk size should be configurable internally and benchmarked.
 
-This avoids rereading multi-gigabyte video files merely to determine whether they were previously imported.
+This avoids rereading multi-gigabyte video files while identifying possible
+duplicates. A quick-only match never proves that unchanged middle bytes were
+imported; show **Possible duplicate** with the prior session for review.
 
 ---
 
@@ -1961,7 +1965,9 @@ Preview
 
 Invalid templates must be detected before import.
 
-Import settings describe folder and filename syntax next to their fields.
+Import settings describe folder and filename syntax next to their fields. Each
+photo-folder, video-folder, and filename template has its own uniquely identified
+segments/help control; clicking one reveals the corresponding insertable tokens.
 Each field offers an expandable, grouped segment reference with descriptions;
 clicking a segment inserts it at the text cursor and returns focus to the field.
 Examples update while editing and are explicitly labeled as sample metadata.
@@ -2267,7 +2273,7 @@ Filesystem scanning is recursive and read-only. Hidden entries and common system
 
 Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions regardless of folder, including media under `Pictures/`, `Movies/`, or `DCIM/`. It skips non-media files (including sidecars) before showing them in the browser. Folder traversal remains recursive so camera media outside `DCIM/` is not lost. Explicitly opened ordinary filesystem folders retain the broader unknown-file behavior above.
 
-The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. A tile overlays its media-type badge at the thumbnail's top-right and its file size at the bottom-left, with the source file's modification time in a compact format below the filename; camera items without a local file omit the time. The status line below that is icon plus text (`✓ Imported`, `! Possible duplicate`, `? Unknown`, `New`, `Checking…`); for a file classified as imported or a possible duplicate it also names the prior import that matched, as a session number and date, so an uncertain classification is traceable rather than asserted. Selection is shown by the tile background and border rather than a text label. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
+The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. A tile overlays its media-type badge at the thumbnail's top-right and its file size at the bottom-left, with the source file's modification time in a compact format below the filename; camera items without a local file omit the time. The status line below that is icon plus text (`✓ Imported`, `! Possible duplicate`, `? Unknown`, `New`, `Checking…`); for a file classified as imported or a possible duplicate it also names the prior import that matched, as a session number and date, so an uncertain classification is traceable rather than asserted. Selection is shown by the tile background and border rather than a text label. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Bulk selection preserves explicit bundle-member choices, including members hidden by the current filter; unavailable previews remain counted in selection and listed in the import preview. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
 
 The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Until renamed, a gallery's default name is the creation date of its earliest media (`YYYY-MM-DD`), not a session number; when several galleries share a date, they are suffixed `a`, `b`, `c`, … in chronological order. Stored names that match the old auto-generated `Session N` pattern are ignored so they fall back to the date. Clicking a gallery's display name selects every visible media item in that gallery, or clears them when all are already selected (bundle members are included). Rename focuses the gallery name field immediately; Save keeps the editor open
 and reports an error if persistence fails. Display names never enter destination templates; actual output folders continue to come from the import preset's photo/video destination rules and their date/time/session variables. Import previews remain authoritative for the exact paths and session numbers of the selected import subset.
@@ -2321,10 +2327,10 @@ Scrollbar space is reserved so controls and media are not covered by the thumb.
 Editable text fields in import settings and gallery names use the active light
 or dark palette for their surface, text, border, selection, and focus state.
 
-Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to preview/import, and Escape to clear the visible selection. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
+Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to open the import preview (and confirm only while reviewing it), and Escape to clear the visible selection on the browser. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
 The browser footer shows the selected count and size with a Preview import action when items are selected. The preview names blocked destinations and only offers Confirm import when every planned item can execute. After an import finishes, the same selection cannot be confirmed again until the selection or settings change and a fresh plan is built.
 
-Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. The screen groups preset/destinations and filename first, followed by import safety, media discovery, capture time, backup copies, source alias, and appearance. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance and source alias save immediately; import settings require the persistent Apply button at the bottom of the settings view. A blank pair of backup roots disables backup. Camera/card aliases are stored in the catalog and shown when the device reconnects.
+Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. The screen groups preset/destinations and filename first, followed by import safety, media discovery, capture time, backup copies, source alias, and appearance. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance and source alias save immediately; import settings require the persistent **Apply settings** button at the bottom of the settings view. A blank pair of backup roots disables backup. Skipped collision items do not block other ready copies; the preview counts them separately. Camera/card aliases are stored in the catalog and shown when the device reconnects.
 
 Recovery, history, reconciliation, thumbnail-cache clearing, and post-import source deletion are separate actions. Recovery cleanup only offers CapturePort-owned partial files, and deleting one requires confirmation. Source deletion requires a second explicit confirmation after a verified filesystem import, states how many originals and how many bytes will be removed and from which source, offers an explicit cancel, and compares the source's full content hash with every planned destination before removing it.
 

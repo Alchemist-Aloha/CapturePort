@@ -238,6 +238,14 @@ fn process_job(job: MetadataJob) {
         // must not make every new item appear to be a duplicate.
         let existing = catalog.lookup_media(media.clone()).ok().flatten();
         let imported_by_identity = catalog.lookup_imported(media.clone()).unwrap_or(false);
+        // Quick samples are only evidence of a possible match, never proof that
+        // the entire source object still equals a previously imported copy.
+        let quick_match = quick.as_ref().and_then(|fingerprint| {
+            catalog
+                .lookup_imported_session(item.size, fingerprint.hex.clone(), None)
+                .ok()
+                .flatten()
+        });
         let catalog_media_id = catalog
             .execute(CatalogCommand::UpsertMedia {
                 media: media.clone(),
@@ -253,15 +261,9 @@ fn process_job(job: MetadataJob) {
             });
         let mut status = captureport_core::ImportStatus::New;
         let mut prior_import = None;
-        if let Some(fingerprint) = &quick {
-            if let Ok(Some(found)) =
-                catalog.lookup_imported_session(item.size, fingerprint.hex.clone(), None)
-            {
-                status = captureport_core::ImportStatus::Imported;
-                prior_import = Some(prior_import_from(found));
-            } else if existing.is_some() {
-                status = captureport_core::ImportStatus::PossibleDuplicate;
-            }
+        if let Some(found) = quick_match {
+            status = captureport_core::ImportStatus::PossibleDuplicate;
+            prior_import = Some(prior_import_from(found));
         } else if imported_by_identity || existing.is_some() {
             status = captureport_core::ImportStatus::PossibleDuplicate;
         }

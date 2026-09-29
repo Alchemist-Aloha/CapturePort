@@ -252,7 +252,16 @@ fn group_plan_items(items: &[captureport_ingest::PlannedImport]) -> Vec<Vec<usiz
 
 #[cfg(test)]
 mod thumbnail_layout_tests {
-    use super::{media_type_badge, thumbnail_columns, thumbnail_layout};
+    use super::{media_type_badge, segment_help_label, thumbnail_columns, thumbnail_layout};
+
+    #[test]
+    fn segment_help_buttons_have_distinct_ids_and_toggle_labels() {
+        let fields = ["Photo folder template", "Video folder template", "Filename template"];
+        for expanded in [false, true] {
+            let labels = fields.map(|field| segment_help_label(field, expanded));
+            assert_eq!(labels.iter().collect::<std::collections::HashSet<_>>().len(), 3);
+        }
+    }
 
     #[test]
     fn grid_reflows_without_reserving_more_than_available_width() {
@@ -528,6 +537,9 @@ impl Browser {
         let candidates = visible_capture_ids(self.state.visible_items().into_iter().map(|item| item.id), &self.bundle_owner);
         let waiting = candidates.len().saturating_sub(visible);
         let failed = candidates.iter().filter(|id| self.failed_thumbnails.contains(id) || self.state.item(**id).is_some_and(|item| matches!(item.metadata, captureport_core::MetadataState::Failed(_)))).count();
+        let hidden_selected = self.state.items().filter(|item| self.state.is_selected(item.id)
+            && (!self.thumbnail_paths.contains_key(&item.id)
+                || !matches!(item.metadata, captureport_core::MetadataState::Ready(_)))).count();
         let (columns, image_height) = thumbnail_layout(
             f32::from(window.bounds().size.width),
             f32::from(window.bounds().size.height),
@@ -555,7 +567,8 @@ impl Browser {
             .child(div().px(px(spacing::CONTENT)).pt(px(spacing::CONTENT)).pb(px(spacing::CONTROL_GAP)).flex().flex_col().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border)
                 .child(div().min_w_0().flex().items_baseline().justify_between().gap(px(spacing::CONTENT))
                     .child(div().flex_1().min_w_0().text_lg().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_name))
-                    .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(format!("{visible} ready · {} loading · {failed} unavailable · {} selected overall", waiting.saturating_sub(failed), self.state.selection_summary().count))))
+                    .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(format!("{visible} ready · {} loading · {failed} unavailable · {} selected{}", waiting.saturating_sub(failed), self.state.selection_summary().count,
+                        if hidden_selected > 0 { format!(" ({hidden_selected} without previews; review import paths)") } else { String::new() }))))
                 .child(div().flex().flex_wrap().gap(px(spacing::TIGHT))
                     .child(chip("All",self.state.filter==MediaFilter::All, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
                     .child(chip("Photos",self.state.filter==MediaFilter::Photos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
@@ -883,8 +896,9 @@ impl Browser {
         let blocked = plan
             .items
             .iter()
-            .filter(|item| !item.status.can_execute())
+            .filter(|item| blocks_import(item.status))
             .count();
+        let skipped = plan.items.iter().filter(|item| item.status == PlanStatus::Skipped).count();
         div()
             .flex_1()
             .min_w_0()
@@ -899,8 +913,8 @@ impl Browser {
                     .child(if blocked > 0 { format!("{blocked} blocked · Review the affected paths below") } else { "Check each final destination before copying.".into() })))
             .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border).bg(p.panel)
                 .child(div().text_sm().child(format!(
-                    "{} can proceed · {} blocked · {} preset · {:?} verification",
-                    count.saturating_sub(blocked), blocked, plan.preset_name, plan.verification
+                    "{} to copy · {skipped} skipped · {blocked} blocked · {} preset · {:?} verification",
+                    count.saturating_sub(blocked + skipped), plan.preset_name, plan.verification
                 )))
                 .child(if blocked == 0 && count > 0 && !self.importing && self.last_import_result.is_none() {
                     primary_button("Confirm import", p,
@@ -1627,7 +1641,7 @@ impl Browser {
                 .flex().items_center().justify_between().gap(px(spacing::CONTENT))
                 .child(div().text_xs().text_color(p.muted)
                     .child("Review the import preview before copying."))
-                .child(primary_button("Apply import settings", p,
+                .child(primary_button("Apply settings", p,
                     cx.listener(|t, _, _, c| t.apply_settings(c)))))
             .into_any_element()
     }
@@ -1671,6 +1685,17 @@ fn settings_field(
         .into_any_element()
 }
 
+fn segment_help_label(field: &str, expanded: bool) -> &'static str {
+    match (field, expanded) {
+        ("Photo folder template", false) => "Photo folder segments / help",
+        ("Photo folder template", true) => "Hide photo folder segments",
+        ("Video folder template", false) => "Video folder segments / help",
+        ("Video folder template", true) => "Hide video folder segments",
+        (_, false) => "Filename segments / help",
+        (_, true) => "Hide filename segments",
+    }
+}
+
 fn settings_template_field(
     label: &'static str,
     input: Entity<text_input::TextInput>,
@@ -1689,7 +1714,7 @@ fn settings_template_field(
             div().flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTROL_GAP))
                 .child(div().text_xs().text_color(p.muted).child(label))
                 .child(button(
-                    if expanded { "Hide segments" } else { "Insert segment / syntax help" },
+                    segment_help_label(label, expanded),
                     p,
                     cx.listener(move |t, _, _, c| {
                         t.template_segment_target = if expanded { None } else { Some(target.clone()) };
