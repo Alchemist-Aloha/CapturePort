@@ -212,6 +212,15 @@ impl MediaSource for FakeMediaSource {
         }
         Ok(())
     }
+    /// A deterministic image per item so the demo fixtures drive the real
+    /// thumbnail pipeline. Without this a fixture can only ever render its
+    /// empty state, which is not what "camera" or "10,000 items" means.
+    ///
+    /// The format is uncompressed 24-bit BMP: no encoder dependency, decodable
+    /// by the same `image` path a camera preview uses.
+    fn preview(&self, item: &MediaLocator) -> Result<Option<Vec<u8>>, SourceError> {
+        Ok(Some(synthetic_preview(self.index(item)?)))
+    }
     fn open_stream(&self, item: &MediaLocator) -> Result<Box<dyn Read + Send>, SourceError> {
         let index = self.index(item)?;
         if self.disconnect_after_bytes == Some(0) {
@@ -321,10 +330,74 @@ impl Read for FakeReader {
     }
 }
 
+/// Build one deterministic 64x48 BMP. The ramp is seeded by item index, so a
+/// contact sheet of these is visually distinct tile by tile while every run
+/// produces identical bytes.
+pub(crate) fn synthetic_preview(index: usize) -> Vec<u8> {
+    const WIDTH: usize = 64;
+    const HEIGHT: usize = 48;
+    const FILE_HEADER: usize = 14;
+    const INFO_HEADER: usize = 40;
+    let row_bytes = WIDTH * 3;
+    let pixel_bytes = row_bytes * HEIGHT;
+    let mut out = Vec::with_capacity(FILE_HEADER + INFO_HEADER + pixel_bytes);
+    out.extend_from_slice(b"BM");
+    out.extend_from_slice(&((FILE_HEADER + INFO_HEADER + pixel_bytes) as u32).to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&((FILE_HEADER + INFO_HEADER) as u32).to_le_bytes());
+    out.extend_from_slice(&(INFO_HEADER as u32).to_le_bytes());
+    out.extend_from_slice(&(WIDTH as i32).to_le_bytes());
+    out.extend_from_slice(&(HEIGHT as i32).to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&24u16.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&(pixel_bytes as u32).to_le_bytes());
+    out.extend_from_slice(&2835i32.to_le_bytes());
+    out.extend_from_slice(&2835i32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    // BMP rows run bottom-up and store channels as blue, green, red.
+    for y in (0..HEIGHT).rev() {
+        for x in 0..WIDTH {
+            let red = (x * 4 + index * 37) as u8;
+            let green = (y * 5 + index * 53) as u8;
+            let blue = (x + y + index * 11) as u8;
+            out.extend_from_slice(&[blue, green, red]);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{CancellationToken, ScanGeneration};
+
+    #[test]
+    fn synthetic_preview_is_a_well_formed_distinct_bmp_per_item() {
+        let first = synthetic_preview(0);
+        let second = synthetic_preview(1);
+        assert_eq!(&first[..2], b"BM");
+        // Declared file size must match what we actually produced.
+        let declared = u32::from_le_bytes(first[2..6].try_into().unwrap()) as usize;
+        assert_eq!(declared, first.len());
+        assert_eq!(first.len(), 54 + 64 * 48 * 3);
+        assert_ne!(first, second, "each item needs its own preview");
+        assert_eq!(
+            first,
+            synthetic_preview(0),
+            "fixtures must be deterministic"
+        );
+    }
+
+    #[test]
+    fn every_fake_source_serves_a_preview_for_its_items() {
+        let source = FakeMediaSource::new(3);
+        let locator = MediaLocator(FakeMediaSource::path(1));
+        let bytes = source.preview(&locator).unwrap().expect("fixture preview");
+        assert_eq!(&bytes[..2], b"BM");
+        assert!(source.preview(&MediaLocator("missing.ARW".into())).is_err());
+    }
     #[test]
     fn enumerates_large_sources_incrementally_and_cancels() {
         for count in [1, 100, 10_000] {
@@ -357,7 +430,10 @@ mod tests {
     fn fake_source_can_stream_and_read_ranges() {
         let source = FakeMediaSource::new(4).with_item_size(100);
         let loc = MediaLocator("DCIM/100MEDIA/DSC00001.ARW".into());
-        assert_eq!(source.preview(&loc).unwrap(), None);
+        // Fixtures must be able to fill the grid, so a preview is part of the
+        // fake source's contract rather than an absent capability.
+        let preview = source.preview(&loc).unwrap().expect("fixture preview");
+        assert_eq!(&preview[..2], b"BM");
         assert_eq!(source.read_range(&loc, 95, 20).unwrap().len(), 5);
         let mut stream = source.open_stream(&loc).unwrap();
         let mut data = Vec::new();

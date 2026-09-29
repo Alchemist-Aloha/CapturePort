@@ -44,12 +44,16 @@ CapturePort-owned partial files. It can build a new preview of remaining files
 from the reconnected source. Cleanup and post-import source deletion each
 require a separate explicit action.
 
-The desktop interface embeds Adwaita Sans; its SIL Open Font License ships
-with the application packages. Appearance offers Pine, Darkroom, Graphite, and
+The desktop interface embeds Adwaita Sans and the Material Symbols Outlined
+icon set; the font's SIL Open Font License and the icon set's Apache License
+ship with the application packages. Appearance offers Pine, Darkroom, Graphite, and
 Ink schemes in both light and dark mode.
 
 Deterministic UI fixtures are available with `--demo empty`, `--demo camera`,
-`--demo importing`, `--demo errors`, and `--demo 10000`. Packaging and
+`--demo importing`, `--demo errors`, and `--demo 10000`. A fixture run opens an
+in-memory catalog, so it cannot write synthetic rows into the real import
+history, and each fixture item serves a decodable preview so the grid
+populates rather than showing only its empty state. Packaging and
 benchmark commands are described in [docs/build-and-benchmarks.md](docs/build-and-benchmarks.md).
 
 Every branch and tag push builds x86_64 Linux binaries, portable archives, and

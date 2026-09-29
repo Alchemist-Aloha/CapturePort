@@ -825,10 +825,11 @@ The cache must be disposable.
 Provide:
 
 ```text
-Clear thumbnail cache
+Clear thumbnails
 ```
 
-eventually.
+eventually. The label names the action without naming the cache it empties, so it
+fits a rail button beside its icon.
 
 ### Definition of Done
 

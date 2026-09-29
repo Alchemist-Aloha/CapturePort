@@ -1,3 +1,4 @@
+mod icons;
 mod logging;
 mod paths;
 mod scan;
@@ -2225,6 +2226,7 @@ impl Focusable for Browser {
 include!("render.rs");
 
 fn button(
+    icon: icons::Icon,
     label: impl Into<gpui::SharedString>,
     palette: Palette,
     handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
@@ -2235,18 +2237,56 @@ fn button(
         .cursor_pointer()
         .flex()
         .items_center()
+        .gap(px(spacing::CONTROL_GAP))
+        .rounded_sm()
+        .px(px(spacing::CONTENT))
+        .py(px(spacing::TIGHT))
+        .min_h(px(spacing::CONTROL_HEIGHT))
+        .flex_shrink_0()
+        .min_w_0()
+        .max_w_full()
+        .text_sm()
+        .text_color(palette.text)
+        .border_1()
+        .border_color(palette.ghost_border)
+        .bg(palette.ghost_bg)
+        .hover(move |style| style.bg(palette.ghost_hover))
+        .on_click(handler)
+        .child(icons::icon(icon, palette.text))
+        // The label truncates rather than overlapping the button's own border in
+        // a narrow rail; a control must never clip its own outline.
+        .child(div().min_w_0().truncate().child(label))
+}
+
+/// A destructive action. Shares the button geometry so the danger surface is a
+/// state of the same control, not a hand-rolled look-alike.
+fn danger_button(
+    icon: icons::Icon,
+    label: impl Into<gpui::SharedString>,
+    palette: Palette,
+    handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
+) -> impl IntoElement {
+    let label = label.into();
+    div()
+        .id(label.clone())
+        .cursor_pointer()
+        .flex()
+        .items_center()
+        .gap(px(spacing::CONTROL_GAP))
         .rounded_sm()
         .px(px(spacing::CONTENT))
         .py(px(spacing::TIGHT))
         .min_h(px(spacing::CONTROL_HEIGHT))
         .flex_shrink_0()
         .text_sm()
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(palette.text)
         .border_1()
-        .border_color(palette.ghost_border)
-        .bg(palette.ghost_bg)
-        .hover(move |style| style.bg(palette.ghost_hover))
+        .border_color(palette.accent)
+        .bg(palette.danger)
         .on_click(handler)
-        .child(label)
+        .child(icons::icon(icon, palette.text))
+        .child(div().min_w_0().truncate().child(label))
 }
 fn chip(
     label: &'static str,
@@ -2812,8 +2852,16 @@ fn main() {
     logging::initialize().expect("could not initialize logging");
     let p = paths::AppPaths::resolve().expect("could not resolve XDG paths");
     p.create().expect("could not create app directories");
-    let catalog =
-        CatalogHandle::open(p.data.join("catalog.sqlite3")).expect("could not open catalog");
+    let args = std::env::args().collect::<Vec<_>>();
+    let demo = args.get(1).is_some_and(|arg| arg == "--demo");
+    // A fixture run must not write synthetic rows into the user's real catalog:
+    // those rows would later read back as possible duplicates of real media.
+    let catalog = if demo {
+        CatalogHandle::open(captureport_catalog::CatalogPath::Memory)
+            .expect("could not open demo catalog")
+    } else {
+        CatalogHandle::open(p.data.join("catalog.sqlite3")).expect("could not open catalog")
+    };
     let cache_dir = p.cache.clone();
     let config_path = p.config.join("preset.json");
     let ui_path = p.config.join("ui.json");
@@ -2830,8 +2878,7 @@ fn main() {
         .ok()
         .and_then(|data| serde_json::from_slice::<ImportPreset>(&data).ok())
         .unwrap_or_else(|| ImportPreset::everyday(&home));
-    let args = std::env::args().collect::<Vec<_>>();
-    let initial_source = if args.get(1).is_some_and(|arg| arg == "--demo") {
+    let initial_source = if demo {
         let (scenario, count) = match args.get(2).map(String::as_str) {
             Some("empty") => (FakeSourceScenario::NormalCamera, 0),
             Some("camera") => (FakeSourceScenario::NormalCamera, 100),
@@ -2851,63 +2898,68 @@ fn main() {
     };
     let demo_importing = args.get(1).is_some_and(|arg| arg == "--demo")
         && args.get(2).is_some_and(|arg| arg == "importing");
-    Application::new().run(move |cx: &mut App| {
-        if let Err(error) =
-            cx.text_system()
-                .add_fonts(vec![std::borrow::Cow::Borrowed(include_bytes!(
-                    "../assets/fonts/AdwaitaSans-Regular.ttf"
-                ))])
-        {
-            tracing::warn!(%error, "Could not load bundled interface font");
-        }
-        cx.bind_keys([
-            KeyBinding::new("cmd-o", OpenFolder, None),
-            KeyBinding::new("cmd-d", OpenDemo, None),
-            KeyBinding::new("cmd-a", SelectAll, None),
-            KeyBinding::new("cmd-shift-a", SelectAllNew, None),
-            KeyBinding::new("escape", SelectNone, None),
-            KeyBinding::new("cmd-i", ImportSelected, None),
-            KeyBinding::new(
-                "backspace",
-                text_input::Backspace,
-                Some("CapturePortTextInput"),
-            ),
-            KeyBinding::new("delete", text_input::Delete, Some("CapturePortTextInput")),
-            KeyBinding::new("left", text_input::Left, Some("CapturePortTextInput")),
-            KeyBinding::new("right", text_input::Right, Some("CapturePortTextInput")),
-            KeyBinding::new("home", text_input::Home, Some("CapturePortTextInput")),
-            KeyBinding::new("end", text_input::End, Some("CapturePortTextInput")),
-            KeyBinding::new("cmd-a", text_input::SelectAll, Some("CapturePortTextInput")),
-        ]);
-        let bounds = Bounds::centered(None, size(px(1180.), px(760.)), cx);
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                ..Default::default()
-            },
-            |window, cx| {
-                cx.new(|cx| {
-                    Browser::new(
-                        window,
-                        cx,
-                        Startup {
-                            catalog,
-                            cache_dir,
-                            config_path,
-                            ui_path,
-                            gallery_names_path,
-                            ui,
-                            preset,
-                            initial_source,
-                            demo_importing,
-                        },
-                    )
-                })
-            },
-        )
-        .expect("could not open CapturePort window");
-        cx.activate(true)
-    })
+    Application::new()
+        .with_assets(icons::Icons)
+        .run(move |cx: &mut App| {
+            if let Err(error) =
+                cx.text_system()
+                    .add_fonts(vec![std::borrow::Cow::Borrowed(include_bytes!(
+                        "../assets/fonts/AdwaitaSans-Regular.ttf"
+                    ))])
+            {
+                tracing::warn!(%error, "Could not load bundled interface font");
+            }
+            cx.bind_keys([
+                KeyBinding::new("cmd-o", OpenFolder, None),
+                KeyBinding::new("cmd-d", OpenDemo, None),
+                KeyBinding::new("cmd-a", SelectAll, None),
+                KeyBinding::new("cmd-shift-a", SelectAllNew, None),
+                KeyBinding::new("escape", SelectNone, None),
+                KeyBinding::new("cmd-i", ImportSelected, None),
+                KeyBinding::new(
+                    "backspace",
+                    text_input::Backspace,
+                    Some("CapturePortTextInput"),
+                ),
+                KeyBinding::new("delete", text_input::Delete, Some("CapturePortTextInput")),
+                KeyBinding::new("left", text_input::Left, Some("CapturePortTextInput")),
+                KeyBinding::new("right", text_input::Right, Some("CapturePortTextInput")),
+                KeyBinding::new("home", text_input::Home, Some("CapturePortTextInput")),
+                KeyBinding::new("end", text_input::End, Some("CapturePortTextInput")),
+                KeyBinding::new("cmd-a", text_input::SelectAll, Some("CapturePortTextInput")),
+                KeyBinding::new("cmd-v", text_input::Paste, Some("CapturePortTextInput")),
+                KeyBinding::new("cmd-c", text_input::Copy, Some("CapturePortTextInput")),
+                KeyBinding::new("cmd-x", text_input::Cut, Some("CapturePortTextInput")),
+            ]);
+            let bounds = Bounds::centered(None, size(px(1180.), px(760.)), cx);
+            cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    ..Default::default()
+                },
+                |window, cx| {
+                    cx.new(|cx| {
+                        Browser::new(
+                            window,
+                            cx,
+                            Startup {
+                                catalog,
+                                cache_dir,
+                                config_path,
+                                ui_path,
+                                gallery_names_path,
+                                ui,
+                                preset,
+                                initial_source,
+                                demo_importing,
+                            },
+                        )
+                    })
+                },
+            )
+            .expect("could not open CapturePort window");
+            cx.activate(true)
+        })
 }
 
 #[cfg(test)]
@@ -2919,6 +2971,43 @@ mod integration_tests {
         assert!(!blocks_import(PlanStatus::Ready));
         assert!(blocks_import(PlanStatus::DestinationCollision));
     }
+    /// Guards the demo fixtures' whole purpose: they must be able to fill the
+    /// browser grid. A fixture whose preview cannot be decoded makes every demo
+    /// state render as an empty grid, which is how this test came to exist.
+    #[test]
+    fn demo_source_previews_decode_through_the_thumbnail_encoder() {
+        use captureport_core::{FakeSourceScenario, MediaSource, ScanContext};
+        for scenario in [
+            FakeSourceScenario::NormalCamera,
+            FakeSourceScenario::LargeCard,
+            FakeSourceScenario::SlowCard,
+            FakeSourceScenario::DisconnectingCamera,
+        ] {
+            let source = FakeSourceBuilder::new().scenario(scenario).files(4).build();
+            let scan = ScanContext::new(
+                captureport_core::ScanGeneration(1),
+                captureport_core::CancellationToken::new(),
+            );
+            let mut items = Vec::new();
+            // The disconnecting scenario ends enumeration early by design; the
+            // items it did emit still need usable previews.
+            let _ = source.enumerate(&scan, &mut |item| {
+                items.push(item);
+                Ok(())
+            });
+            assert!(!items.is_empty(), "{scenario:?} emitted no items");
+            for item in &items {
+                let bytes = source
+                    .preview(&item.locator)
+                    .unwrap_or_else(|e| panic!("{scenario:?} preview failed: {e}"))
+                    .unwrap_or_else(|| panic!("{scenario:?} returned no preview"));
+                let decoded = image::load_from_memory(&bytes)
+                    .unwrap_or_else(|e| panic!("{scenario:?} preview undecodable: {e}"));
+                assert!(decoded.width() > 0 && decoded.height() > 0);
+            }
+        }
+    }
+
     #[test]
     fn ready_tiles_do_not_jump_when_earlier_media_finishes() {
         let mut displayed = vec![MediaId(2)];

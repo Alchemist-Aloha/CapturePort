@@ -98,6 +98,7 @@ The bundled Adwaita Sans face gives the desktop UI a consistent Linux-native voi
 - 4px control radius and 36px minimum button, navigation, and filter height.
 - Adwaita Sans from the bundled OFL-licensed font asset.
 - Quiet filter selection, explicit “Selected” / “Part selected” labels, and status text with icon.
+- Material Symbols Outlined action icons, tinted from their control's text color.
 - Full palette parity across Pine, Darkroom, Graphite, and Ink in light and dark modes.
 
 ## Colors
@@ -140,6 +141,37 @@ The active Pine light tokens above are the frontmatter source. The complete sour
 - **Title** (600, 14px): filenames, navigation labels, and leading row text.
 - **Body** (400, 14px): controls, summaries, and explanatory copy.
 - **Label** (400, 12px): time, size, status, counts, and image overlays.
+
+## Iconography
+
+**Set:** Material Symbols Outlined (Material 3), vendored unmodified at
+`crates/captureport/assets/icons/` with its Apache-2.0 license and upstream
+revision recorded in that directory's `README.md`. GPUI paints each SVG as a
+mask tinted by the control's text color, so one file serves all four schemes in
+both modes and no icon carries a hard-coded color.
+
+**Grid and weight:** every glyph keeps Material's 960-unit grid and its single
+filled path, so the family shares one optical weight and corner language by
+construction rather than by hand-matching.
+
+**Size:** 16px beside 14px control text; 12px inside a 12px tile badge. The step
+holds Material's own 24px-glyph-to-16px-text ratio, so an icon never outweighs
+the label it sits with.
+
+### Named Rules
+
+**The Action Rule.** Icons mark actions and destinations: buttons, rail
+navigation, and destructive controls. Selector chips — filters, sort, preset,
+and appearance — stay text-only, because their state is communicated by the
+selected tone and weight that this system already defines.
+
+**The Status Vocabulary Rule.** Import status keeps its documented text markers
+(`✓ Imported`, `! Possible duplicate`, `● New`). They are a written status
+notation, not an icon system, and are never replaced by glyphs.
+
+**The Paired-Badge Rule.** A media-type badge pairs one icon with one label
+(`VIDEO`, `RAW+JPEG`, `SIDECAR`). A mark never stands alone where a reader would
+have to guess its meaning.
 
 ## Layout
 
@@ -195,6 +227,8 @@ The 52px footer presents item totals, selected totals, byte totals, status text,
 - **Do** keep the 48px header, 232/184px rail, 52px footer, and 4px/36px control language coherent.
 - **Do** use Adwaita Sans for every surface and keep the OFL asset with its license.
 - **Do** keep thumbnails contained and expose file size, import status, and bundle disclosure as separate metadata.
+- **Do** keep every control icon on the Material Symbols grid at 16px, or 12px inside a 12px badge label.
+- **Do** keep action icons tinted from the same token as their label text.
 - **Do** label selection explicitly and keep color from carrying status by itself.
 
 ### Don't:
@@ -203,4 +237,7 @@ The 52px footer presents item totals, selected totals, byte totals, status text,
 - **Don't** crop photographs to fit a tile.
 - **Don't** merge bundle disclosure into the import-status label.
 - **Don't** add a new scheme or mode with inherited or partial palette roles.
+- **Don't** replace the documented import-status text markers with icons.
+- **Don't** put icons on filter, sort, preset, or appearance chips.
+- **Don't** author a one-off icon outside the vendored Material Symbols set.
 - **Don't** change the importer’s deterministic plan, verification, collision, recovery, or source-safety behavior as part of visual work.

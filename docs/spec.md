@@ -2267,7 +2267,7 @@ Everything else should support that workflow rather than compete with it.
 
 # 64. Browser Behavior
 
-The application opens to an empty source browser. Users can choose a local directory with **Open folder**. A **Demo · 10,000 items** source is available for exercising selection and scrolling without a camera. Deterministic `--demo` modes cover empty, camera, importing, errors, and 10,000-item states for UI review.
+The application opens to an empty source browser. Users can choose a local directory with **Open folder**. A **10k-item demo** source is available for exercising selection and scrolling without a camera. Deterministic `--demo` modes cover empty, camera, importing, errors, and 10,000-item states for UI review; a fixture run uses an in-memory catalog and serves a decodable preview per item, so fixtures never touch real import history and always populate the grid.
 
 Filesystem scanning is recursive and read-only. Hidden entries and common system folders are skipped by default, symbolic links are not followed, and files rejected by the active media rules (see section 8) are omitted. The selected source's relative paths are preserved. Changing sources cancels the previous scan and discards its late results.
 
@@ -2313,9 +2313,22 @@ adjacent controls, 16 for content gutters and media gaps, and 24 between
 sections. Buttons, source rows, filter tabs, and text fields have a 36-pixel
 minimum height. Buttons and fields use 16-pixel horizontal padding; compact
 filter tabs use 8. Header, sidebar, content, and footer gutters align at 16
-pixels. Unavailable actions do not leave empty gaps. Media metadata and gallery
-headings reserve consistent space in the virtualized row geometry, and the
-column calculation accounts for both media gaps and the scrollbar gutter.
+pixels. A control label truncates rather than overlapping its own outline, so a
+narrow rail never clips a button. Unavailable actions do not leave empty gaps.
+Media metadata and gallery headings reserve consistent space in the virtualized
+row geometry, and the column calculation accounts for both media gaps and the
+scrollbar gutter.
+
+Controls carry Material Symbols Outlined (Material 3) action icons, vendored
+with their license under `crates/captureport/assets/icons/`. An icon is tinted
+from its control's text color, so the four schemes and both modes need no
+per-scheme icon assets. Icons mark actions and destinations: buttons, rail
+navigation, and destructive controls. Selector chips — filter, sort, preset, and
+appearance — remain text-only. The documented import-status text markers (`✓ Imported`, `! Possible
+duplicate`, `● New`) remain text rather than becoming glyphs. Action icons render
+at 16 pixels beside 14-pixel control text, and at 12 pixels inside a 12-pixel
+media-type badge, where the badge pairs its icon with a `VIDEO`, `RAW+JPEG`, or
+`SIDECAR` label.
 
 Every vertically scrollable surface shows a palette-matched scrollbar at its
 right edge when content exceeds the viewport: the Sources sidebar, media grid,
@@ -2326,6 +2339,9 @@ Scrollbar space is reserved so controls and media are not covered by the thumb.
 
 Editable text fields in import settings and gallery names use the active light
 or dark palette for their surface, text, border, selection, and focus state.
+Clicking positions the cursor, dragging or Shift-click selects text, and
+Ctrl+V/C/X pastes, copies, or cuts. Single-line fields replace pasted line
+breaks with spaces and scroll horizontally to keep the cursor visible.
 
 Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to open the import preview (and confirm only while reviewing it), and Escape to clear the visible selection on the browser. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
 The browser footer shows the selected count and size with a Preview import action when items are selected. The preview names blocked destinations and only offers Confirm import when every planned item can execute. After an import finishes, the same selection cannot be confirmed again until the selection or settings change and a fresh plan is built.

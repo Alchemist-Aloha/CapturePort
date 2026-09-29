@@ -4,7 +4,8 @@
 
 ## Platform
 
-Native Linux desktop (GPUI).
+Native Linux desktop, GNOME/Adwaita design language, rendered by GPUI. There is
+no web, iOS, or Android target.
 
 ## Users
 

@@ -7,15 +7,18 @@
 use std::ops::Range;
 
 use gpui::{
-    App, Bounds, Context, CursorStyle, Element, ElementId, ElementInputHandler, Entity,
-    EntityInputHandler, FocusHandle, Focusable, GlobalElementId, LayoutId, MouseButton,
-    MouseDownEvent, PaintQuad, Pixels, Point, ShapedLine, SharedString, Style, TextRun,
-    UTF16Selection, Window, actions, div, fill, point, prelude::*, relative,
+    App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
+    Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId, LayoutId, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, ShapedLine,
+    SharedString, Style, TextRun, UTF16Selection, Window, actions, div, fill, point, prelude::*,
+    relative,
 };
 
 actions!(
     captureport_text_input,
-    [Backspace, Delete, Left, Right, Home, End, SelectAll]
+    [
+        Backspace, Delete, Left, Right, Home, End, SelectAll, Paste, Copy, Cut
+    ]
 );
 
 /// A single-line editable text value.
@@ -25,9 +28,15 @@ pub struct TextInput {
     placeholder: SharedString,
     selection: Range<usize>,
     reversed: bool,
+    selecting: bool,
     marked_range: Option<Range<usize>>,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
+    scroll_x: Pixels,
+}
+
+fn single_line_clipboard(text: &str) -> String {
+    text.replace(['\r', '\n'], " ")
 }
 
 impl TextInput {
@@ -44,9 +53,11 @@ impl TextInput {
             placeholder: placeholder.into(),
             selection: end..end,
             reversed: false,
+            selecting: false,
             marked_range: None,
             last_layout: None,
             last_bounds: None,
+            scroll_x: gpui::px(0.),
         }
     }
 
@@ -106,8 +117,64 @@ impl TextInput {
         self.marked_range = None;
         cx.notify();
     }
-    fn on_mouse_down(&mut self, _: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+    fn index_for_mouse(&self, position: Point<Pixels>) -> usize {
+        match (&self.last_bounds, &self.last_layout) {
+            (Some(bounds), Some(line)) if !self.content.is_empty() => {
+                line.closest_index_for_x(position.x - bounds.left())
+            }
+            _ => 0,
+        }
+    }
+    fn select_to(&mut self, at: usize, cx: &mut Context<Self>) {
+        let anchor = if self.reversed {
+            self.selection.end
+        } else {
+            self.selection.start
+        };
+        self.selection = anchor.min(at)..anchor.max(at);
+        self.reversed = at < anchor;
+        cx.notify();
+    }
+    fn on_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         window.focus(&self.focus_handle(cx));
+        self.selecting = true;
+        let at = self.index_for_mouse(event.position);
+        if event.modifiers.shift {
+            self.select_to(at, cx);
+        } else {
+            self.move_to(at, cx);
+        }
+    }
+    fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if self.selecting {
+            self.select_to(self.index_for_mouse(event.position), cx);
+        }
+    }
+    fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
+        self.selecting = false;
+    }
+    fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+            self.replace_text_in_range(None, &single_line_clipboard(&text), window, cx);
+        }
+    }
+    fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.selection.is_empty() {
+            cx.write_to_clipboard(ClipboardItem::new_string(
+                self.content[self.selection.clone()].to_string(),
+            ));
+        }
+    }
+    fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.selection.is_empty() {
+            self.copy(&Copy, window, cx);
+            self.replace("", window, cx);
+        }
     }
     fn backspace(&mut self, _: &Backspace, window: &mut Window, cx: &mut Context<Self>) {
         if self.selection.is_empty() {
@@ -247,8 +314,14 @@ impl EntityInputHandler for TextInput {
         let line = self.last_layout.as_ref()?;
         let range = self.utf16_to_utf8(range.start)..self.utf16_to_utf8(range.end);
         Some(Bounds::from_corners(
-            point(bounds.left() + line.x_for_index(range.start), bounds.top()),
-            point(bounds.left() + line.x_for_index(range.end), bounds.bottom()),
+            point(
+                bounds.left() - self.scroll_x + line.x_for_index(range.start),
+                bounds.top(),
+            ),
+            point(
+                bounds.left() - self.scroll_x + line.x_for_index(range.end),
+                bounds.bottom(),
+            ),
         ))
     }
     fn character_index_for_point(
@@ -276,6 +349,7 @@ struct PaintState {
     line: Option<ShapedLine>,
     cursor: Option<PaintQuad>,
     selection: Option<PaintQuad>,
+    scroll_x: Pixels,
 }
 impl IntoElement for TextElement {
     type Element = Self;
@@ -341,6 +415,13 @@ impl Element for TextElement {
             None,
         );
         let cursor_pos = line.x_for_index(input.cursor());
+        let mut scroll_x = input.scroll_x;
+        if cursor_pos < scroll_x {
+            scroll_x = cursor_pos;
+        } else if cursor_pos > scroll_x + bounds.size.width - gpui::px(2.) {
+            scroll_x = cursor_pos - bounds.size.width + gpui::px(2.);
+        }
+        scroll_x = scroll_x.max(gpui::px(0.));
         let mut selection_color = window.text_style().color;
         selection_color.a *= 0.25;
         let (selection, cursor) = if input.selection.is_empty() {
@@ -348,7 +429,7 @@ impl Element for TextElement {
                 None,
                 Some(fill(
                     Bounds::new(
-                        point(bounds.left() + cursor_pos, bounds.top()),
+                        point(bounds.left() - scroll_x + cursor_pos, bounds.top()),
                         gpui::size(gpui::px(2.), bounds.bottom() - bounds.top()),
                     ),
                     window.text_style().color,
@@ -359,11 +440,11 @@ impl Element for TextElement {
                 Some(fill(
                     Bounds::from_corners(
                         point(
-                            bounds.left() + line.x_for_index(input.selection.start),
+                            bounds.left() - scroll_x + line.x_for_index(input.selection.start),
                             bounds.top(),
                         ),
                         point(
-                            bounds.left() + line.x_for_index(input.selection.end),
+                            bounds.left() - scroll_x + line.x_for_index(input.selection.end),
                             bounds.bottom(),
                         ),
                     ),
@@ -376,6 +457,7 @@ impl Element for TextElement {
             line: Some(line),
             cursor,
             selection,
+            scroll_x,
         }
     }
     fn paint(
@@ -398,8 +480,13 @@ impl Element for TextElement {
             window.paint_quad(selection);
         }
         let line = state.line.take().unwrap();
-        line.paint(bounds.origin, window.line_height(), window, cx)
-            .unwrap();
+        line.paint(
+            point(bounds.left() - state.scroll_x, bounds.top()),
+            window.line_height(),
+            window,
+            cx,
+        )
+        .unwrap();
         if focus.is_focused(window)
             && let Some(cursor) = state.cursor.take()
         {
@@ -407,7 +494,11 @@ impl Element for TextElement {
         }
         self.input.update(cx, |input, _| {
             input.last_layout = Some(line);
-            input.last_bounds = Some(bounds);
+            input.last_bounds = Some(Bounds::new(
+                point(bounds.left() - state.scroll_x, bounds.top()),
+                bounds.size,
+            ));
+            input.scroll_x = state.scroll_x;
         });
     }
 }
@@ -427,12 +518,28 @@ impl Render for TextInput {
             .on_action(cx.listener(Self::home))
             .on_action(cx.listener(Self::end))
             .on_action(cx.listener(Self::select_all))
+            .on_action(cx.listener(Self::paste))
+            .on_action(cx.listener(Self::copy))
+            .on_action(cx.listener(Self::cut))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .on_mouse_move(cx.listener(Self::on_mouse_move))
             .min_h(gpui::px(crate::spacing::CONTROL_HEIGHT - 2.))
             .px(gpui::px(crate::spacing::CONTENT))
             .py(gpui::px(crate::spacing::TIGHT))
             .flex()
             .items_center()
             .child(TextElement { input: cx.entity() })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::single_line_clipboard;
+
+    #[test]
+    fn pasted_lines_remain_in_one_field() {
+        assert_eq!(single_line_clipboard("a\r\nb\n写真"), "a  b 写真");
     }
 }
