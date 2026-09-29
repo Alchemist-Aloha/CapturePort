@@ -212,25 +212,43 @@ source detected
     ↓
 enumerate files
     ↓
-show initial file list
-    ↓
 extract metadata incrementally
     ↓
-load thumbnails incrementally
+generate thumbnails on a bounded background queue
+    ↓
+show each capture only when metadata and thumbnail are ready
     ↓
 resolve import-history status incrementally
 ```
 
-A card containing thousands of items should therefore become interactive almost immediately.
+A card containing thousands of items should remain responsive while previews
+load. Ready captures appear progressively without reordering already displayed
+tiles; loading and unavailable-preview counts remain visible. Failed metadata
+or thumbnail extraction must not produce blank media tiles. Reopening the source
+retries unavailable previews; files remain untouched.
 
 Automatic mounted-source discovery lists volumes under `/media/` and
 `/run/media/`. Mounts under `/mnt/` are not added to the Sources sidebar
-automatically; users can still choose them with **Open folder**.
+automatically; users can still choose them with **Open folder**. Removable
+storage must be mounted before it can be scanned; a device visible in a file
+manager's device list is not necessarily mounted. Sources also lists unmounted
+removable filesystem cards with a distinct **Not mounted** state and an explicit
+**Mount** button. Mounting is never automatic: the OS's UDisks service handles
+authorization and the mount operation. CapturePort rechecks the device before
+requesting the mount and refreshes Sources afterward. Mount errors remain visible
+without clearing usable sources. A libgphoto2 detection failure must not hide
+mounted filesystem sources.
 
 Libgphoto2's generic **Mass Storage Camera** and `disk:` camera adapters are
 hidden from the Sources sidebar. Mounted storage remains available as the
 **Card** source through the filesystem adapter. Actual PTP cameras remain
 listed; matching USB mounts are suppressed only for those PTP cameras.
+
+Device discovery starts at launch and polls every three seconds. **Refresh devices**
+(and **Scan for cameras** in the empty view) requests an immediate scan on the
+same serialized worker. While a manual scan is pending, the action shows
+“Scanning devices…” and repeated requests are ignored. Completion reports the
+number of sources found; failure preserves the previous list and offers retry.
 
 ---
 
@@ -1777,7 +1795,9 @@ They should normally appear as filesystem destinations such as:
 
 The application should not initially implement SMB or NFS clients internally.
 
-Filesystem mounting remains an OS responsibility.
+Filesystem mounting remains an OS responsibility. CapturePort may request a
+user-selected removable source mount through UDisks; it does not mount
+destination filesystems or unmount any source automatically.
 
 ---
 
@@ -2249,7 +2269,8 @@ Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions r
 
 The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. A tile overlays its media-type badge at the thumbnail's top-right and its file size at the bottom-left, with the source file's modification time in a compact format below the filename; camera items without a local file omit the time. The status line below that is icon plus text (`✓ Imported`, `! Possible duplicate`, `? Unknown`, `New`, `Checking…`); for a file classified as imported or a possible duplicate it also names the prior import that matched, as a session number and date, so an uncertain classification is traceable rather than asserted. Selection is shown by the tile background and border rather than a text label. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
 
-The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Until renamed, a gallery's default name is the creation date of its earliest media (`YYYY-MM-DD`), not a session number; when several galleries share a date, they are suffixed `a`, `b`, `c`, … in chronological order. Stored names that match the old auto-generated `Session N` pattern are ignored so they fall back to the date. Clicking a gallery's display name selects every visible media item in that gallery, or clears them when all are already selected (bundle members are included). Display names never enter destination templates; actual output folders continue to come from the import preset's photo/video destination rules and their date/time/session variables. Import previews remain authoritative for the exact paths and session numbers of the selected import subset.
+The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Until renamed, a gallery's default name is the creation date of its earliest media (`YYYY-MM-DD`), not a session number; when several galleries share a date, they are suffixed `a`, `b`, `c`, … in chronological order. Stored names that match the old auto-generated `Session N` pattern are ignored so they fall back to the date. Clicking a gallery's display name selects every visible media item in that gallery, or clears them when all are already selected (bundle members are included). Rename focuses the gallery name field immediately; Save keeps the editor open
+and reports an error if persistence fails. Display names never enter destination templates; actual output folders continue to come from the import preset's photo/video destination rules and their date/time/session variables. Import previews remain authoritative for the exact paths and session numbers of the selected import subset.
 
 The thumbnail grid adapts its column count to the available window width and
 keeps image previews and labels within their tiles. Card image height also
@@ -2303,7 +2324,7 @@ or dark palette for their surface, text, border, selection, and focus state.
 Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to preview/import, and Escape to clear the visible selection. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
 The browser footer shows the selected count and size with a Preview import action when items are selected. The preview names blocked destinations and only offers Confirm import when every planned item can execute. After an import finishes, the same selection cannot be confirmed again until the selection or settings change and a fresh plan is built.
 
-Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. The screen exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. A blank pair of backup roots disables backup. Camera/card aliases are stored in the catalog and shown when the device reconnects.
+Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. The screen groups preset/destinations and filename first, followed by import safety, media discovery, capture time, backup copies, source alias, and appearance. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance and source alias save immediately; import settings require the persistent Apply button at the bottom of the settings view. A blank pair of backup roots disables backup. Camera/card aliases are stored in the catalog and shown when the device reconnects.
 
 Recovery, history, reconciliation, thumbnail-cache clearing, and post-import source deletion are separate actions. Recovery cleanup only offers CapturePort-owned partial files, and deleting one requires confirmation. Source deletion requires a second explicit confirmation after a verified filesystem import, states how many originals and how many bytes will be removed and from which source, offers an explicit cancel, and compares the source's full content hash with every planned destination before removing it.
 

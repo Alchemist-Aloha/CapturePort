@@ -347,10 +347,7 @@ impl Browser {
             return;
         };
         let request = ThumbnailRequest {
-            source_id: source_identity
-                .stable_id
-                .clone()
-                .unwrap_or_else(|| root.display().to_string()),
+            source_id: format!("{}:{}", source_identity.stable_id.as_deref().unwrap_or(""), root.display()),
             relative_path: item.source_path.clone(),
             size: item.size,
             modified_unix,
@@ -396,9 +393,16 @@ impl Browser {
                 cx.listener(|t, _, w, c| t.open_folder(&OpenFolder, w, c)),
             ))
             .child(button(
-                "Refresh devices", p,
+                if self.discovering { "Scanning devices…" } else { "Refresh devices" }, p,
                 cx.listener(|t, _, w, c| t.discover_sources(&DiscoverSources, w, c)),
-            ));
+            ))
+            .child(if self.discovering { "Looking for connected cameras and cards…" } else { "" });
+        for (index, card) in self.unmounted_cards.iter().enumerate() {
+            panel = panel.child(div().flex().flex_col().gap(px(spacing::TIGHT))
+                .child(div().text_sm().child(format!("Card · {} · Not mounted", card.label)))
+                .child(button(if self.mounting.as_ref() == Some(&card.path) { "Mounting…" } else { "Mount" }, p,
+                    cx.listener(move |t, _, _, c| t.mount_card(index, c)))));
+        }
         for (index, discovered) in self.discovered_sources.iter().enumerate() {
             let name = match discovered {
                 captureport_gphoto::discovery::DiscoveredSource::Ptp(camera) => {
@@ -521,6 +525,9 @@ impl Browser {
     fn browser_panel(&mut self, window: &mut Window, sidebar_width: f32, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let visible = self.visible_ids.len();
+        let candidates = visible_capture_ids(self.state.visible_items().into_iter().map(|item| item.id), &self.bundle_owner);
+        let waiting = candidates.len().saturating_sub(visible);
+        let failed = candidates.iter().filter(|id| self.failed_thumbnails.contains(id) || self.state.item(**id).is_some_and(|item| matches!(item.metadata, captureport_core::MetadataState::Failed(_)))).count();
         let (columns, image_height) = thumbnail_layout(
             f32::from(window.bounds().size.width),
             f32::from(window.bounds().size.height),
@@ -548,7 +555,7 @@ impl Browser {
             .child(div().px(px(spacing::CONTENT)).pt(px(spacing::CONTENT)).pb(px(spacing::CONTROL_GAP)).flex().flex_col().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border)
                 .child(div().min_w_0().flex().items_baseline().justify_between().gap(px(spacing::CONTENT))
                     .child(div().flex_1().min_w_0().text_lg().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_name))
-                    .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(format!("{visible} captures in view · {} selected overall", self.state.selection_summary().count))))
+                    .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(format!("{visible} ready · {} loading · {failed} unavailable · {} selected overall", waiting.saturating_sub(failed), self.state.selection_summary().count))))
                 .child(div().flex().flex_wrap().gap(px(spacing::TIGHT))
                     .child(chip("All",self.state.filter==MediaFilter::All, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
                     .child(chip("Photos",self.state.filter==MediaFilter::Photos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
@@ -616,14 +623,14 @@ impl Browser {
                 div().flex_1().flex().items_center().justify_center().px(px(spacing::CONTENT))
                     .child(div().flex().flex_col().items_center().gap(px(spacing::CONTENT))
                         .child(div().text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child(if self.scanning { "Scanning source…" } else if self.state.source.is_none() { "Start with a source" } else if self.state.filter == MediaFilter::All { "No media found in this source" } else { "No media matches this filter" }))
+                            .child(if self.scanning { "Scanning source…" } else if waiting > failed { "Preparing previews…" } else if failed > 0 { "Previews unavailable" } else if self.state.source.is_none() { "Start with a source" } else if self.state.filter == MediaFilter::All { "No media found in this source" } else { "No media matches this filter" }))
                         .child(div().text_sm().text_color(p.muted)
-                            .child(if self.scanning { "Media will appear here as it is found." } else if self.state.source.is_none() { "Open a folder or connect a camera to browse media." } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." }))
+                            .child(if self.scanning { "Media appears after metadata and its thumbnail are ready." } else if failed > 0 && waiting == failed { "Some files could not be previewed. Check the source or video decoder, then reopen it to retry." } else if waiting > 0 { "Metadata and thumbnails are loading." } else if self.state.source.is_none() { if self.discovered_sources.is_empty() && !self.unmounted_cards.is_empty() { "Mount the card in Sources to browse media." } else if self.discovered_sources.is_empty() { "Open a folder or connect a camera to browse media." } else { "Choose a discovered camera or card in Sources to browse media." } } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." }))
                         .child(if self.state.source.is_none() && !self.scanning {
                             div().flex().flex_wrap().justify_center().gap(px(spacing::CONTROL_GAP))
                                 .child(primary_button("Open a folder…", p,
                                     cx.listener(|t, _, w, c| t.open_folder(&OpenFolder, w, c))))
-                                .child(button("Scan for cameras", p,
+                                .child(button(if self.discovering { "Scanning devices…" } else { "Scan for cameras" }, p,
                                     cx.listener(|t, _, w, c| t.discover_sources(&DiscoverSources, w, c))))
                                 .into_any_element()
                         } else if self.state.filter != MediaFilter::All && !self.scanning {
@@ -637,7 +644,6 @@ impl Browser {
                     let mut cards=div().w_full().flex().gap(px(spacing::CONTENT));
                     for column in 0..columns {
                         if let Some(&id)=ids.get(column) {
-                            t.request_thumbnail(id);
                             if let Some(item)=t.state.item(id) {
                                 let members=t.bundles.get(&id);
                                 let member_count=members.map_or(1,Vec::len);
@@ -652,8 +658,8 @@ impl Browser {
                                 let time_label=t.thumbnail_modified.get(&id).copied().map(|seconds| format_file_time_compact(seconds,timezone)).unwrap_or_default();
                                 let picture = {
                                     let base = if let Some(path)=t.thumbnail_paths.get(&id) {
-                                        div().w_full().h(px(image_height)).bg(p.placeholder).overflow_hidden()
-                                            .child(img(path.clone()).size_full().object_fit(ObjectFit::Contain))
+                                        div().w_full().h(px(image_height)).flex().items_center().justify_center().bg(p.placeholder).overflow_hidden()
+                                            .child(img(path.clone()).h(px(image_height)).max_w_full().object_fit(ObjectFit::Contain))
                                     } else {
                                         div().w_full().h(px(image_height)).bg(p.placeholder)
                                     };
@@ -726,7 +732,7 @@ impl Browser {
                                             }))
                                             .child(title.clone()),
                                     )
-                                    .child(button("Rename", p,  cx.listener(move |t,_,_,c| t.edit_gallery(key.clone(),c))))
+                                    .child(button("Rename", p,  cx.listener(move |t,_,w,c| t.edit_gallery(key.clone(),w,c))))
                             }
                         } else { div().h(px(spacing::CONTROL_HEIGHT)) };
                         view=view.child(heading.mb(px(spacing::CONTROL_GAP)));
@@ -1333,59 +1339,9 @@ impl Browser {
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child("Settings"),
             )
-            .child(settings_section("Appearance", p))
-            .child(div().text_xs().text_color(p.muted)
-                .child("Color scheme applies to both light and dark mode."))
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .gap(px(spacing::CONTROL_GAP))
-                    .children(ColorScheme::ALL.map(|scheme| chip(
-                        scheme.label(),
-                        self.ui.scheme == scheme,
-                        p,
-                        cx.listener(move |t, _, _, c| t.set_scheme(scheme, c)),
-                    ))),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .gap(px(spacing::CONTROL_GAP))
-                    .child(chip(
-                        "Light",
-                        !self.ui.dark_mode,
-                        p,
-                        cx.listener(|t, _, _, c| {
-                            if t.ui.dark_mode {
-                                t.toggle_dark_mode(c);
-                            }
-                        }),
-                    ))
-                    .child(chip(
-                        "Dark",
-                        self.ui.dark_mode,
-                        p,
-                        cx.listener(|t, _, _, c| {
-                            if !t.ui.dark_mode {
-                                t.toggle_dark_mode(c);
-                            }
-                        }),
-                    )),
-            )
-            .child(settings_section("Source", p))
-            .child(settings_field(
-                "Current source alias (blank uses device name)",
-                self.settings.source_alias.clone(),
-                p,
-                cx,
-            ))
-            .child(button(
-                "Save source alias", p,
-                cx.listener(|t, _, _, c| t.save_source_alias(c)),
-            ))
-            .child(settings_section("Preset and destinations", p))
+            .child(div().text_sm().text_color(p.muted)
+                .child("Set destinations and naming, then review the safety and media rules. Appearance and source alias save separately."))
+            .child(settings_section("Destinations", p))
             .child(div().text_xs().text_color(p.muted)
                 .child("Choose a starting preset to replace the fields below."))
             .child(
@@ -1446,7 +1402,9 @@ impl Browser {
                 p,
                 cx,
             ))
-            .child(settings_section("Import rules", p))
+            .child(settings_section("Import safety", p))
+            .child(div().text_xs().text_color(p.muted)
+                .child("Click a rule to cycle its options. Verification checks copies; collision controls what happens when a destination exists."))
             .child(
                 div()
                     .flex()
@@ -1499,6 +1457,9 @@ impl Browser {
                             .on_click(cx.listener(|t, _, _, c| t.cycle_collision(c))),
                     ),
             )
+            .child(settings_section("Media discovery", p))
+            .child(div().text_xs().text_color(p.muted)
+                .child("These rules determine which files appear when you scan a source."))
             .child(settings_field(
                 "Additional photo extensions (comma separated)",
                 self.settings.include_photo.clone(),
@@ -1613,12 +1574,6 @@ impl Browser {
                         cx,
                     )),
             )
-            .child(settings_field(
-                "Time-gap session threshold (minutes)",
-                self.settings.gap_minutes.clone(),
-                p,
-                cx,
-            ))
             .child(settings_section("Backup copies", p))
             .child(settings_field(
                 "Backup photo root (blank disables backup)",
@@ -1642,15 +1597,38 @@ impl Browser {
                     .child(format!("Backup required: {}", self.backup_required_choice))
                     .on_click(cx.listener(|t, _, _, c| t.toggle_backup_required(c))),
             )
-            .child(primary_button(
-                "Apply settings",
-                p,
-                cx.listener(|t, _, _, c| t.apply_settings(c)),
+            .child(settings_section("Source", p))
+            .child(settings_field(
+                "Current source alias (blank uses device name)",
+                self.settings.source_alias.clone(), p, cx,
             ))
+            .child(button("Save source alias", p,
+                cx.listener(|t, _, _, c| t.save_source_alias(c))))
+            .child(settings_section("Appearance", p))
+            .child(div().text_xs().text_color(p.muted)
+                .child("Color scheme and light or dark mode save immediately."))
+            .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
+                .children(ColorScheme::ALL.map(|scheme| chip(
+                    scheme.label(), self.ui.scheme == scheme, p,
+                    cx.listener(move |t, _, _, c| t.set_scheme(scheme, c)),
+                ))))
+            .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
+                .child(chip("Light", !self.ui.dark_mode, p,
+                    cx.listener(|t, _, _, c| { if t.ui.dark_mode { t.toggle_dark_mode(c); } })))
+                .child(chip("Dark", self.ui.dark_mode, p,
+                    cx.listener(|t, _, _, c| { if !t.ui.dark_mode { t.toggle_dark_mode(c); } }))))
             .into_any_element();
-        div().relative().flex_1().min_w_0().min_h_0().flex().flex_col()
-            .child(panel)
-            .child(self.scrollbars.settings.element(p.border, p.muted, p.accent))
+        div().flex_1().min_w_0().min_h_0().flex().flex_col()
+            .child(div().relative().flex_1().min_h_0().flex().flex_col()
+                .child(panel)
+                .child(self.scrollbars.settings.element(p.border, p.muted, p.accent)))
+            .child(div().flex_shrink_0().border_t_1().border_color(p.border)
+                .px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP))
+                .flex().items_center().justify_between().gap(px(spacing::CONTENT))
+                .child(div().text_xs().text_color(p.muted)
+                    .child("Review the import preview before copying."))
+                .child(primary_button("Apply import settings", p,
+                    cx.listener(|t, _, _, c| t.apply_settings(c)))))
             .into_any_element()
     }
 }

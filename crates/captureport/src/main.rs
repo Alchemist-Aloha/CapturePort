@@ -31,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
+    process::Command,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -59,14 +60,95 @@ actions!(
     ]
 );
 use scan::{ScanMessage, SourceRequest, scan_source};
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct UnmountedCard {
+    path: PathBuf,
+    identity: String,
+    label: String,
+}
+
+#[derive(Deserialize)]
+struct BlockListing {
+    blockdevices: Vec<BlockDevice>,
+}
+#[derive(Deserialize)]
+struct BlockDevice {
+    path: PathBuf,
+    #[serde(rename = "type")]
+    kind: String,
+    rm: bool,
+    tran: Option<String>,
+    fstype: Option<String>,
+    mountpoint: Option<String>,
+    label: Option<String>,
+    model: Option<String>,
+    serial: Option<String>,
+}
+
+fn unmounted_cards() -> Result<Vec<UnmountedCard>, String> {
+    let output = Command::new("lsblk")
+        .args([
+            "-J",
+            "-o",
+            "PATH,TYPE,RM,TRAN,FSTYPE,MOUNTPOINT,LABEL,MODEL,SERIAL",
+        ])
+        .output()
+        .map_err(|e| format!("lsblk: {e}"))?;
+    if !output.status.success() {
+        return Err("lsblk failed".into());
+    }
+    let listing: BlockListing =
+        serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+    Ok(cards_from_blocks(&listing.blockdevices))
+}
+
+fn cards_from_blocks(blocks: &[BlockDevice]) -> Vec<UnmountedCard> {
+    let mut cards = Vec::new();
+    let mut parent: Option<&BlockDevice> = None;
+    for block in blocks {
+        if block.kind == "disk" {
+            parent = (block.rm || block.tran.as_deref() == Some("usb")).then_some(block);
+        }
+        let drive = (block.kind == "disk" || block.kind == "part")
+            .then_some(parent)
+            .flatten();
+        if let Some(drive) = drive
+            && block
+                .fstype
+                .as_deref()
+                .is_some_and(|fs| !fs.is_empty() && fs != "crypto_LUKS" && fs != "swap")
+            && block.mountpoint.is_none()
+        {
+            cards.push(UnmountedCard {
+                path: block.path.clone(),
+                identity: format!(
+                    "{}:{}:{}",
+                    drive.path.display(),
+                    drive.serial.as_deref().unwrap_or(""),
+                    block.path.display()
+                ),
+                label: block
+                    .label
+                    .clone()
+                    .or_else(|| drive.model.clone())
+                    .unwrap_or_else(|| block.path.display().to_string()),
+            });
+        }
+    }
+    cards
+}
+
+type DiscoveryResult = Result<
+    (
+        Vec<captureport_gphoto::discovery::DiscoveredSource>,
+        HashMap<String, String>,
+    ),
+    String,
+>;
 enum WorkMessage {
     Event(Box<AppEvent>),
     Plan(u64, ImportPlan),
     History(Vec<HistoryEntry>),
-    Sources(
-        Vec<captureport_gphoto::discovery::DiscoveredSource>,
-        HashMap<String, String>,
-    ),
     Recovery(Vec<IncompleteSession>, Vec<captureport_ingest::PartialFile>),
     PartialCleaned(PathBuf),
     ImportResult(captureport_ingest::ImportResult),
@@ -80,6 +162,7 @@ enum WorkMessage {
     ImportDone(Result<String, String>),
     ReconcileDone(Result<String, String>),
     Done(Result<String, String>),
+    Mounted(Result<String, String>),
 }
 struct HistoryEntry {
     detail: SessionDetail,
@@ -156,6 +239,13 @@ fn visible_capture_ids(
         .map(|id| bundle_owner.get(&id).copied().unwrap_or(id))
         .filter(|id| seen.insert(*id))
         .collect()
+}
+
+fn append_ready_ids(displayed: &mut Vec<MediaId>, ready: Vec<MediaId>) {
+    let previous = displayed.iter().copied().collect::<HashSet<_>>();
+    let ready_set = ready.iter().copied().collect::<HashSet<_>>();
+    displayed.retain(|id| ready_set.contains(id));
+    displayed.extend(ready.into_iter().filter(|id| !previous.contains(id)));
 }
 
 /// Common UTC offsets offered by the timezone menu.
@@ -553,10 +643,11 @@ struct Browser {
     session_detail: Option<SessionDetail>,
     discovered_sources: Vec<captureport_gphoto::discovery::DiscoveredSource>,
     discovery_aliases: HashMap<String, String>,
-    discovery_receiver: Receiver<(
-        Vec<captureport_gphoto::discovery::DiscoveredSource>,
-        HashMap<String, String>,
-    )>,
+    discovery_receiver: Receiver<(bool, DiscoveryResult, Vec<UnmountedCard>)>,
+    discovery_requests: mpsc::Sender<()>,
+    discovering: bool,
+    unmounted_cards: Vec<UnmountedCard>,
+    mounting: Option<PathBuf>,
     discovery_stop: Arc<AtomicBool>,
     incomplete_sessions: Vec<IncompleteSession>,
     partial_files: Vec<captureport_ingest::PartialFile>,
@@ -565,6 +656,7 @@ struct Browser {
     thumbnail_paths: HashMap<MediaId, PathBuf>,
     thumbnail_modified: HashMap<MediaId, u64>,
     requested_thumbnails: HashSet<MediaId>,
+    failed_thumbnails: HashSet<MediaId>,
     camera_preview_sender: SyncSender<CameraPreviewJob>,
     camera_preview_receiver: Receiver<CameraPreviewResult>,
     camera_preview_scan_token: u128,
@@ -667,27 +759,26 @@ impl Browser {
             let _ = recovery_tx.send(WorkMessage::Recovery(sessions, partials));
         });
         let (discovery_tx, discovery_rx) = mpsc::channel();
+        let (request_tx, request_rx) = mpsc::channel();
         let discovery_catalog = catalog.clone();
         let discovery_stop = Arc::new(AtomicBool::new(false));
         let discovery_worker_stop = discovery_stop.clone();
         thread::spawn(move || {
+            let mut manual = false;
             while !discovery_worker_stop.load(Ordering::Relaxed) {
-                if let Ok(sources) = captureport_gphoto::discovery::discover()
-                    && discovery_tx
-                        .send((
-                            sources.clone(),
-                            aliases_for_sources(&sources, &discovery_catalog),
-                        ))
-                        .is_err()
+                let result = captureport_gphoto::discovery::discover()
+                    .map(|sources| {
+                        let aliases = aliases_for_sources(&sources, &discovery_catalog);
+                        (sources, aliases)
+                    })
+                    .map_err(|error| error.to_string());
+                if discovery_tx
+                    .send((manual, result, unmounted_cards().unwrap_or_default()))
+                    .is_err()
                 {
                     break;
                 }
-                for _ in 0..30 {
-                    if discovery_worker_stop.load(Ordering::Relaxed) {
-                        return;
-                    }
-                    thread::sleep(Duration::from_millis(100));
-                }
+                manual = request_rx.recv_timeout(Duration::from_secs(3)).is_ok();
             }
         });
         let mut browser = Self {
@@ -736,6 +827,10 @@ impl Browser {
             discovered_sources: Vec::new(),
             discovery_aliases: HashMap::new(),
             discovery_receiver: discovery_rx,
+            discovery_requests: request_tx,
+            discovering: false,
+            unmounted_cards: Vec::new(),
+            mounting: None,
             discovery_stop,
             incomplete_sessions: Vec::new(),
             partial_files: Vec::new(),
@@ -745,6 +840,7 @@ impl Browser {
             thumbnail_paths: HashMap::new(),
             thumbnail_modified: HashMap::new(),
             requested_thumbnails: HashSet::new(),
+            failed_thumbnails: HashSet::new(),
             camera_preview_sender,
             camera_preview_receiver,
             camera_preview_scan_token: 0,
@@ -806,10 +902,30 @@ impl Browser {
     }
     fn drain(&mut self, cx: &mut Context<Self>) {
         let mut changed = false;
-        while let Ok((sources, aliases)) = self.discovery_receiver.try_recv() {
-            self.discovered_sources = sources;
-            self.discovery_aliases = aliases;
-            changed = true;
+        while let Ok((manual, result, cards)) = self.discovery_receiver.try_recv() {
+            self.unmounted_cards = cards;
+            if manual {
+                self.discovering = false;
+            }
+            if !self.discovering {
+                match result {
+                    Ok((sources, aliases)) => {
+                        if manual {
+                            self.message = Some(format!(
+                                "Device scan complete · {} source(s) found",
+                                sources.len() + self.unmounted_cards.len()
+                            ));
+                        }
+                        self.discovered_sources = sources;
+                        self.discovery_aliases = aliases;
+                    }
+                    Err(error) if manual => {
+                        self.message = Some(format!("Device scan failed: {error}. Try again."))
+                    }
+                    Err(_) => {}
+                }
+                changed = true;
+            }
         }
         if let Some(r) = &self.receiver {
             for _ in 0..512 {
@@ -872,11 +988,6 @@ impl Browser {
                         self.page = Page::History;
                         changed = true;
                     }
-                    Ok(WorkMessage::Sources(sources, aliases)) => {
-                        self.discovered_sources = sources;
-                        self.discovery_aliases = aliases;
-                        changed = true;
-                    }
                     Ok(WorkMessage::Recovery(sessions, partials)) => {
                         self.incomplete_sessions = sessions;
                         self.partial_files = partials;
@@ -903,6 +1014,7 @@ impl Browser {
                         self.thumbnail_paths.clear();
                         self.thumbnail_keys.clear();
                         self.requested_thumbnails.clear();
+                        self.failed_thumbnails.clear();
                         self.message = Some(format!("Cleared {count} cached thumbnail(s)"));
                         changed = true;
                     }
@@ -942,6 +1054,17 @@ impl Browser {
                         }
                         changed = true;
                     }
+                    Ok(WorkMessage::Mounted(result)) => {
+                        self.mounting = None;
+                        self.message = Some(match result {
+                            Ok(name) => {
+                                format!("Mounted {name}. Select it in Sources to browse media.")
+                            }
+                            Err(error) => format!("Could not mount device: {error}"),
+                        });
+                        let _ = self.discovery_requests.send(());
+                        changed = true;
+                    }
                     Ok(WorkMessage::Done(v)) => {
                         self.cache_clearing = false;
                         self.message = Some(v.unwrap_or_else(|e| format!("Operation failed: {e}")));
@@ -973,15 +1096,23 @@ impl Browser {
             }
         }
         while let Some(result) = self.thumbnails.try_recv() {
-            if result.state == ThumbnailState::Ready
-                && let Some(id) = self.thumbnail_keys.get(&result.key).copied()
-            {
-                self.thumbnail_paths.insert(
-                    id,
-                    self.cache_dir
-                        .join("thumbnails")
-                        .join(format!("{}.jpg", result.key)),
-                );
+            if let Some(id) = self.thumbnail_keys.remove(&result.key) {
+                match result.state {
+                    ThumbnailState::Ready => {
+                        self.thumbnail_paths.insert(
+                            id,
+                            self.cache_dir
+                                .join("thumbnails")
+                                .join(format!("{}.jpg", result.key)),
+                        );
+                    }
+                    ThumbnailState::Placeholder | ThumbnailState::Failed => {
+                        self.failed_thumbnails.insert(id);
+                    }
+                    ThumbnailState::Cancelled => {
+                        self.requested_thumbnails.remove(&id);
+                    }
+                }
                 changed = true;
             }
         }
@@ -989,20 +1120,52 @@ impl Browser {
             if result.generation == self.generation {
                 if let Some(path) = result.cache_path {
                     self.thumbnail_paths.insert(result.id, path);
+                } else {
+                    self.failed_thumbnails.insert(result.id);
                 }
                 changed = true;
             }
         }
         if changed {
+            self.pump_thumbnails();
             self.refresh();
             cx.notify();
         }
     }
+    fn pump_thumbnails(&mut self) {
+        // Fill the bounded queue without requiring a visible tile to submit work.
+        let ids: Vec<_> = self
+            .state
+            .items()
+            .filter(|item| {
+                matches!(item.metadata, captureport_core::MetadataState::Ready(_))
+                    && !self.requested_thumbnails.contains(&item.id)
+            })
+            .map(|item| item.id)
+            .take(129)
+            .collect();
+        for id in ids {
+            let before = self.requested_thumbnails.len();
+            self.request_thumbnail(id);
+            if self.requested_thumbnails.len() == before {
+                break;
+            }
+        }
+    }
     fn refresh(&mut self) {
-        self.visible_ids = visible_capture_ids(
+        let ready = visible_capture_ids(
             self.state.visible_items().into_iter().map(|item| item.id),
             &self.bundle_owner,
-        );
+        )
+        .into_iter()
+        .filter(|id| {
+            self.thumbnail_paths.contains_key(id)
+                && self.state.item(*id).is_some_and(|item| {
+                    matches!(item.metadata, captureport_core::MetadataState::Ready(_))
+                })
+        })
+        .collect::<Vec<_>>();
+        append_ready_ids(&mut self.visible_ids, ready);
         self.rebuild_gallery_groups();
     }
     fn rebuild_gallery_groups(&mut self) {
@@ -1136,7 +1299,7 @@ impl Browser {
         self.page = Page::Browser;
         cx.notify();
     }
-    fn edit_gallery(&mut self, key: String, cx: &mut Context<Self>) {
+    fn edit_gallery(&mut self, key: String, window: &mut Window, cx: &mut Context<Self>) {
         let title = self
             .gallery_groups
             .iter()
@@ -1146,19 +1309,21 @@ impl Browser {
         self.gallery_edit_input
             .update(cx, |input, cx| input.set_value(title, cx));
         self.gallery_edit_key = Some(key);
+        window.focus(&self.gallery_edit_input.read(cx).focus_handle(cx));
         cx.notify();
     }
     fn save_gallery_name(&mut self, cx: &mut Context<Self>) {
-        let Some(key) = self.gallery_edit_key.take() else {
+        let Some(key) = self.gallery_edit_key.clone() else {
             return;
         };
         let name = self.gallery_edit_input.read(cx).value().trim().to_string();
+        let mut names = self.gallery_names.clone();
         if name.is_empty() {
-            self.gallery_names.remove(&key);
+            names.remove(&key);
         } else {
-            self.gallery_names.insert(key, name);
+            names.insert(key, name);
         }
-        let result = serde_json::to_vec_pretty(&self.gallery_names)
+        let result = serde_json::to_vec_pretty(&names)
             .map_err(|e| e.to_string())
             .and_then(|data| {
                 let temporary = self.gallery_names_path.with_extension("json.tmp");
@@ -1166,8 +1331,12 @@ impl Browser {
                 std::fs::rename(temporary, &self.gallery_names_path).map_err(|e| e.to_string())
             });
         if let Err(error) = result {
-            self.message = Some(format!("Gallery name: {error}"));
+            self.message = Some(format!("Could not save gallery name: {error}"));
+            cx.notify();
+            return;
         }
+        self.gallery_names = names;
+        self.gallery_edit_key = None;
         self.rebuild_gallery_groups();
         cx.notify();
     }
@@ -1298,6 +1467,7 @@ impl Browser {
         self.thumbnail_paths.clear();
         self.thumbnail_modified.clear();
         self.requested_thumbnails.clear();
+        self.failed_thumbnails.clear();
         self.thumbnails.cancel();
         self.thumbnails.reset_cancellation();
         self.scanning = true;
@@ -1903,19 +2073,47 @@ impl Browser {
         cx.notify();
     }
     fn discover_sources(&mut self, _: &DiscoverSources, _: &mut Window, cx: &mut Context<Self>) {
+        if self.discovering {
+            return;
+        }
+        self.discovering = true;
+        self.message = Some("Scanning for cameras and cards…".into());
+        if self.discovery_requests.send(()).is_err() {
+            self.discovering = false;
+            self.message = Some("Device scanner stopped. Restart CapturePort to try again.".into());
+        }
+        cx.notify()
+    }
+    fn mount_card(&mut self, index: usize, cx: &mut Context<Self>) {
+        if self.mounting.is_some() {
+            return;
+        }
+        let Some(card) = self.unmounted_cards.get(index).cloned() else {
+            return;
+        };
+        self.mounting = Some(card.path.clone());
+        self.message = Some(format!("Mounting {}…", card.label));
         let (tx, rx) = mpsc::channel();
         self.work_receivers.push(rx);
-        let catalog = self.catalog.clone();
-        thread::spawn(move || match captureport_gphoto::discovery::discover() {
-            Ok(sources) => {
-                let aliases = aliases_for_sources(&sources, &catalog);
-                let _ = tx.send(WorkMessage::Sources(sources, aliases));
-            }
-            Err(error) => {
-                let _ = tx.send(WorkMessage::Done(Err(error.to_string())));
-            }
+        thread::spawn(move || {
+            let result = (|| -> Result<String, String> {
+                if !unmounted_cards()?.contains(&card) {
+                    return Err("Device changed or is no longer available. Refresh devices.".into());
+                }
+                let output = Command::new("udisksctl")
+                    .arg("mount")
+                    .arg("-b")
+                    .arg(&card.path)
+                    .output()
+                    .map_err(|e| format!("udisksctl: {e}"))?;
+                if !output.status.success() {
+                    return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+                }
+                Ok(card.label)
+            })();
+            let _ = tx.send(WorkMessage::Mounted(result));
         });
-        cx.notify()
+        cx.notify();
     }
     fn clear_thumbnail_cache(&mut self, cx: &mut Context<Self>) {
         if self.cache_clearing {
@@ -2675,6 +2873,28 @@ fn main() {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
+    #[test]
+    fn ready_tiles_do_not_jump_when_earlier_media_finishes() {
+        let mut displayed = vec![MediaId(2)];
+        append_ready_ids(&mut displayed, vec![MediaId(1), MediaId(2)]);
+        assert_eq!(displayed, vec![MediaId(2), MediaId(1)]);
+        append_ready_ids(&mut displayed, vec![MediaId(1)]);
+        assert_eq!(displayed, vec![MediaId(1)]);
+    }
+    #[test]
+    fn only_unmounted_removable_filesystems_are_mountable() {
+        let blocks: BlockListing = serde_json::from_str(r#"{"blockdevices":[
+            {"path":"/dev/sda","type":"disk","rm":false,"tran":"sata","fstype":null,"mountpoint":null,"label":null,"model":null,"serial":"internal"},
+            {"path":"/dev/sda1","type":"part","rm":false,"tran":null,"fstype":"ext4","mountpoint":null,"label":null,"model":null,"serial":null},
+            {"path":"/dev/sdb","type":"disk","rm":true,"tran":"usb","fstype":null,"mountpoint":null,"label":null,"model":"Camera","serial":"123"},
+            {"path":"/dev/sdb1","type":"part","rm":true,"tran":null,"fstype":"exfat","mountpoint":null,"label":null,"model":null,"serial":null},
+            {"path":"/dev/sdb2","type":"part","rm":true,"tran":null,"fstype":"exfat","mountpoint":"/run/media/card","label":null,"model":null,"serial":null}
+        ]}"#).unwrap();
+        let cards = cards_from_blocks(&blocks.blockdevices);
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].path, PathBuf::from("/dev/sdb1"));
+        assert_eq!(cards[0].label, "Camera");
+    }
     use captureport_ingest::PlanStatus;
     use std::fs;
 

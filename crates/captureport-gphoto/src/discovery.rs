@@ -32,8 +32,12 @@ impl DiscoveredSource {
 /// filesystem adapter, rather than libgphoto2's generic disk-camera adapter.
 /// Real PTP devices win over a matching mount because they provide camera identity.
 pub fn discover() -> Result<Vec<DiscoveredSource>, GPhotoError> {
-    let cameras = GPhotoSource::autodetect()?;
-    Ok(combine_sources(cameras, mounted_filesystems()))
+    let mounts = mounted_filesystems();
+    match GPhotoSource::autodetect() {
+        Ok(cameras) => Ok(combine_sources(cameras, mounts)),
+        Err(_) if !mounts.is_empty() => Ok(combine_sources(Vec::new(), mounts)),
+        Err(error) => Err(error),
+    }
 }
 
 fn combine_sources(cameras: Vec<CameraDescriptor>, mounts: Vec<Mount>) -> Vec<DiscoveredSource> {

@@ -1469,7 +1469,9 @@ Prefer the mounted filesystem/Card source for mass-storage devices; suppress
 libgphoto2's generic Mass Storage Camera and disk adapters. Keep real PTP camera
 entries and their USB topology-based mount deduplication.
 
-New devices should appear automatically.
+New devices should appear automatically. Show unmounted removable filesystem
+cards separately with an explicit Mount action delegated to UDisks; do not
+silently mount them. Refresh the source list after mounting.
 
 Do not automatically begin copying.
 

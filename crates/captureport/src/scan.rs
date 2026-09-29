@@ -202,7 +202,13 @@ fn process_job(job: MetadataJob) {
                 metadata: metadata.core_metadata(),
             })));
         }
-        Ok(None) => {}
+        Ok(None) => {
+            let _ = sender.send(ScanMessage::Event(Box::new(AppEvent::MetadataReady {
+                generation,
+                media_id: item.id,
+                metadata: captureport_core::MediaMetadata::default(),
+            })));
+        }
         Err(error) => {
             let _ = sender.send(ScanMessage::Event(Box::new(AppEvent::MetadataFailed {
                 generation,

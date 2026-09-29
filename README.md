@@ -13,7 +13,9 @@ rtk cargo run -p captureport --offline
 ```
 
 Use **Open folder** for a local source. Detected cameras and removable cards
-appear in the Sources list. Select media, choose **Preview / import**, review
+appear in the Sources list. Unmounted removable cards show a **Mount** button;
+this requires `lsblk`, `udisksctl`, and the system UDisks service. Select media,
+choose **Preview / import**, review
 every destination, then confirm the import. **Import settings** controls photo
 and video destinations, path and filename templates, grouping, clock correction,
 verification, bundle handling, and optional backup destinations. Settings are
