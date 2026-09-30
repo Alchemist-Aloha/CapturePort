@@ -1,6 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=CapturePort
+Icon=captureport
 Comment=Import photos and videos from cameras and removable storage
 Exec=captureport %U
 Terminal=false

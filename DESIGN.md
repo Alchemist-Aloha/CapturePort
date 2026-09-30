@@ -180,6 +180,19 @@ notation, not an icon system, and are never replaced by glyphs.
 (`VIDEO`, `RAW+JPEG`, `SIDECAR`). A mark never stands alone where a reader would
 have to guess its meaning.
 
+## Logo
+
+The app mark lives at `crates/captureport/assets/captureport.svg`. It is nine
+identical seven-segment strokes on one grid: four green strokes form the `C`
+(top-left and bottom-left arms on the left rail) and five amber strokes form the
+`P` (top-right, upper-right, and middle-right bowl on the centre rail). Every
+rail is two segments meeting at the middle, so the centre stem breaks exactly
+like the left rail. The stem sits in the C's opening, so the strokes read as
+`CP` while still tracing the frame and cross of `田`. It installs to the
+hicolor icon theme as `captureport.svg` and the desktop entry names it with
+`Icon=captureport`. `#9ccbad` (Pine accent) and `#e8b06a` (Darkroom accent) on
+`#171a19` tie the mark back to the bundled schemes.
+
 ## Layout
 
 The desktop shell is vertical: a 48px header, a flexible body, and a 52px footer. The header carries the wordmark lockup on the left — the Spectral logotype, a 1px vertical rule, and the descriptor — with the theme toggle at the right. The body places a fixed source rail beside a fluid content area. The rail is 232px wide at normal windows and 184px below the single 760px window-width breakpoint.

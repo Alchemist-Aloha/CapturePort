@@ -13,3 +13,5 @@ override_dh_auto_install:
 		debian/captureport/usr/share/doc/captureport/Outfit-OFL.txt
 	install -Dm644 packaging/captureport.desktop \
 		debian/captureport/usr/share/applications/captureport.desktop
+	install -Dm644 crates/captureport/assets/captureport.svg \
+		debian/captureport/usr/share/icons/hicolor/scalable/apps/captureport.svg

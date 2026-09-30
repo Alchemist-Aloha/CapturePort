@@ -14,6 +14,7 @@ install -Dm644 LICENSE "$stage/captureport/LICENSE"
 install -Dm644 crates/captureport/assets/fonts/Outfit-OFL.txt "$stage/captureport/Outfit-OFL.txt"
 install -Dm644 crates/captureport/assets/fonts/Spectral-OFL.txt "$stage/captureport/Spectral-OFL.txt"
 install -Dm644 crates/captureport/assets/icons/LICENSE.txt "$stage/captureport/Apache-2.0-Material-Symbols.txt"
+install -Dm644 crates/captureport/assets/captureport.svg "$stage/captureport/captureport.svg"
 install -Dm644 README.md "$stage/captureport/README.md"
 install -Dm755 /dev/stdin "$stage/captureport/run-captureport" <<'EOF'
 #!/usr/bin/env sh

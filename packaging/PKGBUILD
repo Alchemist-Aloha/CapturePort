@@ -25,4 +25,6 @@ package() {
     "$pkgdir/usr/share/licenses/$pkgname/Apache-2.0-Material-Symbols.txt"
   install -Dm644 "$startdir/captureport.desktop" \
     "$pkgdir/usr/share/applications/captureport.desktop"
+  install -Dm644 "$startdir/../crates/captureport/assets/captureport.svg" \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/captureport.svg"
 }

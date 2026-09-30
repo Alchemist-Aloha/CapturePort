@@ -20,6 +20,8 @@ install -Dm644 crates/captureport/assets/icons/LICENSE.txt \
   "$package_root/usr/share/doc/captureport/Apache-2.0-Material-Symbols.txt"
 install -Dm644 packaging/captureport.desktop \
   "$package_root/usr/share/applications/captureport.desktop"
+install -Dm644 crates/captureport/assets/captureport.svg \
+  "$package_root/usr/share/icons/hicolor/scalable/apps/captureport.svg"
 mkdir -p "$metadata_root/debian" "$package_root/DEBIAN"
 cp packaging/debian/control "$metadata_root/debian/control"
 if ! command -v dpkg-shlibdeps >/dev/null; then

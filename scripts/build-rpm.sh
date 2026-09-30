@@ -24,6 +24,7 @@ install -m644 crates/captureport/assets/fonts/Outfit-OFL.txt "$stage/SOURCES/Out
 install -m644 crates/captureport/assets/fonts/Spectral-OFL.txt "$stage/SOURCES/Spectral-OFL.txt"
 install -m644 crates/captureport/assets/icons/LICENSE.txt "$stage/SOURCES/Apache-2.0-Material-Symbols.txt"
 install -m644 packaging/captureport.desktop "$stage/SOURCES/captureport.desktop"
+install -m644 crates/captureport/assets/captureport.svg "$stage/SOURCES/captureport.svg"
 cat > "$stage/SPECS/captureport.spec" <<EOF
 Name: captureport
 Version: $version
@@ -36,6 +37,7 @@ Source2: captureport.desktop
 Source3: Outfit-OFL.txt
 Source4: Apache-2.0-Material-Symbols.txt
 Source5: Spectral-OFL.txt
+Source6: captureport.svg
 Requires: libgphoto2
 Requires: vulkan-loader
 
@@ -57,6 +59,7 @@ install -Dm644 %{SOURCE3} %{buildroot}%{_licensedir}/captureport/Outfit-OFL.txt
 install -Dm644 %{SOURCE4} %{buildroot}%{_licensedir}/captureport/Apache-2.0-Material-Symbols.txt
 install -Dm644 %{SOURCE5} %{buildroot}%{_licensedir}/captureport/Spectral-OFL.txt
 install -Dm644 %{SOURCE2} %{buildroot}%{_datadir}/applications/captureport.desktop
+install -Dm644 %{SOURCE6} %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/captureport.svg
 
 %files
 %{_bindir}/captureport
@@ -65,6 +68,7 @@ install -Dm644 %{SOURCE2} %{buildroot}%{_datadir}/applications/captureport.deskt
 %license %{_licensedir}/captureport/Spectral-OFL.txt
 %license %{_licensedir}/captureport/Apache-2.0-Material-Symbols.txt
 %{_datadir}/applications/captureport.desktop
+%{_datadir}/icons/hicolor/scalable/apps/captureport.svg
 EOF
 rpmbuild --define "_topdir $stage" -bb "$stage/SPECS/captureport.spec"
 for package in "$stage"/RPMS/*/*.rpm; do
