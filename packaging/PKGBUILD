@@ -1,6 +1,6 @@
 # Maintainer: CapturePort contributors
 pkgname=captureport
-pkgver=${CAPTUREPORT_VERSION:-0.1.0}
+pkgver=${CAPTUREPORT_VERSION:-0.2.0}
 pkgrel=1
 pkgdesc='Linux photo and video ingest application'
 arch=('x86_64' 'aarch64')

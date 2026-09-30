@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-version=${CAPTUREPORT_VERSION:-0.1.0}
+version=${CAPTUREPORT_VERSION:-0.2.0}
 output_dir=${CAPTUREPORT_OUTPUT_DIR:-"$repo_root/dist"}
 if [[ ! "$version" =~ ^[0-9][0-9A-Za-z.]*$ ]]; then
   printf 'RPM version must start with a digit and contain only letters, digits, and dots\n' >&2
