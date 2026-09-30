@@ -12,8 +12,8 @@ cd "$repo_root"
 cargo build --locked --release --package captureport
 install -Dm755 target/release/captureport "$package_root/usr/bin/captureport"
 install -Dm644 LICENSE "$package_root/usr/share/doc/captureport/copyright"
-install -Dm644 crates/captureport/assets/fonts/OFL.txt \
-  "$package_root/usr/share/doc/captureport/OFL.txt"
+install -Dm644 crates/captureport/assets/fonts/Outfit-OFL.txt \
+  "$package_root/usr/share/doc/captureport/Outfit-OFL.txt"
 install -Dm644 crates/captureport/assets/fonts/Spectral-OFL.txt \
   "$package_root/usr/share/doc/captureport/Spectral-OFL.txt"
 install -Dm644 crates/captureport/assets/icons/LICENSE.txt \

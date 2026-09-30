@@ -42,7 +42,7 @@ impl Render for Browser {
             .flex()
             .flex_col()
             .bg(p.canvas)
-            .font_family("Adwaita Sans")
+            .font_family("Outfit")
             .text_size(px(14.))
             .text_color(p.text)
             .track_focus(&self.focus_handle(cx))

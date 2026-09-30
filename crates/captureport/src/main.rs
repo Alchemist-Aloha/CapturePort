@@ -430,13 +430,12 @@ fn main() {
         .with_assets(icons::Icons)
         .run(move |cx: &mut App| {
             if let Err(error) = cx.text_system().add_fonts(vec![
-                std::borrow::Cow::Borrowed(include_bytes!(
-                    "../assets/fonts/AdwaitaSans-Regular.ttf"
-                )),
+                std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Outfit-Regular.ttf")),
+                std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Outfit-SemiBold.ttf")),
                 std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Spectral-SemiBold.ttf")),
                 std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/Spectral-Bold.ttf")),
             ]) {
-                tracing::warn!(%error, "Could not load bundled interface font");
+                tracing::warn!(%error, "Could not load bundled fonts");
             }
             cx.bind_keys([
                 KeyBinding::new("cmd-o", OpenFolder, None),
@@ -515,6 +514,40 @@ mod integration_tests {
         // Only RAW+JPEG pairs follow the toggle; video sidecars stay merged.
         assert!(shows_as_bundle(&video, false));
         assert!(!shows_as_bundle(&single, true));
+    }
+
+    #[test]
+    fn bundled_fonts_are_true_type_data() {
+        // Guards against a bad download or license file sneaking into an
+        // `include_bytes!` slot: GPUI only logs a warning when a face fails to
+        // parse, so a wrong file would silently fall back to a system font.
+        for (name, bytes) in [
+            (
+                "Outfit-Regular",
+                include_bytes!("../assets/fonts/Outfit-Regular.ttf").as_slice(),
+            ),
+            (
+                "Outfit-SemiBold",
+                include_bytes!("../assets/fonts/Outfit-SemiBold.ttf").as_slice(),
+            ),
+            (
+                "Spectral-SemiBold",
+                include_bytes!("../assets/fonts/Spectral-SemiBold.ttf").as_slice(),
+            ),
+            (
+                "Spectral-Bold",
+                include_bytes!("../assets/fonts/Spectral-Bold.ttf").as_slice(),
+            ),
+        ] {
+            assert!(bytes.len() > 1000, "{name} is too small to be a font");
+            let magic = u32::from_be_bytes(bytes[..4].try_into().unwrap());
+            let truetype = 0x0001_0000;
+            let opentype = u32::from_be_bytes(*b"OTTO");
+            assert!(
+                magic == truetype || magic == opentype,
+                "{name} is not TrueType or OpenType (magic {magic:#010x})"
+            );
+        }
     }
 
     #[test]

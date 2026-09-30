@@ -158,6 +158,6 @@ development files. Packaging and benchmark commands are documented in
 - [docs/plan.md](docs/plan.md) — the staged build plan.
 - [DESIGN.md](DESIGN.md) — the visual system.
 
-The application is MIT licensed. The bundled Spectral and Adwaita Sans fonts and
+The application is MIT licensed. The bundled Spectral and Outfit fonts and
 the Material Symbols Outlined icon set ship with their own licenses in the
 application packages.

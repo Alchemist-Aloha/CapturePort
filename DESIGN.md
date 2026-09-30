@@ -30,15 +30,15 @@ typography:
     fontSize: "16px"
     fontWeight: 600
   title:
-    fontFamily: "Adwaita Sans, sans-serif"
+    fontFamily: "Outfit, sans-serif"
     fontSize: "14px"
     fontWeight: 600
   body:
-    fontFamily: "Adwaita Sans, sans-serif"
+    fontFamily: "Outfit, sans-serif"
     fontSize: "14px"
     fontWeight: 400
   label:
-    fontFamily: "Adwaita Sans, sans-serif"
+    fontFamily: "Outfit, sans-serif"
     fontSize: "12px"
     fontWeight: 400
 rounded:
@@ -94,13 +94,13 @@ components:
 
 CapturePort is a quiet picture-desk instrument for reviewing media before import. The visual overhaul gives the photographs and their import decisions priority: neutral chrome, a restrained scheme accent, compact controls, and explicit state labels. The four named schemes remain recognizable, while light and dark modes change the full surface system rather than only the accent.
 
-The bundled Spectral serif carries the wordmark and every page, panel, section, and empty-state heading; Adwaita Sans handles the dense interface — controls, navigation, filenames, metadata, and labels. Flat surfaces, 1px borders, and a contained image well keep the contact sheet calm during long review sessions. Core import behavior and safety language remain unchanged.
+The bundled Spectral serif carries the wordmark and every page, panel, section, and empty-state heading; Outfit handles the dense interface — controls, navigation, filenames, metadata, and labels. Flat surfaces, 1px borders, and a contained image well keep the contact sheet calm during long review sessions. Core import behavior and safety language remain unchanged.
 
 **Key Characteristics:**
 
 - 48px neutral header carrying the Spectral wordmark, 232px source rail (184px below 760px), and 52px footer.
 - 4px control radius and 36px minimum button, navigation, and filter height.
-- Spectral for the display voice and Adwaita Sans for the interface, both bundled with their OFL licenses.
+- Spectral for the display voice and Outfit for the interface, both bundled with their OFL licenses.
 - Quiet filter selection, explicit “Selected” / “Part selected” labels, and status text with icon.
 - Material Symbols Outlined action icons, tinted from their control's text color.
 - Full palette parity across Pine, Darkroom, Graphite, and Ink in light and dark modes.
@@ -136,18 +136,18 @@ The active Pine light tokens above are the frontmatter source. The complete sour
 
 **Display / Headline / Section Font:** Spectral, with a generic serif fallback. The SemiBold and Bold faces are bundled at `crates/captureport/assets/fonts/Spectral-SemiBold.ttf` and `crates/captureport/assets/fonts/Spectral-Bold.ttf`, with `Spectral-OFL.txt` alongside.
 
-**Interface Font:** Adwaita Sans, with a generic sans-serif fallback. The regular face is bundled at `crates/captureport/assets/fonts/AdwaitaSans-Regular.ttf` with its OFL text alongside it.
+**Interface Font:** Outfit, with a generic sans-serif fallback. The Regular and SemiBold faces are bundled at `crates/captureport/assets/fonts/Outfit-Regular.ttf` and `crates/captureport/assets/fonts/Outfit-SemiBold.ttf`, with `Outfit-OFL.txt` alongside them.
 
-**Character:** An editorial serif voice over a compact, native interface. Spectral marks where the reader is — the wordmark, the page, the section — while Adwaita Sans keeps dense media review legible at 12px and 14px. The split is by job, never by surface: Spectral never sets interface chrome, data, or type below 16px, and Adwaita Sans never sets a page heading.
+**Character:** An editorial serif voice over a compact, native interface. Spectral marks where the reader is — the wordmark, the page, the section — while Outfit keeps dense media review legible at 12px and 14px. The split is by job, never by surface: Spectral never sets interface chrome, data, or type below 16px, and Outfit never sets a page heading.
 
 ### Hierarchy
 
 - **Display** (Bold 700, 22px, Spectral): the CapturePort wordmark.
 - **Headline** (SemiBold 600, 18px, Spectral): page, panel, and empty-state titles.
 - **Section** (SemiBold 600, 16px, Spectral): settings sections and gallery session headings.
-- **Title** (SemiBold 600, 14px, Adwaita Sans): filenames, navigation labels, and leading row text.
-- **Body** (400, 14px, Adwaita Sans): controls, summaries, and explanatory copy.
-- **Label** (400, 12px, Adwaita Sans): time, size, status, counts, and image overlays.
+- **Title** (SemiBold 600, 14px, Outfit): filenames, navigation labels, and leading row text.
+- **Body** (400, 14px, Outfit): controls, summaries, and explanatory copy.
+- **Label** (400, 12px, Outfit): time, size, status, counts, and image overlays.
 
 ## Iconography
 
@@ -204,7 +204,7 @@ The system uses a 4px radius for buttons, filters, navigation rows, fields, card
 
 ### Header
 
-- A 48px neutral bar. On the left, the wordmark lockup: `CapturePort` in Spectral Bold 22px, then a 1px `border` rule 20px tall, then the descriptor `Photo and video ingest` in Adwaita Sans 14px `header_muted`. The theme toggle sits at the right.
+- A 48px neutral bar. On the left, the wordmark lockup: `CapturePort` in Spectral Bold 22px, then a 1px `border` rule 20px tall, then the descriptor `Photo and video ingest` in Outfit 14px `header_muted`. The theme toggle sits at the right.
 - The serif logotype is the one display element always on screen; it replaced the former 16px sans wordmark and is where the bar gets its weight. The bar keeps its 48px height, `header` surface, and 1px bottom border.
 
 ### Buttons
@@ -237,7 +237,7 @@ The 52px footer presents item totals, selected totals, byte totals, status text,
 
 - **Do** preserve all four schemes and both modes as complete source palettes.
 - **Do** keep the 48px header, 232/184px rail, 52px footer, and 4px/36px control language coherent.
-- **Do** use Spectral for the wordmark and page, panel, section, and empty-state headings, and Adwaita Sans for everything else; keep both OFL assets with their licenses.
+- **Do** use Spectral for the wordmark and page, panel, section, and empty-state headings, and Outfit for everything else; keep both OFL assets with their licenses.
 - **Do** keep thumbnails contained and expose file size, import status, and bundle disclosure as separate metadata.
 - **Do** keep every control icon on the Material Symbols grid at 16px, or 12px inside a 12px badge label.
 - **Do** keep action icons tinted from the same token as their label text.

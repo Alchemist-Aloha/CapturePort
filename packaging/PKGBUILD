@@ -19,8 +19,8 @@ build() {
 package() {
   install -Dm755 "$startdir/../target/release/captureport" "$pkgdir/usr/bin/captureport"
   install -Dm644 "$startdir/../LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-  install -Dm644 "$startdir/../crates/captureport/assets/fonts/OFL.txt" \
-    "$pkgdir/usr/share/licenses/$pkgname/OFL.txt"
+  install -Dm644 "$startdir/../crates/captureport/assets/fonts/Outfit-OFL.txt" \
+    "$pkgdir/usr/share/licenses/$pkgname/Outfit-OFL.txt"
   install -Dm644 "$startdir/../crates/captureport/assets/icons/LICENSE.txt" \
     "$pkgdir/usr/share/licenses/$pkgname/Apache-2.0-Material-Symbols.txt"
   install -Dm644 "$startdir/captureport.desktop" \

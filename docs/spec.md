@@ -2327,9 +2327,9 @@ the XDG configuration directory. Pine is the default for a fresh configuration,
 and a `ui.json` written before color schemes existed keeps its saved mode and
 thumbnail size while using Pine.
 The desktop interface uses bundled Spectral for its display voice and bundled
-Adwaita Sans for the interface, for consistent typography across Linux
+Outfit for the interface, for consistent typography across Linux
 installations. Spectral, an OFL-licensed serif, sets the wordmark and every
-page, panel, section, and empty-state heading; Adwaita Sans sets controls,
+page, panel, section, and empty-state heading; Outfit sets controls,
 navigation, filenames, metadata, and labels. A compact 48-pixel neutral header
 carries the Spectral wordmark lockup; outlined secondary buttons, quiet filter
 tabs, and a 52-pixel selection footer keep the media grid central. The sidebar

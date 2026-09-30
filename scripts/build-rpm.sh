@@ -20,7 +20,7 @@ cargo build --locked --release --package captureport
 mkdir -p "$stage/SOURCES" "$stage/SPECS" "$output_dir"
 install -m755 target/release/captureport "$stage/SOURCES/captureport"
 install -m644 LICENSE "$stage/SOURCES/LICENSE"
-install -m644 crates/captureport/assets/fonts/OFL.txt "$stage/SOURCES/OFL.txt"
+install -m644 crates/captureport/assets/fonts/Outfit-OFL.txt "$stage/SOURCES/Outfit-OFL.txt"
 install -m644 crates/captureport/assets/fonts/Spectral-OFL.txt "$stage/SOURCES/Spectral-OFL.txt"
 install -m644 crates/captureport/assets/icons/LICENSE.txt "$stage/SOURCES/Apache-2.0-Material-Symbols.txt"
 install -m644 packaging/captureport.desktop "$stage/SOURCES/captureport.desktop"
@@ -33,7 +33,7 @@ License: MIT and OFL-1.1 and Apache-2.0
 Source0: captureport
 Source1: LICENSE
 Source2: captureport.desktop
-Source3: OFL.txt
+Source3: Outfit-OFL.txt
 Source4: Apache-2.0-Material-Symbols.txt
 Source5: Spectral-OFL.txt
 Requires: libgphoto2
@@ -53,7 +53,7 @@ then previews and imports them safely.
 %install
 install -Dm755 %{SOURCE0} %{buildroot}%{_bindir}/captureport
 install -Dm644 %{SOURCE1} %{buildroot}%{_licensedir}/captureport/LICENSE
-install -Dm644 %{SOURCE3} %{buildroot}%{_licensedir}/captureport/OFL.txt
+install -Dm644 %{SOURCE3} %{buildroot}%{_licensedir}/captureport/Outfit-OFL.txt
 install -Dm644 %{SOURCE4} %{buildroot}%{_licensedir}/captureport/Apache-2.0-Material-Symbols.txt
 install -Dm644 %{SOURCE5} %{buildroot}%{_licensedir}/captureport/Spectral-OFL.txt
 install -Dm644 %{SOURCE2} %{buildroot}%{_datadir}/applications/captureport.desktop
@@ -61,7 +61,7 @@ install -Dm644 %{SOURCE2} %{buildroot}%{_datadir}/applications/captureport.deskt
 %files
 %{_bindir}/captureport
 %license %{_licensedir}/captureport/LICENSE
-%license %{_licensedir}/captureport/OFL.txt
+%license %{_licensedir}/captureport/Outfit-OFL.txt
 %license %{_licensedir}/captureport/Spectral-OFL.txt
 %license %{_licensedir}/captureport/Apache-2.0-Material-Symbols.txt
 %{_datadir}/applications/captureport.desktop

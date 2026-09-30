@@ -226,7 +226,7 @@ fn removable_source_label(model: Option<&str>, path: &std::path::Path) -> Source
 /// `crates/captureport/assets/fonts/Spectral-{SemiBold,Bold}.ttf` with its OFL
 /// license. It carries the wordmark and every page, panel, section, and
 /// empty-state heading. Dense UI — controls, navigation, filenames, metadata,
-/// and labels — stays Adwaita Sans.
+/// and labels — stays Outfit.
 const DISPLAY_FONT: &str = "Spectral";
 
 /// The tile's media-type badge: a real Material icon plus its label, replacing

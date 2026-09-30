@@ -9,7 +9,7 @@ override_dh_auto_build:
 override_dh_auto_install:
 	install -Dm755 target/release/captureport debian/captureport/usr/bin/captureport
 	install -Dm644 LICENSE debian/captureport/usr/share/doc/captureport/copyright
-	install -Dm644 crates/captureport/assets/fonts/OFL.txt \
-		debian/captureport/usr/share/doc/captureport/OFL.txt
+	install -Dm644 crates/captureport/assets/fonts/Outfit-OFL.txt \
+		debian/captureport/usr/share/doc/captureport/Outfit-OFL.txt
 	install -Dm644 packaging/captureport.desktop \
 		debian/captureport/usr/share/applications/captureport.desktop
