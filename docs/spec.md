@@ -361,6 +361,11 @@ and the history detail groups the pair's recorded copies into one block. The
 browser renders the pair from the JPEG's thumbnail, so a RAW whose own preview is
 missing or expensive to decode does not hide or delay the pair.
 
+The browser display can also turn pairing off, listing the RAW and JPEG as
+separate selectable files. Separate display changes only browsing and selection;
+the selected files still drive the plan and the import bundle policy is
+unchanged.
+
 Import rules can specify:
 
 ```text
