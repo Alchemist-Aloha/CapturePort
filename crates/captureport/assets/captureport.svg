@@ -14,14 +14,19 @@
     100 and y 28 / 64 / 100; each segment 36 units long with a 12-unit stroke,
     5-unit chamfer, and 1.5-unit joints). Only the colour groups the letters.
 
-      C  green  top-left, upper-left, lower-left, bottom-left        (4)
-      P  amber  top-right, upper-right, middle-right, stem upper/lower (5)
+      C  #A6BBAE  top-left, upper-left, lower-left, bottom-left         (4)
+      P  #C7B299  top-right, upper-right, middle-right, stem upper/lower (5)
 
     Every rail is two segments meeting at the middle, so the centre stem breaks
     exactly like the left rail. The stem sits in the C's opening, so the strokes
     read as "CP" while still tracing the frame and cross of 田.
+
+    Palette: a quiet charcoal ground (#15181A) with a 1px hairline rim (#323A3B),
+    a sage C and a warm sand P. The two hues are near-neutral and the sage and
+    sand both clear 8:1 on the ground, so the letters read by hue rather than by
+    saturation. The in-app badge in `icons.rs` mirrors these four values.
   -->
-  <rect width="128" height="128" rx="28" fill="#171a19"/>
-  <path fill="#9ccbad" d="M34.5 22 L29.5 28 L34.5 34 L57.5 34 L62.5 28 L57.5 22Z M22 34.5 L28 29.5 L34 34.5 L34 57.5 L28 62.5 L22 57.5Z M22 70.5 L28 65.5 L34 70.5 L34 93.5 L28 98.5 L22 93.5Z M34.5 94 L29.5 100 L34.5 106 L57.5 106 L62.5 100 L57.5 94Z"/>
-  <path fill="#e8b06a" d="M70.5 22 L65.5 28 L70.5 34 L93.5 34 L98.5 28 L93.5 22Z M94 34.5 L100 29.5 L106 34.5 L106 57.5 L100 62.5 L94 57.5Z M70.5 58 L65.5 64 L70.5 70 L93.5 70 L98.5 64 L93.5 58Z M58 34.5 L64 29.5 L70 34.5 L70 57.5 L64 62.5 L58 57.5Z M58 70.5 L64 65.5 L70 70.5 L70 93.5 L64 98.5 L58 93.5Z"/>
+  <rect x="0.5" y="0.5" width="127" height="127" rx="27.5" fill="#15181A" stroke="#323A3B" stroke-width="1"/>
+  <path fill="#A6BBAE" d="M34.5 22 L29.5 28 L34.5 34 L57.5 34 L62.5 28 L57.5 22Z M22 34.5 L28 29.5 L34 34.5 L34 57.5 L28 62.5 L22 57.5Z M22 70.5 L28 65.5 L34 70.5 L34 93.5 L28 98.5 L22 93.5Z M34.5 94 L29.5 100 L34.5 106 L57.5 106 L62.5 100 L57.5 94Z"/>
+  <path fill="#C7B299" d="M70.5 22 L65.5 28 L70.5 34 L93.5 34 L98.5 28 L93.5 22Z M94 34.5 L100 29.5 L106 34.5 L106 57.5 L100 62.5 L94 57.5Z M70.5 58 L65.5 64 L70.5 70 L93.5 70 L98.5 64 L93.5 58Z M58 34.5 L64 29.5 L70 34.5 L70 57.5 L64 62.5 L58 57.5Z M58 70.5 L64 65.5 L70 70.5 L70 93.5 L64 98.5 L58 93.5Z"/>
 </svg>

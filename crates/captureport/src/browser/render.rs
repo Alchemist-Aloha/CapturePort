@@ -78,10 +78,17 @@ impl Render for Browser {
                             .gap(px(spacing::CONTENT))
                             .child(
                                 div()
-                                    .font_family(DISPLAY_FONT)
-                                    .text_size(px(22.))
-                                    .font_weight(gpui::FontWeight::BOLD)
-                                    .child("CapturePort"),
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(spacing::CONTROL_GAP))
+                                    .child(crate::icons::logo_badge(28.))
+                                    .child(
+                                        div()
+                                            .font_family(DISPLAY_FONT)
+                                            .text_size(px(22.))
+                                            .font_weight(gpui::FontWeight::BOLD)
+                                            .child("CapturePort"),
+                                    ),
                             )
                             .child(div().w(px(1.)).h(px(20.)).flex_shrink_0().bg(p.border))
                             .child(

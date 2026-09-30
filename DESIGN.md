@@ -183,15 +183,26 @@ have to guess its meaning.
 ## Logo
 
 The app mark lives at `crates/captureport/assets/captureport.svg`. It is nine
-identical seven-segment strokes on one grid: four green strokes form the `C`
-(top-left and bottom-left arms on the left rail) and five amber strokes form the
-`P` (top-right, upper-right, and middle-right bowl on the centre rail). Every
-rail is two segments meeting at the middle, so the centre stem breaks exactly
-like the left rail. The stem sits in the C's opening, so the strokes read as
-`CP` while still tracing the frame and cross of `田`. It installs to the
-hicolor icon theme as `captureport.svg` and the desktop entry names it with
-`Icon=captureport`. `#9ccbad` (Pine accent) and `#e8b06a` (Darkroom accent) on
-`#171a19` tie the mark back to the bundled schemes.
+identical seven-segment strokes on one grid: four sage strokes (`#A6BBAE`) form
+the `C` (top-left and bottom-left arms on the left rail) and five sand strokes
+(`#C7B299`) form the `P` (top-right, upper-right, and middle-right bowl on the
+centre rail). Every rail is two segments meeting at the middle, so the centre
+stem breaks exactly like the left rail. The stem sits in the C's opening, so the
+strokes read as `CP` while still tracing the frame and cross of `田`.
+
+The strokes sit on a charcoal ground (`#15181A`) with a 1px hairline rim
+(`#323A3B`). Sage and sand are deliberately quiet — roughly 13% and 29%
+saturation — and both clear 8:1 on the ground, so the letters separate by hue
+rather than by a saturated punch. The mark installs to the hicolor icon theme as
+`captureport.svg` and the desktop entry names it with `Icon=captureport`; the
+window opens with the matching `app_id`, so a compositor binds the running window
+to that entry.
+
+In the header the mark renders through `logo_badge`: a tile carrying the geometry
+split into two single-colour masks that `svg()` tints. It is the one element that
+keeps a fixed palette instead of theming with the scheme, so the header reads as
+a wordmark lockup rather than a tinted control. `mark_palette_matches_the_icon`
+keeps the badge and the desktop icon on the same four values.
 
 ## Layout
 
@@ -217,7 +228,7 @@ The system uses a 4px radius for buttons, filters, navigation rows, fields, card
 
 ### Header
 
-- A 48px neutral bar. On the left, the wordmark lockup: `CapturePort` in Spectral Bold 22px, then a 1px `border` rule 20px tall, then the descriptor `Photo and video ingest` in Outfit 14px `header_muted`. The theme toggle sits at the right.
+- A 48px neutral bar. On the left, the wordmark lockup: the 28px app mark, then `CapturePort` in Spectral Bold 22px, then a 1px `border` rule 20px tall, then the descriptor `Photo and video ingest` in Outfit 14px `header_muted`. The theme toggle sits at the right.
 - The serif logotype is the one display element always on screen; it replaced the former 16px sans wordmark and is where the bar gets its weight. The bar keeps its 48px height, `header` surface, and 1px bottom border.
 
 ### Buttons

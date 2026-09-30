@@ -13,7 +13,7 @@
 //! Icons mark actions and destinations. Filter state stays text-only so the
 //! quiet filter treatment in DESIGN.md is preserved.
 
-use gpui::{AssetSource, IntoElement, Result, SharedString, prelude::*, px, svg};
+use gpui::{AssetSource, IntoElement, Result, SharedString, div, prelude::*, px, rgb, svg};
 use std::borrow::Cow;
 
 /// The grid Material Symbols are authored on. Asserted by the asset contract
@@ -251,20 +251,39 @@ const FILES: &[(&str, &[u8])] = &[
     ),
 ];
 
+/// The two halves of the app mark, served beside the Material glyphs so `svg()`
+/// can tint each one. The full-colour icon lives at `assets/captureport.svg`;
+/// these masks are its geometry split by letter.
+const LOGO_FILES: &[(&str, &[u8])] = &[
+    ("logo/c.svg", include_bytes!("../assets/logo/c.svg")),
+    ("logo/p.svg", include_bytes!("../assets/logo/p.svg")),
+];
+
+/// The app mark's palette. `assets/captureport.svg` carries the same four
+/// values; `mark_palette_matches_the_icon` proves the two stay in step.
+const MARK_GROUND: u32 = 0x15181a;
+const MARK_RIM: u32 = 0x323a3b;
+const MARK_C: u32 = 0xa6bbae;
+const MARK_P: u32 = 0xc7b299;
+
+/// Every file the asset source serves: the vendored Material glyphs plus the
+/// two halves of the app mark.
+fn all_files() -> impl Iterator<Item = &'static (&'static str, &'static [u8])> {
+    FILES.iter().chain(LOGO_FILES.iter())
+}
+
 /// Serves the embedded Material Symbols files to GPUI's SVG renderer.
 pub struct Icons;
 
 impl AssetSource for Icons {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
-        Ok(FILES
-            .iter()
+        Ok(all_files()
             .find(|(name, _)| *name == path)
             .map(|(_, bytes)| Cow::Borrowed(*bytes)))
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        Ok(FILES
-            .iter()
+        Ok(all_files()
             .filter(|(name, _)| name.starts_with(path))
             .map(|(name, _)| SharedString::from(*name))
             .collect())
@@ -286,6 +305,55 @@ pub fn icon_sized(icon: Icon, size: f32, color: impl Into<gpui::Hsla>) -> impl I
         .h(px(size))
         .flex_shrink_0()
         .text_color(color)
+}
+
+/// The application mark as a badge: a quiet tile carrying the two single-colour
+/// segment masks. Unlike the Material glyphs it keeps a fixed palette, because
+/// the mark is the product's one authored colour; the geometry still comes from
+/// small masks that `svg()` tints, so it stays crisp at any size.
+///
+/// `assets/captureport.svg` is the same mark for the desktop icon; the two
+/// share the palette constants above.
+pub fn logo_badge(size: f32) -> impl IntoElement {
+    let radius = size * 28. / 128.;
+    div()
+        .relative()
+        .w(px(size))
+        .h(px(size))
+        .flex_shrink_0()
+        .rounded(px(radius))
+        .bg(rgb(MARK_GROUND))
+        .child(
+            svg()
+                .path("logo/c.svg")
+                .absolute()
+                .top_0()
+                .left_0()
+                .w(px(size))
+                .h(px(size))
+                .text_color(rgb(MARK_C)),
+        )
+        .child(
+            svg()
+                .path("logo/p.svg")
+                .absolute()
+                .top_0()
+                .left_0()
+                .w(px(size))
+                .h(px(size))
+                .text_color(rgb(MARK_P)),
+        )
+        .child(
+            div()
+                .absolute()
+                .top_0()
+                .left_0()
+                .w(px(size))
+                .h(px(size))
+                .rounded(px(radius))
+                .border_1()
+                .border_color(rgb(MARK_RIM)),
+        )
 }
 
 #[cfg(test)]
@@ -367,8 +435,47 @@ mod tests {
     #[test]
     fn list_filters_by_prefix() {
         let icons = Icons;
-        assert_eq!(icons.list("").unwrap().len(), FILES.len());
+        assert_eq!(icons.list("").unwrap().len(), all_files().count());
         assert!(icons.list("icons/missing").unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_two_mark_halves_are_embedded_beside_the_icon_set() {
+        let icons = Icons;
+        for path in ["logo/c.svg", "logo/p.svg"] {
+            let bytes = icons
+                .load(path)
+                .unwrap()
+                .unwrap_or_else(|| panic!("{path} must be embedded"));
+            let text = std::str::from_utf8(&bytes).expect("mark half is utf8");
+            assert!(
+                text.contains("viewBox=\"0 0 128 128\""),
+                "{path} grid moved"
+            );
+            assert!(text.contains("<path d=\""), "{path} has no geometry");
+        }
+    }
+
+    #[test]
+    fn mark_palette_matches_the_icon() {
+        let icon = std::str::from_utf8(include_bytes!("../assets/captureport.svg")).unwrap();
+        for (label, hex) in [
+            ("ground", MARK_GROUND),
+            ("rim", MARK_RIM),
+            ("C", MARK_C),
+            ("P", MARK_P),
+        ] {
+            let needle = format!("#{hex:06X}");
+            assert!(
+                icon.contains(&needle),
+                "captureport.svg is missing the {label} {needle} that icons.rs renders"
+            );
+        }
+        // Nine identical segments, four in the C and five in the P.
+        let c = std::str::from_utf8(include_bytes!("../assets/logo/c.svg")).unwrap();
+        let p = std::str::from_utf8(include_bytes!("../assets/logo/p.svg")).unwrap();
+        assert_eq!(c.matches('Z').count(), 4, "C must stay four segments");
+        assert_eq!(p.matches('Z').count(), 5, "P must stay five segments");
     }
 
     #[test]

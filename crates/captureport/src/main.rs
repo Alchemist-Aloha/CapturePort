@@ -463,6 +463,9 @@ fn main() {
             cx.open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    // Match `captureport.desktop` so the compositor shows the
+                    // installed hicolor icon on the window and dock entry.
+                    app_id: Some("captureport".into()),
                     ..Default::default()
                 },
                 |window, cx| {
