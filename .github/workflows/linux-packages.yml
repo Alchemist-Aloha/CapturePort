@@ -66,6 +66,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         if: matrix.distro != 'arch'
 
+      - name: Cache cargo registry and build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          # Each distro has its own toolchain and target directory; keep the
+          # caches apart so one image cannot evict another's builds.
+          key: ${{ matrix.distro }}
+          cache-on-failure: true
+
       - name: Set package version
         run: |
           base_version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' crates/captureport/Cargo.toml | head -n1)
@@ -120,3 +128,35 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
+
+  release:
+    name: Publish release
+    needs: package
+    # Only tagged runs publish; branch pushes keep the build-only artifacts.
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Assemble release assets
+        run: |
+          mkdir -p dist
+          # Flatten the per-distro artifact folders into one asset directory.
+          find artifacts -type f ! -name SHA256SUMS -exec cp -t dist {} +
+          # One checksum file for the whole release, not three per-distro ones.
+          ( cd dist && sha256sum * > SHA256SUMS )
+          ls -l dist
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
