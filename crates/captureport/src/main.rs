@@ -13,8 +13,8 @@ use captureport_catalog::{
 };
 use captureport_core::{
     AppEvent, AppState, CancellationToken, FakeSourceBuilder, FakeSourceScenario, MediaFilter,
-    MediaId, MediaLocator, MediaSort, MediaSource, ScanContext, ScanGeneration, SourceError,
-    SourceId, SourceType,
+    MediaId, MediaLocator, MediaSort, MediaSource, MediaType, ScanContext, ScanGeneration,
+    SourceError, SourceId, SourceType,
 };
 use captureport_ingest::{
     BackupRule, BundlePolicy, CollisionPolicy, CopyDigest, DestinationRule, Grouping, ImportEngine,
@@ -257,6 +257,55 @@ fn visible_capture_ids(
         .map(|id| bundle_owner.get(&id).copied().unwrap_or(id))
         .filter(|id| seen.insert(*id))
         .collect()
+}
+
+/// Streams same-folder, same-stem JPEG siblings while a scan is still running.
+/// A RAW with a JPEG pair never needs its own preview decoded, so this index
+/// lets thumbnail requests skip it before the full bundle pass runs.
+/// ponytail: one slot per stem, so a stem with several RAWs may mis-skip during
+/// the stream; `rebuild_bundles` replaces it with the authoritative pairs at the
+/// end of the scan.
+#[derive(Default)]
+struct PairIndex {
+    raw_by_stem: HashMap<(String, String), MediaId>,
+    jpeg_by_stem: HashMap<(String, String), MediaId>,
+    paired: HashMap<MediaId, MediaId>,
+}
+
+impl PairIndex {
+    fn clear(&mut self) {
+        self.raw_by_stem.clear();
+        self.jpeg_by_stem.clear();
+        self.paired.clear();
+    }
+
+    fn note(&mut self, id: MediaId, media_type: MediaType, path: &str) {
+        let key = captureport_ingest::bundle_key(path);
+        match media_type {
+            MediaType::Raw => {
+                if let Some(jpeg) = self.jpeg_by_stem.get(&key).copied() {
+                    self.paired.insert(id, jpeg);
+                }
+                self.raw_by_stem.insert(key, id);
+            }
+            MediaType::Jpeg => {
+                if let Some(raw) = self.raw_by_stem.get(&key).copied() {
+                    self.paired.insert(raw, id);
+                }
+                self.jpeg_by_stem.insert(key, id);
+            }
+            _ => {}
+        }
+    }
+
+    /// Replace the streaming guess with the authoritative bundle result.
+    fn replace(&mut self, pairs: impl IntoIterator<Item = (MediaId, MediaId)>) {
+        self.paired = pairs.into_iter().collect();
+    }
+
+    fn has_pair(&self, id: MediaId) -> bool {
+        self.paired.contains_key(&id)
+    }
 }
 
 fn blocks_import(status: PlanStatus) -> bool {
@@ -633,6 +682,10 @@ struct Browser {
     bundles: HashMap<MediaId, Vec<MediaId>>,
     bundle_members: HashSet<MediaId>,
     bundle_owner: HashMap<MediaId, MediaId>,
+    /// Display id -> member whose thumbnail represents the bundle (a RAW+JPEG
+    /// pair renders the JPEG). Absent means the item uses its own thumbnail.
+    bundle_preview: HashMap<MediaId, MediaId>,
+    pair_index: PairIndex,
     expanded_bundle: Option<MediaId>,
     show_view_options: bool,
     timezone_menu_open: bool,
@@ -820,6 +873,8 @@ impl Browser {
             bundles: HashMap::new(),
             bundle_members: HashSet::new(),
             bundle_owner: HashMap::new(),
+            bundle_preview: HashMap::new(),
+            pair_index: PairIndex::default(),
             expanded_bundle: None,
             show_view_options: false,
             timezone_menu_open: false,
@@ -973,7 +1028,15 @@ impl Browser {
                     Ok(ScanMessage::ThumbnailInfo(id, modified)) => {
                         self.thumbnail_modified.insert(id, modified);
                     }
-                    Ok(ScanMessage::Event(e)) => changed |= self.state.apply_event(*e),
+                    Ok(ScanMessage::Event(e)) => {
+                        if let AppEvent::MediaDiscovered { generation, item } = &*e
+                            && generation.0 == self.generation
+                        {
+                            self.pair_index
+                                .note(item.id, item.media_type, &item.source_path);
+                        }
+                        changed |= self.state.apply_event(*e);
+                    }
                     Ok(ScanMessage::Finished(result)) => {
                         self.scanning = false;
                         self.rebuild_bundles();
@@ -1171,6 +1234,9 @@ impl Browser {
             .filter(|item| {
                 matches!(item.metadata, captureport_core::MetadataState::Ready(_))
                     && !self.requested_thumbnails.contains(&item.id)
+                    // A RAW that shares a stem with a JPEG is rendered from the
+                    // JPEG, so its own preview is never decoded.
+                    && !self.pair_index.has_pair(item.id)
             })
             .map(|item| item.id)
             .take(129)
@@ -1190,7 +1256,7 @@ impl Browser {
         )
         .into_iter()
         .filter(|id| {
-            self.thumbnail_paths.contains_key(id)
+            self.thumbnail_paths.contains_key(&self.preview_id(*id))
                 && self.state.item(*id).is_some_and(|item| {
                     matches!(item.metadata, captureport_core::MetadataState::Ready(_))
                 })
@@ -1408,8 +1474,10 @@ impl Browser {
         self.bundles.clear();
         self.bundle_members.clear();
         self.bundle_owner.clear();
+        self.bundle_preview.clear();
         let items = self.state.items().cloned().collect::<Vec<_>>();
         let grouped = captureport_ingest::group_media(&items);
+        let mut pairs = Vec::new();
         for bundle in grouped
             .bundles
             .into_iter()
@@ -1425,14 +1493,36 @@ impl Browser {
                     .copied()
                     .filter(|id| *id != bundle.primary),
             );
+            // Render a bundle with the first non-RAW member, so a RAW+JPEG pair
+            // shows the JPEG and never decodes the RAW's own preview.
+            let preview = bundle
+                .members
+                .iter()
+                .copied()
+                .find(|id| {
+                    self.state
+                        .item(*id)
+                        .is_some_and(|item| item.media_type != MediaType::Raw)
+                })
+                .unwrap_or(bundle.primary);
+            if preview != bundle.primary {
+                self.bundle_preview.insert(bundle.primary, preview);
+                pairs.push((bundle.primary, preview));
+            }
             self.bundles.insert(bundle.primary, bundle.members);
         }
+        self.pair_index.replace(pairs);
         if self
             .expanded_bundle
             .is_some_and(|id| !self.bundles.contains_key(&id))
         {
             self.expanded_bundle = None;
         }
+    }
+    /// The id whose thumbnail represents a display item. For a RAW+JPEG bundle
+    /// this is the JPEG, so the pair renders without a RAW decode.
+    fn preview_id(&self, id: MediaId) -> MediaId {
+        self.bundle_preview.get(&id).copied().unwrap_or(id)
     }
     fn toggle_bundle(&mut self, id: MediaId, cx: &mut Context<Self>) {
         if self.bundles.contains_key(&id) {
@@ -1508,6 +1598,8 @@ impl Browser {
         self.bundles.clear();
         self.bundle_members.clear();
         self.bundle_owner.clear();
+        self.bundle_preview.clear();
+        self.pair_index.clear();
         self.expanded_bundle = None;
         self.explicit_bundle_selection.clear();
         self.source = None;
@@ -3022,6 +3114,33 @@ mod integration_tests {
         assert!(!blocks_import(PlanStatus::Skipped));
         assert!(!blocks_import(PlanStatus::Ready));
         assert!(blocks_import(PlanStatus::DestinationCollision));
+    }
+    #[test]
+    fn pair_index_matches_jpeg_siblings_in_either_order() {
+        let mut index = PairIndex::default();
+        index.note(MediaId(1), MediaType::Raw, "DCIM/DJI_1.DNG");
+        index.note(MediaId(2), MediaType::Jpeg, "DCIM/DJI_1.JPG");
+        assert!(index.has_pair(MediaId(1)));
+        assert!(!index.has_pair(MediaId(2)));
+        assert_eq!(index.paired.get(&MediaId(1)), Some(&MediaId(2)));
+
+        // Discovery order must not matter.
+        let mut reverse = PairIndex::default();
+        reverse.note(MediaId(3), MediaType::Jpeg, "DCIM/DJI_2.JPG");
+        reverse.note(MediaId(4), MediaType::Raw, "DCIM/DJI_2.DNG");
+        assert!(reverse.has_pair(MediaId(4)));
+        assert_eq!(reverse.paired.get(&MediaId(4)), Some(&MediaId(3)));
+
+        // A different directory is not a pair.
+        let mut other = PairIndex::default();
+        other.note(MediaId(5), MediaType::Raw, "a/DJI_3.DNG");
+        other.note(MediaId(6), MediaType::Jpeg, "b/DJI_3.JPG");
+        assert!(!other.has_pair(MediaId(5)));
+
+        // The authoritative bundle pass replaces the streaming guess.
+        index.replace([(MediaId(7), MediaId(8))]);
+        assert!(!index.has_pair(MediaId(1)));
+        assert!(index.has_pair(MediaId(7)));
     }
     /// Guards the demo fixtures' whole purpose: they must be able to fill the
     /// browser grid. A fixture whose preview cannot be decoded makes every demo

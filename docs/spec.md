@@ -357,7 +357,9 @@ The RAW is the source file; the JPEG is a sidecar. Both share the unit's session
 and sequence number, and the JPEG is written beside the RAW using the RAW's
 destination stem with a `.jpg` extension (the primary copy and any backup copy).
 The import review collapses the pair into one row listing both destinations,
-and the history detail groups the pair's recorded copies into one block.
+and the history detail groups the pair's recorded copies into one block. The
+browser renders the pair from the JPEG's thumbnail, so a RAW whose own preview is
+missing or expensive to decode does not hide or delay the pair.
 
 Import rules can specify:
 

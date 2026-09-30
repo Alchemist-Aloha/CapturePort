@@ -12,7 +12,8 @@ mod source_delete;
 mod template;
 
 pub use bundle::{
-    BundleResult, BundleType, MediaBundle, apply_bundle_policy, bundle_media, group_media,
+    BundleResult, BundleType, MediaBundle, apply_bundle_policy, bundle_key, bundle_media,
+    group_media,
 };
 pub use dedup::{
     DuplicateClassification, DuplicateEvidence, DuplicateIndex, DuplicateInput, HistoryRecord,

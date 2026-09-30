@@ -29,15 +29,21 @@ pub struct BundleResult {
     pub bundles: Vec<MediaBundle>,
 }
 
+/// The bundle grouping key: the parent directory plus the lowercased file
+/// stem. Exposed so streaming pair detection and `group_media` cannot drift.
+pub fn bundle_key(path: &str) -> (String, String) {
+    let path = std::path::Path::new(path);
+    let parent = path.parent().and_then(|p| p.to_str()).unwrap_or("");
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    (parent.to_owned(), stem.to_ascii_lowercase())
+}
+
 /// Group files by parent directory and filename stem.
 pub fn group_media(items: &[MediaItem]) -> BundleResult {
     let mut groups: BTreeMap<(String, String), Vec<&MediaItem>> = BTreeMap::new();
     for item in items {
-        let path = std::path::Path::new(&item.source_path);
-        let parent = path.parent().and_then(|p| p.to_str()).unwrap_or("");
-        let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
         groups
-            .entry((parent.to_owned(), stem.to_ascii_lowercase()))
+            .entry(bundle_key(&item.source_path))
             .or_default()
             .push(item);
     }
@@ -219,6 +225,19 @@ mod tests {
         assert_eq!(
             result.iter().map(|entry| entry.item.id).collect::<Vec<_>>(),
             vec![MediaId(1), MediaId(3)]
+        );
+    }
+
+    #[test]
+    fn bundle_key_is_parent_plus_case_insensitive_stem() {
+        assert_eq!(
+            bundle_key("DCIM/100/DJI_0985.DNG"),
+            ("DCIM/100".to_owned(), "dji_0985".to_owned())
+        );
+        assert_eq!(bundle_key("PAIR.JPG"), (String::new(), "pair".to_owned()));
+        assert_eq!(
+            bundle_key("a/B.PAIR.JPG"),
+            ("a".to_owned(), "b.pair".to_owned())
         );
     }
 

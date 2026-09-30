@@ -303,6 +303,12 @@ fn embedded_preview(path: &Path) -> Option<Vec<u8>> {
     let file = fs::File::open(path).ok()?;
     let mut reader = std::io::BufReader::new(file);
     let exif = Reader::new().read_from_container(&mut reader).ok()?;
+    exif_thumbnail(&exif).or_else(|| largest_embedded_jpeg(exif.buf()))
+}
+
+/// The EXIF thumbnail pointer (`JPEGInterchangeFormat` in IFD1) used by camera
+/// JPEGs and by RAW formats that follow the EXIF layout (ARW, CR2, NEF, ...).
+fn exif_thumbnail(exif: &exif::Exif) -> Option<Vec<u8>> {
     let offset = exif
         .get_field(Tag::JPEGInterchangeFormat, In::THUMBNAIL)
         .and_then(|f| match f.value {
@@ -320,6 +326,34 @@ fn embedded_preview(path: &Path) -> Option<Vec<u8>> {
     let end = offset.checked_add(length)?;
     let data = exif.buf().get(offset..end)?;
     (data.starts_with(&[0xff, 0xd8]) && data.ends_with(&[0xff, 0xd9])).then(|| data.to_vec())
+}
+
+/// Some RAW containers (notably DNG) store their preview as a JPEG-compressed
+/// TIFF strip instead of an EXIF thumbnail pointer, so fall back to the largest
+/// self-contained JPEG stream in the container. The preview is downscaled to a
+/// thumbnail anyway, so decode work stays bounded.
+fn largest_embedded_jpeg(data: &[u8]) -> Option<Vec<u8>> {
+    let mut best: Option<&[u8]> = None;
+    let mut cursor = 0;
+    while let Some(relative) = data[cursor..]
+        .windows(3)
+        .position(|window| window == [0xff, 0xd8, 0xff])
+    {
+        let start = cursor + relative;
+        let Some(relative_end) = data[start + 3..]
+            .windows(2)
+            .position(|window| window == [0xff, 0xd9])
+        else {
+            break;
+        };
+        let end = start + 3 + relative_end + 2;
+        let candidate = &data[start..end];
+        if best.is_none_or(|current| candidate.len() > current.len()) {
+            best = Some(candidate);
+        }
+        cursor = end;
+    }
+    best.map(|bytes| bytes.to_vec())
 }
 
 fn ffmpeg_frame(path: &Path, cancelled: &AtomicBool) -> Result<Vec<u8>, String> {
@@ -484,6 +518,36 @@ mod tests {
             ThumbnailPipeline::cache_key(&b)
         );
     }
+    #[test]
+    fn embedded_jpeg_fallback_picks_the_largest_stream() {
+        let small = [0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9];
+        let large = [0xff, 0xd8, 0xff, 0xe0, 9, 9, 9, 9, 9, 9, 0xff, 0xd9];
+        let mut data = vec![0u8; 12];
+        data.extend_from_slice(&small);
+        data.push(0);
+        data.extend_from_slice(&large);
+        assert_eq!(largest_embedded_jpeg(&data), Some(large.to_vec()));
+        assert_eq!(largest_embedded_jpeg(&[0, 1, 2, 3]), None);
+        // A stray start marker without an end marker is ignored, not panicking.
+        assert_eq!(largest_embedded_jpeg(&[0xff, 0xd8, 0xff, 0, 0]), None);
+    }
+
+    #[test]
+    fn dng_preview_thumbnail_falls_back_to_embedded_jpeg() {
+        // A 4x4 JPEG in a buffer that has no EXIF thumbnail pointer, standing in
+        // for a DNG whose preview is a JPEG-compressed TIFF strip.
+        let mut jpeg = Cursor::new(Vec::new());
+        DynamicImage::ImageRgb8(image::RgbImage::new(4, 4))
+            .write_to(&mut jpeg, ImageFormat::Jpeg)
+            .unwrap();
+        let jpeg = jpeg.into_inner();
+        let mut data = vec![0u8; 8];
+        data.extend_from_slice(&jpeg);
+        let preview = largest_embedded_jpeg(&data).unwrap();
+        assert_eq!(preview, jpeg);
+        assert!(image::load_from_memory(&preview).is_ok());
+    }
+
     #[test]
     fn jpeg_is_generated_and_cached() {
         let dir = tempfile::tempdir().unwrap();

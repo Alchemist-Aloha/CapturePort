@@ -665,9 +665,13 @@ impl Browser {
         let visible = self.visible_ids.len();
         let candidates = visible_capture_ids(self.state.visible_items().into_iter().map(|item| item.id), &self.bundle_owner);
         let waiting = candidates.len().saturating_sub(visible);
-        let failed = candidates.iter().filter(|id| self.failed_thumbnails.contains(id) || self.state.item(**id).is_some_and(|item| matches!(item.metadata, captureport_core::MetadataState::Failed(_)))).count();
+        let failed = candidates.iter().filter(|id| {
+            let preview = self.preview_id(**id);
+            self.failed_thumbnails.contains(&preview)
+                || self.state.item(preview).is_some_and(|item| matches!(item.metadata, captureport_core::MetadataState::Failed(_)))
+        }).count();
         let hidden_selected = self.state.items().filter(|item| self.state.is_selected(item.id)
-            && (!self.thumbnail_paths.contains_key(&item.id)
+            && (!self.thumbnail_paths.contains_key(&self.preview_id(item.id))
                 || !matches!(item.metadata, captureport_core::MetadataState::Ready(_)))).count();
         let (columns, image_height) = thumbnail_layout(
             f32::from(window.bounds().size.width),
@@ -804,7 +808,8 @@ impl Browser {
                                 let size_label=format_size(total_size);
                                 let time_label=t.thumbnail_modified.get(&id).copied().map(|seconds| format_file_time_compact(seconds,timezone)).unwrap_or_default();
                                 let picture = {
-                                    let base = if let Some(path)=t.thumbnail_paths.get(&id) {
+                                    let preview_id = t.preview_id(id);
+                                    let base = if let Some(path)=t.thumbnail_paths.get(&preview_id) {
                                         div().w_full().h(px(image_height)).flex().items_center().justify_center().bg(p.placeholder).overflow_hidden()
                                             .child(img(path.clone()).h(px(image_height)).max_w_full().object_fit(ObjectFit::Contain))
                                     } else {
