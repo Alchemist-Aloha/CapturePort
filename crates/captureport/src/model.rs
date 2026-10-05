@@ -28,6 +28,7 @@ pub(crate) struct SettingsInputs {
     pub(crate) include_photo: Entity<text_input::TextInput>,
     pub(crate) include_video: Entity<text_input::TextInput>,
     pub(crate) exclude_extensions: Entity<text_input::TextInput>,
+    pub(crate) exclude_folders: Entity<text_input::TextInput>,
     pub(crate) ignore_types: Entity<text_input::TextInput>,
 }
 pub(crate) struct Startup {
@@ -298,6 +299,7 @@ impl SettingsInputs {
             include_photo: field(preset.media_rules.include_photo.join(", "), cx),
             include_video: field(preset.media_rules.include_video.join(", "), cx),
             exclude_extensions: field(preset.media_rules.exclude.join(", "), cx),
+            exclude_folders: field(preset.media_rules.exclude_folders.join(", "), cx),
             ignore_types: field(preset.media_rules.ignore.join(", "), cx),
         }
     }
@@ -367,6 +369,9 @@ impl SettingsInputs {
         });
         self.exclude_extensions.update(cx, |input, cx| {
             input.set_value(preset.media_rules.exclude.join(", "), cx)
+        });
+        self.exclude_folders.update(cx, |input, cx| {
+            input.set_value(preset.media_rules.exclude_folders.join(", "), cx)
         });
         self.ignore_types.update(cx, |input, cx| {
             input.set_value(preset.media_rules.ignore.join(", "), cx)
@@ -472,6 +477,7 @@ impl SettingsInputs {
             include_photo: split(self.include_photo.read(cx).value()),
             include_video: split(self.include_video.read(cx).value()),
             exclude: split(self.exclude_extensions.read(cx).value()),
+            exclude_folders: split(self.exclude_folders.read(cx).value()),
             ignore: split(self.ignore_types.read(cx).value()),
         };
         Ok(preset)

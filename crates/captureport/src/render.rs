@@ -381,8 +381,8 @@ mod thumbnail_layout_tests {
     fn thumbnails_shrink_with_both_window_dimensions() {
         let (_, normal) = thumbnail_layout(1180., 760., 238., 2, false, false);
         let (narrow_columns, narrow) = thumbnail_layout(600., 760., 238., 2, false, false);
-        let (_, short) = thumbnail_layout(1180., 450., 238., 2, false, false);
-        let (_, with_controls) = thumbnail_layout(1180., 450., 238., 2, true, true);
+        let (_, short) = thumbnail_layout(1180., 470., 238., 2, false, false);
+        let (_, with_controls) = thumbnail_layout(1180., 470., 238., 2, true, true);
         assert_eq!(normal, 250.);
         assert_eq!(narrow_columns, 1);
         assert!(narrow <= normal);

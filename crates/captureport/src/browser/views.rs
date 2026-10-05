@@ -520,11 +520,16 @@ impl Browser {
                                         .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))
                                         .text_color(if partly_selected { p.text } else { p.muted })
                                         .child(import_status_line(item)))
-                                    .child(div().id(("media-disclosure", id.0)).mt(px(spacing::TIGHT)).when(members.is_none(), |style| style.hidden()).text_xs().text_color(p.muted).cursor_pointer()
-                                        .on_click(cx.listener(move |t,_,_,c| t.toggle_bundle(id,c)))
-                                        .child(if members.is_some() {
-                                            if expanded { "Hide files" } else { "View files" }
-                                        } else { "" }));
+                                    .child(div().flex().items_center().justify_between().gap(px(spacing::TIGHT))
+                                        .child(div().id(("media-disclosure", id.0)).when(members.is_none(), |style| style.hidden()).text_xs().text_color(p.muted).cursor_pointer()
+                                            .on_click(cx.listener(move |t,_,_,c| t.toggle_bundle(id,c)))
+                                            .child(if members.is_some() {
+                                                if expanded { "Hide files" } else { "View files" }
+                                            } else { "" }))
+                                        .child(button(Icon::Review, "Details", p, cx.listener(move |t,_,w,c| {
+                                            c.stop_propagation();
+                                            t.open_media_detail(id,w,c);
+                                        }))));
                                 cards=cards.child(div().id(("media",id.0)).flex_1().min_w_0()
                                     .overflow_hidden().rounded_sm().border_1()
                                     .border_color(if partly_selected || expanded {p.accent}else{p.canvas})
@@ -698,9 +703,24 @@ impl Browser {
                     )
                     .child(
                         div()
-                            .text_sm()
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child(if selected { "Selected" } else { "Select" }),
+                            .flex()
+                            .items_center()
+                            .gap(px(spacing::CONTROL_GAP))
+                            .child(button(
+                                Icon::Review,
+                                "Details",
+                                p,
+                                cx.listener(move |t, _, w, c| {
+                                    c.stop_propagation();
+                                    t.open_media_detail(id, w, c);
+                                }),
+                            ))
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .child(if selected { "Selected" } else { "Select" }),
+                            ),
                     ),
             );
         }

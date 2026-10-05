@@ -102,6 +102,10 @@ impl ImportPlanner {
         explicit_members: &HashSet<MediaId>,
     ) -> ImportPlan {
         let identity = source.identity();
+        let selected = selected
+            .into_iter()
+            .filter(|input| !preset.media_rules.excludes_folder(&input.item.source_path))
+            .collect();
         let mut selected = crate::bundle::apply_bundle_policy_with_overrides(
             selected,
             preset.bundle_policy,
@@ -682,6 +686,30 @@ mod tests {
             session_name: None,
         }
     }
+    #[test]
+    fn folder_exclusions_also_filter_previously_selected_media() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut preset = ImportPreset::everyday(dir.path());
+        preset.media_rules.exclude_folders = vec!["Private".into()];
+        let time = FixedOffset::east_opt(0)
+            .unwrap()
+            .with_ymd_and_hms(2026, 1, 1, 12, 0, 0)
+            .unwrap();
+        let selected = vec![
+            input(1, "DCIM/Private/a.jpg", time),
+            input(2, "DCIM/Public/b.jpg", time),
+        ];
+        let plan = ImportPlanner::build_with_explicit_members(
+            &FakeMediaSource::new(2),
+            selected,
+            &preset,
+            &HashSet::from([MediaId(1)]),
+        );
+        assert_eq!(plan.items.len(), 1);
+        assert_eq!(plan.items[0].media_id, MediaId(2));
+        assert_eq!(plan.items[0].sequence, 1);
+    }
+
     #[test]
     fn canonical_order_and_time_gap_sessions_are_stable() {
         let dir = tempfile::tempdir().unwrap();

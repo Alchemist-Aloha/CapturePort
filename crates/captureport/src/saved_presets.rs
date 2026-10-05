@@ -52,6 +52,7 @@ mod tests {
         import.media_rules.include_photo = vec!["oddphoto".into()];
         import.media_rules.include_video = vec!["oddvideo".into()];
         import.media_rules.exclude = vec!["png".into()];
+        import.media_rules.exclude_folders = vec!["DCIM/Private".into()];
         import.media_rules.ignore = vec!["sidecar".into()];
         import.backup = Some(BackupRule {
             photo: DestinationRule {

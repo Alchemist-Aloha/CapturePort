@@ -40,7 +40,8 @@ Runtime requirements:
    already in your history are marked and left unselected, so new media is what
    remains selected. Use the **All / Photos / Videos / New / Imported /
    Possible** filters, and **View options** to sort by capture time or name and
-   change the thumbnail size.
+   change the thumbnail size. **Details** on a media item shows its preview,
+   metadata, and original file path. Click **Original file** to copy its URL.
 3. **Select what to copy.** Toggle individual items, use **Select all** or
    **Select new**, and click a gallery heading to select everything in one
    shooting session.
@@ -88,6 +89,10 @@ Open **Settings** to control how imports are organized:
   offset, so files land under the date they were actually taken.
 - **Verification, collisions, and bundles** — how strictly copies are checked,
   what happens on a name collision, and how RAW+JPEG pairs are handled.
+- **Excluded folders** — under Media discovery, enter folder names or path
+  fragments such as `Screenshots, DCIM/Private`. Matching folders and their
+  descendants are excluded from scans and import plans. Matches are
+  case-sensitive; apply settings and rescan to update the browser.
 - **Backup destinations** — optionally write a second copy of everything.
 
 See [Destination rules](docs/spec.md#20-destination-rules) for the full segment

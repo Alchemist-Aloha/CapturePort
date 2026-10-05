@@ -1,4 +1,5 @@
 pub(crate) mod bundles;
+pub(crate) mod detail;
 pub(crate) mod gallery;
 pub(crate) mod import;
 pub(crate) mod panels;

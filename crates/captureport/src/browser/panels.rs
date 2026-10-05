@@ -729,6 +729,14 @@ impl Browser {
                 cx,
             ))
             .child(settings_field(
+                "Excluded folders (comma separated)",
+                self.settings.exclude_folders.clone(),
+                p,
+                cx,
+            ))
+            .child(div().text_xs().text_color(p.muted)
+                .child("Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser."))
+            .child(settings_field(
                 "Ignored media types (raw, photo, video, sidecar, unknown)",
                 self.settings.ignore_types.clone(),
                 p,

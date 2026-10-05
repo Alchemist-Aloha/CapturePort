@@ -91,6 +91,8 @@ struct Browser {
     bundle_preview: HashMap<MediaId, MediaId>,
     pair_index: PairIndex,
     expanded_bundle: Option<MediaId>,
+    media_detail: Option<MediaId>,
+    detail_focus: FocusHandle,
     show_view_options: bool,
     timezone_menu_open: bool,
     explicit_bundle_selection: HashSet<MediaId>,
@@ -300,6 +302,8 @@ impl Browser {
             bundle_preview: HashMap::new(),
             pair_index: PairIndex::default(),
             expanded_bundle: None,
+            media_detail: None,
+            detail_focus: cx.focus_handle(),
             show_view_options: false,
             timezone_menu_open: false,
             explicit_bundle_selection: HashSet::new(),
@@ -885,8 +889,24 @@ mod integration_tests {
             ..Default::default()
         };
         assert_eq!(
-            scan_names(include_txt, catalog),
+            scan_names(include_txt, catalog.clone()),
             vec!["NOTES.TXT", "SHOT.JPG"]
+        );
+        fs::create_dir_all(source_dir.path().join("Private/nested")).unwrap();
+        fs::write(
+            source_dir.path().join("Private/nested/HIDDEN.JPG"),
+            b"hidden",
+        )
+        .unwrap();
+        fs::create_dir(source_dir.path().join("Private2")).unwrap();
+        fs::write(source_dir.path().join("Private2/KEPT.JPG"), b"kept").unwrap();
+        let exclude_folder = captureport_ingest::MediaRules {
+            exclude_folders: vec!["Private".into()],
+            ..Default::default()
+        };
+        assert_eq!(
+            scan_names(exclude_folder, catalog),
+            vec!["KEPT.JPG", "SHOT.JPG"]
         );
     }
 

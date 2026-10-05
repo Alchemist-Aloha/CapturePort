@@ -16,6 +16,7 @@ pub struct Scrollbars {
     pub history: Scrollbar,
     pub recovery: Scrollbar,
     pub settings: Scrollbar,
+    pub detail: Scrollbar,
     pub timezone: Scrollbar,
     pub media: ListScrollbar,
     pub preview: ListScrollbar,

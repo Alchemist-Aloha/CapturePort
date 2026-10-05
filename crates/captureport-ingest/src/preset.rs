@@ -72,6 +72,8 @@ pub struct MediaRules {
     pub include_photo: Vec<String>,
     pub include_video: Vec<String>,
     pub exclude: Vec<String>,
+    #[serde(default)]
+    pub exclude_folders: Vec<String>,
     pub ignore: Vec<String>,
 }
 
@@ -81,6 +83,7 @@ impl Default for MediaRules {
             include_photo: Vec::new(),
             include_video: Vec::new(),
             exclude: Vec::new(),
+            exclude_folders: Vec::new(),
             ignore: vec!["sidecar".into(), "unknown".into()],
         }
     }
@@ -96,8 +99,27 @@ fn matches_extension(entries: &[String], extension: &str) -> bool {
 }
 
 impl MediaRules {
+    /// Match complete folder components, anywhere in a source-relative file path.
+    pub fn excludes_folder(&self, media_path: impl AsRef<Path>) -> bool {
+        media_path.as_ref().parent().is_some_and(|directory| {
+            self.exclude_folders.iter().any(|entry| {
+                let folder = Path::new(entry.trim().trim_matches('/'));
+                !folder.as_os_str().is_empty()
+                    && folder
+                        .components()
+                        .all(|part| matches!(part, std::path::Component::Normal(_)))
+                    && directory
+                        .ancestors()
+                        .any(|ancestor| ancestor.ends_with(folder))
+            })
+        })
+    }
+
     /// Classify a path, returning `None` when the rules exclude the file.
     pub fn classify(&self, path: impl AsRef<Path>) -> Option<MediaType> {
+        if self.excludes_folder(&path) {
+            return None;
+        }
         let extension = path
             .as_ref()
             .extension()
@@ -195,6 +217,46 @@ mod tests {
     }
 
     #[test]
+    fn excluded_folders_match_components_and_old_presets_still_load() {
+        let rules = MediaRules {
+            exclude_folders: vec![
+                " Screenshots/ ".into(),
+                "DCIM/Private".into(),
+                "".into(),
+                "/".into(),
+                "..".into(),
+            ],
+            include_photo: vec!["odd".into()],
+            ..Default::default()
+        };
+        for excluded in [
+            "Pictures/Screenshots/a.jpg",
+            "/store_0001/DCIM/Private/nested/a.mp4",
+            "Screenshots/a.odd",
+        ] {
+            assert_eq!(rules.classify(excluded), None, "{excluded}");
+        }
+        for kept in [
+            "Pictures/Screenshots2/a.jpg",
+            "DCIM/Public/Private/a.jpg",
+            "DCIM/private/a.jpg",
+            "Screenshots.jpg",
+            "a.jpg",
+        ] {
+            assert_eq!(rules.classify(kept), Some(MediaType::Jpeg), "{kept}");
+        }
+        let loaded: MediaRules = serde_json::from_str(
+            r#"{"include_photo":[],"include_video":[],"exclude":[],"ignore":[]}"#,
+        )
+        .unwrap();
+        assert!(loaded.exclude_folders.is_empty());
+        assert_eq!(
+            serde_json::from_str::<MediaRules>(&serde_json::to_string(&rules).unwrap()).unwrap(),
+            rules
+        );
+    }
+
+    #[test]
     fn media_rules_exclude_non_media_and_honor_overrides() {
         let rules = MediaRules::default();
         assert_eq!(rules.classify("a/PAIR.ARW"), Some(MediaType::Raw));
@@ -207,6 +269,7 @@ mod tests {
             include_photo: vec![".dng2".into()],
             include_video: vec!["ODD".into()],
             exclude: vec!["arw".into()],
+            exclude_folders: Vec::new(),
             ignore: vec!["sidecar".into()],
         };
         assert_eq!(custom.classify("a/SCAN.DNG2"), Some(MediaType::Jpeg));

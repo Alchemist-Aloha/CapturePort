@@ -287,13 +287,25 @@ MTS/M2TS where practical
 Files whose extensions are not recognized as image, RAW, or video are excluded
 from the browser by default; sidecar and unknown media are the default ignored
 types. Import settings expose comma-separated **additional photo extensions**,
-**additional video extensions**, **excluded extensions**, and **ignored media
-types** (`raw`, `photo`, `video`, `sidecar`, `unknown`). Odd extensions listed
+**additional video extensions**, **excluded extensions**, **excluded folders**,
+and **ignored media types** (`raw`, `photo`, `video`, `sidecar`, `unknown`). Odd extensions listed
 under the additional photo or video fields are imported as stills or video,
 extensions listed under excluded are dropped outright, and listed media types
 are dropped. These rules persist with the preset across sessions, are applied
 while scanning, and are re-applied when building an import plan, so the preview
 and history contain only files the rules allow.
+
+Excluded folders are comma-separated folder names or path fragments such as
+`Screenshots, DCIM/Private`. They match complete, case-sensitive directory
+components anywhere in the source file path, including all descendants; partial
+names and filenames do not match. Leading/trailing slashes are optional. Empty,
+root-only and traversal entries do not exclude anything; these are literal paths,
+not globs. Folder exclusions apply to filesystem and camera sources, are saved in
+active and named presets, and default to empty when loading older presets.
+Apply settings and rescan to update the browser; new import plans also enforce
+folder exclusions against previously scanned selections. Enumeration may still
+traverse excluded directories, but matching media receives no metadata or
+thumbnail jobs and is never copied. Source files are not changed or deleted.
 
 ---
 
@@ -2328,6 +2340,24 @@ Filesystem scanning is recursive and read-only. Hidden entries and common system
 Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions regardless of folder, including media under `Pictures/`, `Movies/`, or `DCIM/`. It skips non-media files (including sidecars) before showing them in the browser. Folder traversal remains recursive so camera media outside `DCIM/` is not lost. Explicitly opened ordinary filesystem folders retain the broader unknown-file behavior above.
 
 The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. A tile overlays its media-type badge at the thumbnail's top-right and its file size at the bottom-left, with the source file's modification time in a compact format below the filename; camera items without a local file omit the time. The filename and metadata caption carries its own surface — the `card` tone when unselected and the `selected` tone when selected — so the text never sits directly on the page canvas. The status line below that is icon plus text (`✓ Imported`, `! Possible duplicate`, `? Unknown`, `New`, `Checking…`); for a file classified as imported or a possible duplicate it also names the prior import that matched, as a session number and date, so an uncertain classification is traceable rather than asserted. Selection is shown by the tile background, the tile border, and a `Selected` / `Part selected` label drawn on the image over the same black scrim as the media-type badge. The label never uses a themed surface: a card-coloured chip measures 1.19:1 against a bright frame and disappears over a blown-out photograph, while white ink on the 60% black scrim holds 5.7:1 against the brightest possible frame. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Bulk selection preserves explicit bundle-member choices, including members hidden by the current filter; unavailable previews remain counted in selection and listed in the import preview. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
+
+Every media tile and expanded bundle member has a **Details** button. It opens
+a read-only media-details popup without changing selection or expanding a bundle.
+The popup reuses the cached preview and shows the original filename, media type,
+file size, import status, available capture metadata, source, and original file
+path. Clicking **Original file** copies its URL to the clipboard. Local files use
+a percent-encoded `file://` URL resolved against the opened source root; connected
+camera files use a `gphoto2://[usb:BUS,DEVICE]/…` URL with an encoded device-side
+path. Synthetic sources or cameras without a discovered port copy their original
+source locator instead of inventing a local file URL. The original-directory row
+and separate copy-directory action are not shown. The copied URL never points
+to the thumbnail cache or a planned destination.
+Missing or failed metadata is explicitly unavailable rather than an invented
+date. Long values can be scrolled horizontally and the body scrolls vertically
+on smaller windows. Close, Escape, or clicking outside dismisses the popup
+without clearing the selection. Background application shortcuts are inactive
+while it is open, and switching or rescanning a source clears stale details.
+Opening details never downloads a full camera object solely for inspection.
 
 The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Until renamed, a gallery's default name is the creation date of its earliest media (`YYYY-MM-DD`), not a session number; when several galleries share a date, they are suffixed `a`, `b`, `c`, … in chronological order. Stored names that match the old auto-generated `Session N` pattern are ignored so they fall back to the date. Clicking a gallery's display name selects every visible media item in that gallery, or clears them when all are already selected (bundle members are included). Rename focuses the gallery name field immediately; Save keeps the editor open
 and reports an error if persistence fails. Display names enter destination templates only through the explicit

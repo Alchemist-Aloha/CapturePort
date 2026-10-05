@@ -37,7 +37,9 @@ impl Render for Browser {
             Page::Recovery => self.recovery_panel(cx),
             Page::Settings => self.settings_panel(cx),
         };
+        let detail = self.media_detail_popup(window, cx);
         div()
+            .relative()
             .size_full()
             .flex()
             .flex_col()
@@ -46,19 +48,21 @@ impl Render for Browser {
             .text_size(px(14.))
             .text_color(p.text)
             .track_focus(&self.focus_handle(cx))
-            .on_action(cx.listener(Self::open_folder))
-            .on_action(cx.listener(Self::open_demo))
-            .on_action(cx.listener(Self::select_all))
-            .on_action(cx.listener(Self::select_new))
             .on_action(cx.listener(Self::select_none))
-            .on_action(cx.listener(Self::mark_selected_imported))
-            .on_action(cx.listener(Self::import_selected))
-            .on_action(cx.listener(Self::cancel_import))
-            .on_action(cx.listener(Self::history))
-            .on_action(cx.listener(Self::reconcile))
-            .on_action(cx.listener(Self::clock))
-            .on_action(cx.listener(Self::cancel_reconcile))
-            .on_action(cx.listener(Self::discover_sources))
+            .when(self.media_detail.is_none(), |view| {
+                view.on_action(cx.listener(Self::open_folder))
+                    .on_action(cx.listener(Self::open_demo))
+                    .on_action(cx.listener(Self::select_all))
+                    .on_action(cx.listener(Self::select_new))
+                    .on_action(cx.listener(Self::mark_selected_imported))
+                    .on_action(cx.listener(Self::import_selected))
+                    .on_action(cx.listener(Self::cancel_import))
+                    .on_action(cx.listener(Self::history))
+                    .on_action(cx.listener(Self::reconcile))
+                    .on_action(cx.listener(Self::clock))
+                    .on_action(cx.listener(Self::cancel_reconcile))
+                    .on_action(cx.listener(Self::discover_sources))
+            })
             .child(
                 div()
                     .h(px(48.))
@@ -173,5 +177,6 @@ impl Render for Browser {
                             ),
                     ),
             )
+            .children(detail)
     }
 }

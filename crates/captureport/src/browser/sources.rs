@@ -29,6 +29,7 @@ impl Browser {
         self.bundle_preview.clear();
         self.pair_index.clear();
         self.expanded_bundle = None;
+        self.media_detail = None;
         self.explicit_bundle_selection.clear();
         self.source = None;
         self.source_alias = None;
@@ -129,7 +130,16 @@ impl Browser {
         self.page = Page::Browser;
         cx.notify()
     }
-    pub(crate) fn select_none(&mut self, _: &SelectNone, _: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn select_none(
+        &mut self,
+        _: &SelectNone,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.media_detail.is_some() {
+            self.close_media_detail(window, cx);
+            return;
+        }
         if self.page != Page::Browser {
             return;
         }

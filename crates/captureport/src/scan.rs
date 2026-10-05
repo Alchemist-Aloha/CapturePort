@@ -118,6 +118,7 @@ pub(crate) fn scan_source(
         if scan.is_cancelled() {
             return Err(SourceError::Cancelled);
         }
+        // ponytail: filter after enumeration; prune via ScanContext if excluded trees make scans slow.
         let Some(media_type) = media_rules.classify(&item.source_path) else {
             return Ok(());
         };
