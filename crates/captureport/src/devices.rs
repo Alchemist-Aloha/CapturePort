@@ -90,6 +90,90 @@ pub(crate) fn cards_from_blocks(blocks: &[BlockDevice]) -> RemovableVolumes {
     }
     volumes
 }
+/// Physical presence is sampled independently of libgphoto2: a detection error
+/// (or a camera busy importing) is not evidence that a device was unplugged.
+pub(crate) struct DevicePresence {
+    pub(crate) sampled_at: std::time::Instant,
+    pub(crate) usb_ports: Option<HashSet<String>>,
+}
+impl DevicePresence {
+    pub(crate) fn sample() -> Self {
+        let sampled_at = std::time::Instant::now();
+        let usb_ports = (|| -> std::io::Result<HashSet<String>> {
+            let mut ports = HashSet::new();
+            for bus in std::fs::read_dir("/dev/bus/usb")? {
+                let bus = bus?;
+                for device in std::fs::read_dir(bus.path())? {
+                    ports.insert(format!(
+                        "usb:{},{}",
+                        bus.file_name().to_string_lossy(),
+                        device?.file_name().to_string_lossy()
+                    ));
+                }
+            }
+            Ok(ports)
+        })()
+        .ok();
+        Self {
+            sampled_at,
+            usb_ports,
+        }
+    }
+}
+
+pub(crate) struct SourceWatch {
+    pub(crate) selected_at: std::time::Instant,
+    pub(crate) connection: DeviceConnection,
+}
+pub(crate) enum DeviceConnection {
+    Usb(String),
+    Mount(PathBuf),
+}
+impl SourceWatch {
+    pub(crate) fn new(
+        request: &SourceRequest,
+        mounted_models: &HashMap<PathBuf, String>,
+    ) -> Option<Self> {
+        let connection = match request {
+            SourceRequest::Camera(camera) if camera.port.starts_with("usb:") => {
+                DeviceConnection::Usb(camera.port.clone())
+            }
+            SourceRequest::Filesystem(root) => {
+                let mount = mounted_models
+                    .keys()
+                    .filter(|mount| root.starts_with(mount))
+                    .max_by_key(|mount| mount.components().count())?;
+                DeviceConnection::Mount(mount.clone())
+            }
+            _ => return None,
+        };
+        Some(Self {
+            selected_at: std::time::Instant::now(),
+            connection,
+        })
+    }
+    pub(crate) fn disconnected(
+        &self,
+        presence: &DevicePresence,
+        volumes: Option<&RemovableVolumes>,
+    ) -> bool {
+        // A poll already in flight when the user selected a source cannot
+        // invalidate that newer selection.
+        if presence.sampled_at < self.selected_at {
+            return false;
+        }
+        match &self.connection {
+            DeviceConnection::Usb(port) => presence
+                .usb_ports
+                .as_ref()
+                .is_some_and(|ports| !ports.contains(port)),
+            DeviceConnection::Mount(path) => {
+                volumes.is_some_and(|volumes| !volumes.mounted_models.contains_key(path))
+            }
+        }
+    }
+}
+
 pub(crate) type DiscoveryResult = Result<
     (
         Vec<captureport_gphoto::discovery::DiscoveredSource>,
@@ -97,3 +181,65 @@ pub(crate) type DiscoveryResult = Result<
     ),
     String,
 >;
+
+#[cfg(test)]
+mod presence_tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn usb_disconnect_ignores_old_polls_and_unknown_presence() {
+        let selected_at = Instant::now();
+        let watch = SourceWatch {
+            selected_at,
+            connection: DeviceConnection::Usb("usb:001,057".into()),
+        };
+        let mut presence = DevicePresence {
+            sampled_at: selected_at - Duration::from_secs(1),
+            usb_ports: Some(HashSet::new()),
+        };
+        assert!(!watch.disconnected(&presence, None));
+        presence.sampled_at = selected_at + Duration::from_secs(1);
+        presence.usb_ports = None;
+        assert!(!watch.disconnected(&presence, None));
+        presence.usb_ports = Some(HashSet::from(["usb:001,057".into()]));
+        assert!(!watch.disconnected(&presence, None));
+        presence.usb_ports = Some(HashSet::from(["usb:001,058".into()]));
+        assert!(watch.disconnected(&presence, None));
+        // A reconnect is a new selection, not a revival from an old poll.
+        let reconnected = SourceWatch {
+            selected_at: presence.sampled_at + Duration::from_secs(1),
+            connection: DeviceConnection::Usb("usb:001,058".into()),
+        };
+        assert!(!reconnected.disconnected(&presence, None));
+    }
+
+    #[test]
+    fn mounted_subfolder_is_watched_but_local_folders_are_not() {
+        let root = PathBuf::from("/run/media/user/Card");
+        let mut volumes = RemovableVolumes::default();
+        volumes.mounted_models.insert(root.clone(), "Camera".into());
+        let watch = SourceWatch::new(
+            &SourceRequest::Filesystem(root.join("DCIM")),
+            &volumes.mounted_models,
+        )
+        .unwrap();
+        let presence = DevicePresence {
+            sampled_at: watch.selected_at + Duration::from_secs(1),
+            usb_ports: None,
+        };
+        assert!(!watch.disconnected(&presence, Some(&volumes)));
+        assert!(!watch.disconnected(&presence, None));
+        volumes.mounted_models.clear();
+        assert!(watch.disconnected(&presence, Some(&volumes)));
+        for local in ["/home/user/Pictures", "/run/media/user/Card-other"] {
+            assert!(
+                SourceWatch::new(
+                    &SourceRequest::Filesystem(local.into()),
+                    &HashMap::from([(root.clone(), "Camera".into())]),
+                )
+                .is_none()
+            );
+        }
+    }
+}

@@ -8,9 +8,34 @@ impl Browser {
             cx.notify();
             return;
         }
-        if let Some(t) = &self.cancellation {
+        self.clear_source();
+        self.source_watch = SourceWatch::new(&request, &self.mounted_models);
+        self.filesystem_root = match &request {
+            SourceRequest::Filesystem(path) => Some(path.clone()),
+            _ => None,
+        };
+        self.page = Page::Browser;
+        self.thumbnails.reset_cancellation();
+        self.scanning = true;
+        self.message = None;
+        let token = CancellationToken::new();
+        let scan = ScanContext::new(ScanGeneration(self.generation), token.clone());
+        self.cancellation = Some(token);
+        let (tx, rx) = mpsc::channel();
+        self.receiver = Some(rx);
+        let cat = self.catalog.clone();
+        let media_rules = self.preset.media_rules.clone();
+        thread::spawn(move || scan_source(request, scan, media_rules, tx, cat));
+        cx.notify();
+    }
+    /// One reset path for changing sources and physical removal. Dropping the
+    /// scan receiver and advancing the generation also invalidate queued work.
+    pub(crate) fn clear_source(&mut self) {
+        if let Some(t) = self.cancellation.take() {
             t.cancel();
         }
+        self.receiver = None;
+        self.source_watch = None;
         self.generation += 1;
         self.camera_preview_scan_token = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -34,13 +59,18 @@ impl Browser {
         self.explicit_bundle_selection.clear();
         self.source = None;
         self.source_alias = None;
-        self.filesystem_root = match &request {
-            SourceRequest::Filesystem(path) => Some(path.clone()),
-            _ => None,
-        };
+        self.catalog_source_id = None;
+        self.filesystem_root = None;
+        self.gallery_item_names.clear();
+        self.show_view_options = false;
+        self.marking_imported = false;
+        self.progress = None;
+        self.scrollbars.media = Default::default();
+        self.scrollbars.bundle = Default::default();
+        self.scrollbars.detail = Default::default();
+        self.scrollbars.preview = Default::default();
         self.catalog_media_ids.clear();
         self.invalidate_plan();
-        self.page = Page::Browser;
         self.planning = false;
         self.thumbnail_keys.clear();
         self.thumbnail_paths.clear();
@@ -48,18 +78,24 @@ impl Browser {
         self.requested_thumbnails.clear();
         self.failed_thumbnails.clear();
         self.thumbnails.cancel();
-        self.thumbnails.reset_cancellation();
-        self.scanning = true;
-        self.message = None;
-        let token = CancellationToken::new();
-        let scan = ScanContext::new(g, token.clone());
-        self.cancellation = Some(token);
-        let (tx, rx) = mpsc::channel();
-        self.receiver = Some(rx);
-        let cat = self.catalog.clone();
-        let media_rules = self.preset.media_rules.clone();
-        thread::spawn(move || scan_source(request, scan, media_rules, tx, cat));
-        cx.notify();
+        self.scanning = false;
+    }
+    pub(crate) fn source_disconnected(&mut self, cx: &mut Context<Self>) {
+        if let Some(token) = &self.import_cancellation {
+            token.cancel();
+        }
+        // Keep the import busy until its worker has finalized catalog history.
+        self.clear_source();
+        self.state.filter = MediaFilter::All;
+        self.state.sort = MediaSort::CaptureTime;
+        self.settings
+            .source_alias
+            .update(cx, |input, cx| input.set_value(String::new(), cx));
+        if matches!(self.page, Page::Browser | Page::Preview) {
+            self.page = Page::Browser;
+        }
+        self.message =
+            Some("Source disconnected. Reconnect it and choose a source to begin.".into());
     }
     pub(crate) fn open_folder(&mut self, _: &OpenFolder, _: &mut Window, cx: &mut Context<Self>) {
         let picker = cx.prompt_for_paths(PathPromptOptions {

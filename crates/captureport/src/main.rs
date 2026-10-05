@@ -132,7 +132,13 @@ struct Browser {
     session_detail: Option<SessionDetail>,
     discovered_sources: Vec<captureport_gphoto::discovery::DiscoveredSource>,
     discovery_aliases: HashMap<String, String>,
-    discovery_receiver: Receiver<(bool, DiscoveryResult, RemovableVolumes)>,
+    discovery_receiver: Receiver<(
+        bool,
+        DiscoveryResult,
+        Option<RemovableVolumes>,
+        DevicePresence,
+    )>,
+    source_watch: Option<SourceWatch>,
     discovery_requests: mpsc::Sender<()>,
     discovering: bool,
     unmounted_cards: Vec<UnmountedCard>,
@@ -257,6 +263,8 @@ impl Browser {
         thread::spawn(move || {
             let mut manual = false;
             while !discovery_worker_stop.load(Ordering::Relaxed) {
+                let presence = DevicePresence::sample();
+                let volumes = removable_volumes().ok();
                 let result = captureport_gphoto::discovery::discover()
                     .map(|sources| {
                         let aliases = aliases_for_sources(&sources, &discovery_catalog);
@@ -264,7 +272,7 @@ impl Browser {
                     })
                     .map_err(|error| error.to_string());
                 if discovery_tx
-                    .send((manual, result, removable_volumes().unwrap_or_default()))
+                    .send((manual, result, volumes, presence))
                     .is_err()
                 {
                     break;
@@ -344,6 +352,7 @@ impl Browser {
             discovered_sources: Vec::new(),
             discovery_aliases: HashMap::new(),
             discovery_receiver: discovery_rx,
+            source_watch: None,
             discovery_requests: request_tx,
             discovering: false,
             unmounted_cards: Vec::new(),
@@ -981,7 +990,7 @@ mod integration_tests {
             tx,
         );
         for message in rx {
-            if let WorkMessage::ImportDone(result) = message {
+            if let WorkMessage::ImportDone(_, result) = message {
                 result.unwrap();
                 break;
             }
@@ -1022,7 +1031,7 @@ mod integration_tests {
             tx,
         );
         for message in rx {
-            if let WorkMessage::ImportDone(result) = message {
+            if let WorkMessage::ImportDone(_, result) = message {
                 result.unwrap();
                 break;
             }
@@ -1106,8 +1115,8 @@ mod integration_tests {
         let mut result = None;
         for message in rx {
             match message {
-                WorkMessage::ImportResult(imported) => result = Some(imported),
-                WorkMessage::ImportDone(done) => {
+                WorkMessage::ImportResult(_, imported) => result = Some(imported),
+                WorkMessage::ImportDone(_, done) => {
                     done.unwrap();
                     break;
                 }

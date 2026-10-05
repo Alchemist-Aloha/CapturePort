@@ -258,12 +258,14 @@ impl Browser {
                 p,
                 cx.listener(|t, _, _, c| t.clear_thumbnail_cache(c)),
             ))
-            .child(button(
-                Icon::Play,
-                "10k-item demo",
-                p,
-                cx.listener(|t, _, w, c| t.open_demo(&OpenDemo, w, c)),
-            ))
+            .when(cfg!(debug_assertions), |view| {
+                view.child(button(
+                    Icon::Play,
+                    "10k-item demo",
+                    p,
+                    cx.listener(|t, _, w, c| t.open_demo(&OpenDemo, w, c)),
+                ))
+            })
             .child(if self.importing {
                 button(
                     Icon::Cancel,

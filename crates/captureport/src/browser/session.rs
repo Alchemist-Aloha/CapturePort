@@ -47,16 +47,35 @@ impl Browser {
     }
     pub(crate) fn drain(&mut self, cx: &mut Context<Self>) {
         let mut changed = false;
-        while let Ok((manual, result, volumes)) = self.discovery_receiver.try_recv() {
-            self.unmounted_cards = volumes.unmounted;
-            self.mounted_models = volumes.mounted_models;
+        while let Ok((manual, result, volumes, presence)) = self.discovery_receiver.try_recv() {
+            let removed = self
+                .source_watch
+                .as_ref()
+                .is_some_and(|watch| watch.disconnected(&presence, volumes.as_ref()));
+            if removed {
+                self.source_disconnected(cx);
+                changed = true;
+            }
+            if let Some(volumes) = volumes {
+                self.unmounted_cards = volumes.unmounted;
+                self.mounted_models = volumes.mounted_models;
+                // Startup folders can be opened before the first device poll.
+                if self.source_watch.is_none()
+                    && let Some(root) = &self.filesystem_root
+                {
+                    self.source_watch = SourceWatch::new(
+                        &SourceRequest::Filesystem(root.clone()),
+                        &self.mounted_models,
+                    );
+                }
+            }
             if manual {
                 self.discovering = false;
             }
             if !self.discovering {
                 match result {
                     Ok((sources, aliases)) => {
-                        if manual {
+                        if manual && !removed {
                             self.message = Some(format!(
                                 "Device scan complete · {} source(s) found",
                                 sources.len() + self.unmounted_cards.len()
@@ -65,7 +84,7 @@ impl Browser {
                         self.discovered_sources = sources;
                         self.discovery_aliases = aliases;
                     }
-                    Err(error) if manual => {
+                    Err(error) if manual && !removed => {
                         self.message = Some(format!("Device scan failed: {error}. Try again."))
                     }
                     Err(_) => {}
@@ -73,8 +92,8 @@ impl Browser {
                 changed = true;
             }
         }
-        if let Some(r) = &self.receiver {
-            for _ in 0..512 {
+        for _ in 0..512 {
+            if let Some(r) = &self.receiver {
                 match r.try_recv() {
                     Ok(ScanMessage::Source(s, id, alias)) => {
                         self.source_alias = alias.clone();
@@ -91,6 +110,21 @@ impl Browser {
                         self.thumbnail_modified.insert(id, modified);
                     }
                     Ok(ScanMessage::Event(e)) => {
+                        if let AppEvent::SourceRemoved {
+                            generation,
+                            source_id,
+                        } = &*e
+                            && *generation == self.state.generation
+                            && self
+                                .state
+                                .source
+                                .as_ref()
+                                .is_some_and(|source| source.id == *source_id)
+                        {
+                            self.source_disconnected(cx);
+                            changed = true;
+                            break;
+                        }
                         if let AppEvent::MediaDiscovered { generation, item } = &*e
                             && generation.0 == self.generation
                         {
@@ -112,6 +146,8 @@ impl Browser {
                     }
                     Err(_) => break,
                 }
+            } else {
+                break;
             }
         }
         let mut index = 0;
@@ -120,7 +156,12 @@ impl Browser {
             for _ in 0..256 {
                 match self.work_receivers[index].try_recv() {
                     Ok(WorkMessage::Event(e)) => {
-                        if let AppEvent::ImportProgress { progress, .. } = &*e {
+                        if let AppEvent::ImportProgress {
+                            generation,
+                            progress,
+                        } = &*e
+                            && *generation == self.state.generation
+                        {
                             self.progress = Some(progress.clone());
                         }
                         changed |= self.state.apply_event(*e)
@@ -159,9 +200,11 @@ impl Browser {
                         ));
                         changed = true;
                     }
-                    Ok(WorkMessage::ImportResult(result)) => {
-                        self.last_import_result = Some(result);
-                        changed = true;
+                    Ok(WorkMessage::ImportResult(generation, result)) => {
+                        if generation == self.state.generation {
+                            self.last_import_result = Some(result);
+                            changed = true;
+                        }
                     }
                     Ok(WorkMessage::CacheCleared(count)) => {
                         self.cache_clearing = false;
@@ -203,8 +246,8 @@ impl Browser {
                         media_ids,
                         result,
                     }) => {
-                        self.marking_imported = false;
                         if generation == self.state.generation {
+                            self.marking_imported = false;
                             match result {
                                 Ok(()) => {
                                     for id in &media_ids {
@@ -245,10 +288,13 @@ impl Browser {
                         self.message = Some(v.unwrap_or_else(|e| format!("Operation failed: {e}")));
                         changed = true;
                     }
-                    Ok(WorkMessage::ImportDone(v)) => {
+                    Ok(WorkMessage::ImportDone(generation, v)) => {
                         self.importing = false;
                         self.import_cancellation = None;
-                        self.message = Some(v.unwrap_or_else(|e| format!("Import failed: {e}")));
+                        if generation == self.state.generation {
+                            self.message =
+                                Some(v.unwrap_or_else(|e| format!("Import failed: {e}")));
+                        }
                         changed = true;
                     }
                     Ok(WorkMessage::ReconcileDone(v)) => {

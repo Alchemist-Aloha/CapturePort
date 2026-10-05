@@ -6,7 +6,7 @@ pub(crate) enum WorkMessage {
     History(Vec<HistoryEntry>),
     Recovery(Vec<IncompleteSession>, Vec<captureport_ingest::PartialFile>),
     PartialCleaned(PathBuf),
-    ImportResult(captureport_ingest::ImportResult),
+    ImportResult(ScanGeneration, captureport_ingest::ImportResult),
     CacheCleared(usize),
     SourceAlias(i64, Option<String>),
     Presets(Result<(Vec<captureport_catalog::PresetRecord>, Option<i64>, String), String>),
@@ -15,7 +15,7 @@ pub(crate) enum WorkMessage {
         media_ids: Vec<MediaId>,
         result: Result<(), String>,
     },
-    ImportDone(Result<String, String>),
+    ImportDone(ScanGeneration, Result<String, String>),
     ReconcileDone(Result<String, String>),
     Done(Result<String, String>),
     Mounted(Result<String, String>),
@@ -189,15 +189,16 @@ pub(crate) fn run_import(
     sender: Sender<WorkMessage>,
 ) {
     let Some(source_id) = source_id else {
-        let _ = sender.send(WorkMessage::ImportDone(Err(
-            "source was not recorded".into()
-        )));
+        let _ = sender.send(WorkMessage::ImportDone(
+            generation,
+            Err("source was not recorded".into()),
+        ));
         return;
     };
     let session = match catalog.begin_session(source_id, None, now()) {
         Ok(s) => s,
         Err(e) => {
-            let _ = sender.send(WorkMessage::ImportDone(Err(e.to_string())));
+            let _ = sender.send(WorkMessage::ImportDone(generation, Err(e.to_string())));
             return;
         }
     };
@@ -220,7 +221,7 @@ pub(crate) fn run_import(
     });
     let (status, message) = match result {
         Ok(result) => {
-            let _ = sender.send(WorkMessage::ImportResult(result.clone()));
+            let _ = sender.send(WorkMessage::ImportResult(generation, result.clone()));
             for item in &result.items {
                 if let Some(media_id) = recorder.media_ids.get(&item.media_id).copied() {
                     for copy in &item.copies {
@@ -308,7 +309,7 @@ pub(crate) fn run_import(
             "Copies finished, but session history could not be saved: {error}"
         )),
     };
-    let _ = sender.send(WorkMessage::ImportDone(message));
+    let _ = sender.send(WorkMessage::ImportDone(generation, message));
 }
 pub(crate) fn run_reconcile(
     roots: &[PathBuf],

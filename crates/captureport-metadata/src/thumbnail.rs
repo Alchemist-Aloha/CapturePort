@@ -62,7 +62,7 @@ impl std::error::Error for ThumbnailError {}
 /// `capacity` outstanding jobs, preventing thousands of offscreen decodes.
 pub struct ThumbnailPipeline {
     queue: Arc<JobQueue>,
-    rx: Receiver<ThumbnailResult>,
+    rx: Receiver<(Arc<AtomicBool>, ThumbnailResult)>,
     cancelled: Arc<AtomicBool>,
     _workers: Vec<thread::JoinHandle<()>>,
     cache_dir: PathBuf,
@@ -159,20 +159,14 @@ impl ThumbnailPipeline {
         for _ in 0..workers.max(1) {
             let jobs = Arc::clone(&queue);
             let output = tx_results.clone();
-            let stop = Arc::clone(&cancelled);
             handles.push(thread::spawn(move || {
                 while let Some(job) = jobs.pop() {
-                    if stop.load(Ordering::Relaxed) || job.cancelled.load(Ordering::Relaxed) {
-                        let _ = output.send(ThumbnailResult {
-                            key: cache_key(&job.request),
-                            state: ThumbnailState::Cancelled,
-                            bytes: None,
-                            error: None,
-                        });
+                    if job.cancelled.load(Ordering::Relaxed) {
                         continue;
                     }
+                    let token = job.cancelled.clone();
                     let result = render(job);
-                    let _ = output.send(result);
+                    let _ = output.send((token, result));
                 }
             }));
         }
@@ -192,13 +186,27 @@ impl ThumbnailPipeline {
         })
     }
     pub fn try_recv(&self) -> Option<ThumbnailResult> {
-        self.rx.try_recv().ok()
+        while let Ok((token, result)) = self.rx.try_recv() {
+            if Arc::ptr_eq(&token, &self.cancelled) {
+                return Some(result);
+            }
+        }
+        None
     }
     pub fn cancel(&self) {
         self.cancelled.store(true, Ordering::Relaxed);
     }
-    pub fn reset_cancellation(&self) {
-        self.cancelled.store(false, Ordering::Relaxed);
+    pub fn reset_cancellation(&mut self) {
+        // Never revive jobs from the previous source. Results retain their
+        // original token so even already-completed jobs cannot cross a reset.
+        self.cancel();
+        self.queue
+            .state
+            .lock()
+            .expect("thumbnail queue")
+            .jobs
+            .clear();
+        self.cancelled = Arc::new(AtomicBool::new(false));
     }
     pub fn cache_key(request: &ThumbnailRequest) -> String {
         cache_key(request)
@@ -458,6 +466,33 @@ mod tests {
             media_type: MediaType::Unknown,
             priority,
         }
+    }
+
+    #[test]
+    fn reset_does_not_revive_old_jobs_or_deliver_old_results() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut pipe = ThumbnailPipeline::new(dir.path(), 1, 1).unwrap();
+        let old_token = pipe.cancelled.clone();
+        let (tx, rx) = mpsc::channel();
+        pipe.rx = rx;
+        pipe.cancel();
+        pipe.reset_cancellation();
+        assert!(old_token.load(Ordering::Relaxed));
+        assert!(!pipe.cancelled.load(Ordering::Relaxed));
+        let result = |state| ThumbnailResult {
+            key: "same-file-key".into(),
+            state,
+            bytes: None,
+            error: None,
+        };
+        tx.send((old_token.clone(), result(ThumbnailState::Ready)))
+            .unwrap();
+        tx.send((old_token, result(ThumbnailState::Cancelled)))
+            .unwrap();
+        tx.send((pipe.cancelled.clone(), result(ThumbnailState::Ready)))
+            .unwrap();
+        assert_eq!(pipe.try_recv().unwrap().state, ThumbnailState::Ready);
+        assert!(pipe.try_recv().is_none());
     }
 
     #[test]

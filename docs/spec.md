@@ -253,6 +253,19 @@ hidden from the Sources sidebar. Mounted storage remains available through the
 filesystem adapter as a model-and-mount-dir source. Actual PTP cameras remain
 listed; matching USB mounts are suppressed only for those PTP cameras.
 
+When the selected USB camera disappears, or its removable filesystem is
+unmounted or removed, the browser returns to its initial **Start with a source**
+state. Clear media, selection, previews, bundle/details popups, source identity,
+scroll positions, filters and pending import preview; preserve settings, saved
+presets and import history. Cancel scanning, thumbnails and any active import.
+An import remains busy until its worker finishes recording its cancelled/partial
+results; verified copies and recoverable CapturePort partial files are preserved.
+Late scan, planning, thumbnail and import results must not repopulate the cleared
+browser. Reconnection requires choosing the source again and starts a new scan.
+Physical presence is checked independently of camera autodetection; failed
+presence checks and polls started before source selection do not clear a usable
+source. Ordinary local folders are not cleared by device polling.
+
 Device discovery starts at launch and polls every three seconds. **Refresh devices**
 (and **Scan for cameras** in the empty view) requests an immediate scan on the
 same serialized worker. While a manual scan is pending, the action shows
@@ -2333,7 +2346,7 @@ Everything else should support that workflow rather than compete with it.
 
 # 64. Browser Behavior
 
-The application opens to an empty source browser. Users can choose a local directory with **Open folder**. A **10k-item demo** source is available for exercising selection and scrolling without a camera. Deterministic `--demo` modes cover empty, camera, importing, errors, and 10,000-item states for UI review; a fixture run uses an in-memory catalog and serves a decodable preview per item, so fixtures never touch real import history and always populate the grid.
+The application opens to an empty source browser. Users can choose a local directory with **Open folder**. A **10k-item demo** button is available only in debug builds for exercising selection and scrolling without a camera; release builds omit the sidebar button. Deterministic `--demo` modes cover empty, camera, importing, errors, and 10,000-item states for UI review; a fixture run uses an in-memory catalog and serves a decodable preview per item, so fixtures never touch real import history and always populate the grid.
 
 Filesystem scanning is recursive and read-only. Hidden entries and common system folders are skipped by default, symbolic links are not followed, and files rejected by the active media rules (see section 8) are omitted. The selected source's relative paths are preserved. Changing sources cancels the previous scan and discards its late results.
 

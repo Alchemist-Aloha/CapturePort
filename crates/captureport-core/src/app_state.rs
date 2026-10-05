@@ -67,11 +67,7 @@ impl AppState {
             _ if generation != self.generation => return false,
             AppEvent::SourceRemoved { source_id, .. } => {
                 if self.source.as_ref().is_some_and(|s| s.id == source_id) {
-                    self.source = None;
-                    self.items.clear();
-                    self.order.clear();
-                    self.selected.clear();
-                    self.thumbnails.clear();
+                    self.reset(ScanGeneration(self.generation.0 + 1));
                 }
             }
             AppEvent::MediaDiscovered { mut item, .. } => {
@@ -344,6 +340,14 @@ mod tests {
         }));
         assert_eq!(state.len(), 0);
         assert!(state.source.is_none());
+        assert!(!state.apply_event(AppEvent::SourceDetected {
+            generation: ScanGeneration(4),
+            source: source(),
+        }));
+        assert!(!state.apply_event(AppEvent::ScanStarted {
+            generation: ScanGeneration(4),
+            source_id: SourceId(1),
+        }));
         assert!(!state.apply_event(discovered(2, 4)));
         assert!(!state.apply_event(discovered(2, 3)));
         assert_eq!(state.len(), 0);

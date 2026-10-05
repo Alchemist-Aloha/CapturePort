@@ -8,8 +8,8 @@ use captureport_catalog::{
     CatalogCommand, CatalogHandle, MediaIdentity, SourceIdentity as CatalogSourceIdentity,
 };
 use captureport_core::{
-    AppEvent, FakeSourceBuilder, MediaId, MediaItem, MediaSource, MediaType, ScanContext,
-    ScanGeneration, SourceError,
+    AppEvent, CancellationToken, FakeSourceBuilder, MediaId, MediaItem, MediaSource, MediaType,
+    ScanContext, ScanGeneration, SourceError,
 };
 use captureport_ingest::quick_source;
 use captureport_media::FilesystemSource;
@@ -45,6 +45,7 @@ struct MetadataJob {
     catalog: CatalogHandle,
     catalog_source_id: Option<i64>,
     generation: ScanGeneration,
+    cancellation: CancellationToken,
     sender: mpsc::Sender<ScanMessage>,
 }
 
@@ -69,6 +70,9 @@ pub(crate) fn scan_source(
             return;
         }
     };
+    if scan.is_cancelled() {
+        return;
+    }
     let identity = source.identity();
     let catalog_source = catalog
         .upsert_source(
@@ -140,6 +144,7 @@ pub(crate) fn scan_source(
                 catalog: catalog.clone(),
                 catalog_source_id,
                 generation: scan.generation,
+                cancellation: scan.cancellation().clone(),
                 sender: sender.clone(),
             })
             .map_err(|_| SourceError::Callback("metadata queue closed".into()))?;
@@ -175,8 +180,12 @@ fn process_job(job: MetadataJob) {
         catalog,
         catalog_source_id,
         generation,
+        cancellation,
         sender,
     } = job;
+    if cancellation.is_cancelled() {
+        return;
+    }
     let modified = filesystem_path
         .as_ref()
         .and_then(|path| std::fs::metadata(path).ok())
@@ -225,6 +234,9 @@ fn process_job(job: MetadataJob) {
         }
     }
 
+    if cancellation.is_cancelled() {
+        return;
+    }
     // PTP range reads may spool an entire object; defer strong matching until
     // import rather than downloading every camera item during browsing.
     let quick = if filesystem_path.is_some() {
@@ -232,6 +244,9 @@ fn process_job(job: MetadataJob) {
     } else {
         None
     };
+    if cancellation.is_cancelled() {
+        return;
+    }
     let catalog_media_id = catalog_source_id.and_then(|source_id| {
         let media = MediaIdentity {
             source_id,
@@ -385,6 +400,7 @@ mod tests {
             catalog: catalog.clone(),
             catalog_source_id: Some(catalog_source.id),
             generation: ScanGeneration(1),
+            cancellation: CancellationToken::new(),
             sender,
         });
         let ready = receiver

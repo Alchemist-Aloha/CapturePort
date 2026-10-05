@@ -2,6 +2,11 @@ use crate::*;
 
 impl Render for Browser {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Device removal can dismiss details without a mouse/keyboard event.
+        // Return focus before the popup's focus tree disappears.
+        if self.media_detail.is_none() && self.detail_focus.contains_focused(window, cx) {
+            window.focus(&self.focus);
+        }
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let sidebar_width = if f32::from(window.bounds().size.width) < 760. {
             184.
