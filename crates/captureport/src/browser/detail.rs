@@ -35,8 +35,6 @@ fn original_file_url(root: Option<&Path>, source_path: &str, camera_port: Option
 
 fn detail_rows(item: &MediaItem) -> Vec<(&'static str, String)> {
     let mut rows = vec![
-        ("Filename", item.source_name.clone()),
-        ("Media type", media_type_badge(item.media_type).1.into()),
         (
             "File size",
             format!("{} ({} bytes)", format_size(item.size), item.size),
@@ -118,7 +116,67 @@ fn detail_rows(item: &MediaItem) -> Vec<(&'static str, String)> {
     rows
 }
 
+struct DetailTooltip(Palette);
+
+impl Render for DetailTooltip {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .px(px(spacing::CONTROL_GAP))
+            .py(px(spacing::TIGHT))
+            .bg(self.0.card)
+            .text_color(self.0.text)
+            .border_1()
+            .border_color(self.0.border)
+            .rounded_sm()
+            .text_sm()
+            .child("View media details")
+    }
+}
+
 impl Browser {
+    pub(crate) fn media_detail_trigger(
+        &self,
+        id: MediaId,
+        p: Palette,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        div()
+            .id(("media-details", id.0))
+            .focusable()
+            .tab_index(0)
+            .size(px(spacing::CONTROL_HEIGHT))
+            .flex_shrink_0()
+            .rounded_sm()
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .border_1()
+            .border_color(gpui::rgba(0))
+            .text_color(p.muted)
+            .hover(move |style| style.bg(p.selected).text_color(p.text))
+            .focus(move |style| style.border_color(p.accent).bg(p.selected))
+            .tooltip(move |_, cx| cx.new(|_| DetailTooltip(p)).into())
+            .on_click(cx.listener(move |t, _, w, c| {
+                c.stop_propagation();
+                t.open_media_detail(id, w, c);
+            }))
+            .on_key_down(cx.listener(move |t, event: &gpui::KeyDownEvent, w, c| {
+                if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                    c.stop_propagation();
+                    t.open_media_detail(id, w, c);
+                }
+            }))
+            .child(icons::icon(Icon::Review, p.text))
+            .into_any_element()
+    }
+
+    fn copy_detail_url(&mut self, url: &str, cx: &mut Context<Self>) {
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string(url.to_string()));
+        self.detail_url_copied = true;
+        cx.notify();
+    }
+
     pub(crate) fn open_media_detail(
         &mut self,
         id: MediaId,
@@ -129,6 +187,7 @@ impl Browser {
             return;
         }
         self.media_detail = Some(id);
+        self.detail_url_copied = false;
         self.scrollbars.detail = Default::default();
         window.focus(&self.detail_focus);
         cx.notify();
@@ -136,6 +195,7 @@ impl Browser {
 
     pub(crate) fn close_media_detail(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.media_detail = None;
+        self.detail_url_copied = false;
         window.focus(&self.focus);
         cx.notify();
     }
@@ -180,79 +240,172 @@ impl Browser {
                     .and_then(|source| source.display_name.clone())
             })
             .unwrap_or_else(|| "Source".into());
-        let mut rows = vec![
-            ("Source", source_name),
-            ("Original file", original.display().to_string()),
-        ];
-        rows.extend(detail_rows(item));
-        let mut body = div()
-            .id("media-detail-content")
+        let wide = f32::from(window.bounds().size.width) >= 860.;
+        let compact = f32::from(window.bounds().size.width) < 600.;
+        let preview_height = if wide {
+            260.
+        } else {
+            (f32::from(window.bounds().size.height) * 0.24).clamp(100., 180.)
+        };
+        let mut preview = div()
+            .flex()
+            .flex_col()
+            .gap(px(spacing::CONTROL_GAP))
+            .min_w_0()
+            .when(wide, |view| view.w(px(280.)).flex_shrink_0())
+            .when(!wide, |view| view.w_full());
+        let image_well = div()
+            .w_full()
+            .h(px(preview_height))
+            .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(p.placeholder)
+            .rounded_sm()
+            .overflow_hidden();
+        preview = preview
+            .child(
+                if let Some(path) = self.thumbnail_paths.get(&self.preview_id(id)) {
+                    image_well
+                        .child(
+                            img(path.clone())
+                                .h(px(preview_height))
+                                .max_w_full()
+                                .object_fit(gpui::ObjectFit::Contain),
+                        )
+                        .into_any_element()
+                } else {
+                    image_well
+                        .child(div().text_color(p.muted).child("Preview unavailable"))
+                        .into_any_element()
+                },
+            )
+            .child(
+                div()
+                    .id("detail-filename")
+                    .w_full()
+                    .min_w_0()
+                    .overflow_x_scroll()
+                    .text_sm()
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .child(item.source_name.clone()),
+            )
+            .child(div().text_xs().text_color(p.muted).child(format!(
+                "{} · {}",
+                media_type_badge(item.media_type).1,
+                format_size(item.size)
+            )));
+
+        let click_url = file_url.clone();
+        let mut facts = div()
             .flex_1()
-            .min_h_0()
             .min_w_0()
             .flex()
             .flex_col()
             .gap(px(spacing::CONTENT))
-            .p(px(spacing::CONTENT))
-            .overflow_y_scroll()
-            .track_scroll(&self.scrollbars.detail.handle)
-            .scrollbar_width(px(spacing::SCROLLBAR_GUTTER));
-        if let Some(path) = self.thumbnail_paths.get(&self.preview_id(id)) {
-            body = body.child(
+            .child(
                 div()
-                    .w_full()
-                    .h(px(220.))
-                    .flex_shrink_0()
                     .flex()
-                    .items_center()
-                    .justify_center()
-                    .bg(p.placeholder)
-                    .rounded_sm()
-                    .overflow_hidden()
+                    .flex_col()
+                    .gap(px(spacing::TIGHT))
                     .child(
-                        img(path.clone())
-                            .h(px(220.))
-                            .max_w_full()
-                            .object_fit(gpui::ObjectFit::Contain),
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .gap(px(spacing::CONTROL_GAP))
+                            .child(div().text_xs().text_color(p.muted).child("Original file"))
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(spacing::TIGHT))
+                                    .text_xs()
+                                    .text_color(if self.detail_url_copied {
+                                        p.accent
+                                    } else {
+                                        p.muted
+                                    })
+                                    .when(self.detail_url_copied, |view| {
+                                        view.child(icons::icon_sized(
+                                            Icon::Confirm,
+                                            icons::ICON_SIZE_COMPACT,
+                                            p.accent,
+                                        ))
+                                    })
+                                    .child(if self.detail_url_copied {
+                                        "URL copied"
+                                    } else {
+                                        "Click to copy URL"
+                                    }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("original-file-copy")
+                            .focusable()
+                            .tab_index(0)
+                            .min_w_0()
+                            .min_h(px(spacing::CONTROL_HEIGHT))
+                            .flex()
+                            .items_center()
+                            .px(px(spacing::CONTROL_GAP))
+                            .py(px(spacing::TIGHT))
+                            .rounded_sm()
+                            .border_1()
+                            .border_color(p.border)
+                            .bg(p.panel)
+                            .cursor_pointer()
+                            .hover(move |style| style.bg(p.selected))
+                            .focus(move |style| style.border_color(p.accent))
+                            .on_click(cx.listener(move |t, _, _, c| {
+                                c.stop_propagation();
+                                t.copy_detail_url(&click_url, c);
+                            }))
+                            .on_key_down(cx.listener(move |t, event: &gpui::KeyDownEvent, _, c| {
+                                if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                                    c.stop_propagation();
+                                    t.copy_detail_url(&file_url, c);
+                                }
+                            }))
+                            .child(
+                                div()
+                                    .id("original-file-path")
+                                    .flex_1()
+                                    .min_w_0()
+                                    .overflow_x_scroll()
+                                    .child(original.display().to_string()),
+                            ),
                     ),
             );
-        } else {
-            body = body.child(div().text_color(p.muted).child("Preview unavailable"));
-        }
-        body = body.children(rows.into_iter().map(|(label, value)| {
+        let mut rows = vec![("Source", source_name)];
+        rows.extend(detail_rows(item));
+        facts = facts.children(rows.into_iter().map(|(label, value)| {
             div()
                 .flex_shrink_0()
                 .min_w_0()
                 .flex()
-                .flex_col()
-                .gap(px(spacing::TIGHT))
+                .gap(px(spacing::CONTROL_GAP))
+                .py(px(spacing::TIGHT))
+                .border_b_1()
+                .border_color(p.border)
+                .when(compact, |view| view.flex_col())
                 .child(
                     div()
+                        .flex_shrink_0()
                         .text_xs()
                         .text_color(p.muted)
-                        .child(if label == "Original file" {
-                            "Original file · click to copy URL"
-                        } else {
-                            label
-                        }),
+                        .when(!compact, |view| view.w(px(120.)))
+                        .child(label),
                 )
                 .child(
                     div()
                         .id(label)
+                        .flex_1()
                         .min_w_0()
                         .overflow_x_scroll()
-                        .when(label == "Original file", |view| {
-                            let file_url = file_url.clone();
-                            view.cursor_pointer()
-                                .rounded_sm()
-                                .hover(move |style| style.bg(p.selected))
-                                .on_click(move |_, _, cx| {
-                                    cx.stop_propagation();
-                                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(
-                                        file_url.clone(),
-                                    ));
-                                })
-                        })
+                        .text_sm()
                         .child(if value.is_empty() {
                             "Unavailable".into()
                         } else {
@@ -260,6 +413,24 @@ impl Browser {
                         }),
                 )
         }));
+        let body = div()
+            .id("media-detail-content")
+            .flex_1()
+            .min_h_0()
+            .min_w_0()
+            .p(px(spacing::CONTENT))
+            .overflow_y_scroll()
+            .track_scroll(&self.scrollbars.detail.handle)
+            .scrollbar_width(px(spacing::SCROLLBAR_GUTTER))
+            .child(
+                div()
+                    .flex()
+                    .gap(px(spacing::SECTION))
+                    .min_w_0()
+                    .when(!wide, |view| view.flex_col())
+                    .child(preview)
+                    .child(facts),
+            );
         Some(
             div()
                 .id("media-detail-backdrop")
@@ -276,12 +447,25 @@ impl Browser {
                     div()
                         .id("media-detail-popup")
                         .occlude()
+                        .tab_group()
+                        .tab_index(0)
+                        .tab_stop(false)
                         .track_focus(&self.detail_focus)
+                        .on_key_down(|event, window, cx| {
+                            if event.keystroke.key == "tab" {
+                                cx.stop_propagation();
+                                if event.keystroke.modifiers.shift {
+                                    window.focus_prev();
+                                } else {
+                                    window.focus_next();
+                                }
+                            }
+                        })
                         .w_full()
-                        .max_w(px(720.))
+                        .max_w(px(880.))
                         .h(px((f32::from(window.bounds().size.height)
                             - spacing::CONTENT * 2.)
-                            .clamp(120., 800.)))
+                            .clamp(120., if wide { 560. } else { 640. })))
                         .min_w_0()
                         .flex()
                         .flex_col()
@@ -307,12 +491,33 @@ impl Browser {
                                         .font_weight(gpui::FontWeight::SEMIBOLD)
                                         .child("Media details"),
                                 )
-                                .child(button(
-                                    Icon::Cancel,
-                                    "Close",
-                                    p,
-                                    cx.listener(|t, _, w, c| t.close_media_detail(w, c)),
-                                )),
+                                .child(
+                                    div()
+                                        .id("media-detail-close")
+                                        .focusable()
+                                        .tab_index(1)
+                                        .rounded_sm()
+                                        .border_1()
+                                        .border_color(gpui::rgba(0))
+                                        .focus(move |style| style.border_color(p.accent))
+                                        .on_key_down(cx.listener(
+                                            |t, event: &gpui::KeyDownEvent, w, c| {
+                                                if matches!(
+                                                    event.keystroke.key.as_str(),
+                                                    "enter" | "space"
+                                                ) {
+                                                    c.stop_propagation();
+                                                    t.close_media_detail(w, c);
+                                                }
+                                            },
+                                        ))
+                                        .child(button(
+                                            Icon::Cancel,
+                                            "Close",
+                                            p,
+                                            cx.listener(|t, _, w, c| t.close_media_detail(w, c)),
+                                        )),
+                                ),
                         )
                         .child(
                             div()

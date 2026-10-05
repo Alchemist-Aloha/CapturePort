@@ -208,7 +208,7 @@ keeps the badge and the desktop icon on the same four values.
 
 The desktop shell is vertical: a 48px header, a flexible body, and a 52px footer. The header carries the wordmark lockup on the left — the Spectral logotype, a 1px vertical rule, and the descriptor — with the theme toggle at the right. The body places a fixed source rail beside a fluid content area. The rail is 232px wide at normal windows and 184px below the single 760px window-width breakpoint.
 
-The browser uses a reflowing contact sheet with 16px grid gaps and 16px content gutters. Thumbnail targets remain the existing stepped sizes; each image well uses `ObjectFit::Contain` so photographs are never cropped. The layout reserves 208px for browser control chrome and 124px for media metadata and the Details action; the resulting media row chrome is 142px (124px details + 16px grid gap + 2px borders). A grouped gallery heading contributes 44px (36px control height + 8px control gap).
+The browser uses a reflowing contact sheet with 16px grid gaps and 16px content gutters. Thumbnail targets remain the existing stepped sizes; each image well uses `ObjectFit::Contain` so photographs are never cropped. The layout reserves 208px for browser control chrome and 112px for media metadata and the integrated details icon; the resulting media row chrome is 130px (112px details + 16px grid gap + 2px borders). A grouped gallery heading contributes 44px (36px control height + 8px control gap).
 
 The footer keeps selection totals and “Preview import” together. It remains present while status messages change, so the review action has a stable location.
 
@@ -250,7 +250,9 @@ The system uses a 4px radius for buttons, filters, navigation rows, fields, card
 - Metadata is separate: filename, time plus size, import status, then “View files” / “Hide files” for bundles. The metadata caption carries its own surface — `card` when unselected, `selected` when selected — so the title and metadata never float directly on the page canvas.
 - The filename wrapper is explicitly full width before ellipsis truncation, so long source names remain stable in the grid.
 - Import status always uses icon plus text, including prior-session detail when available.
-- A labelled Details button shares the caption's last row with bundle disclosure. It opens a read-only, palette-matched popup with a contained cached preview, original file path and metadata. The popup uses the existing flat 4px surface and 1px border, a dim backdrop, a scrollable body and a persistent Close action. The Original file value is a hover-highlighted copy target with an explicit click-to-copy-URL hint; there is no directory row or copy-directory footer. Escape and outside click dismiss it without changing selection.
+- An unboxed 36px details-icon target sits beside the filename, with a View media details tooltip, a quiet hover surface and an accent focus outline. Bundle members share the same control; disclosure and selection retain their own gestures.
+- The palette-matched details popup pairs a contained cached preview and filename with a compact label/value table on wide windows, stacking them on smaller windows. Long filenames and original paths scroll horizontally rather than collapsing to an ellipsis. The existing flat 4px surface, 1px border, dim backdrop, scrollable body and persistent Close action remain.
+- Original file is a full-width, focusable copy target. Its click-to-copy hint becomes a check icon and URL copied after copying, resetting on close or reopening. Enter/Space activates it, Tab stays inside the popup, and Escape/outside click dismisses without changing selection. There is no directory row or copy-directory footer.
 
 ### Footer and Import Disclosure
 

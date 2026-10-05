@@ -2341,11 +2341,18 @@ Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions r
 
 The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. A tile overlays its media-type badge at the thumbnail's top-right and its file size at the bottom-left, with the source file's modification time in a compact format below the filename; camera items without a local file omit the time. The filename and metadata caption carries its own surface — the `card` tone when unselected and the `selected` tone when selected — so the text never sits directly on the page canvas. The status line below that is icon plus text (`✓ Imported`, `! Possible duplicate`, `? Unknown`, `New`, `Checking…`); for a file classified as imported or a possible duplicate it also names the prior import that matched, as a session number and date, so an uncertain classification is traceable rather than asserted. Selection is shown by the tile background, the tile border, and a `Selected` / `Part selected` label drawn on the image over the same black scrim as the media-type badge. The label never uses a themed surface: a card-coloured chip measures 1.19:1 against a bright frame and disappears over a blown-out photograph, while white ink on the 60% black scrim holds 5.7:1 against the brightest possible frame. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Bulk selection preserves explicit bundle-member choices, including members hidden by the current filter; unavailable previews remain counted in selection and listed in the import preview. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
 
-Every media tile and expanded bundle member has a **Details** button. It opens
-a read-only media-details popup without changing selection or expanding a bundle.
+Every media tile has a compact, unboxed details icon beside its filename;
+expanded bundle members use the same icon. Its tooltip reads **View media
+details**. Click or focus it with Tab and press Enter or Space to open a read-only
+media-details popup without changing selection or expanding a bundle.
 The popup reuses the cached preview and shows the original filename, media type,
 file size, import status, available capture metadata, source, and original file
-path. Clicking **Original file** copies its URL to the clipboard. Local files use
+path. On wide windows, the preview and filename sit beside a compact metadata
+table; narrower windows stack them, and the preview shrinks with window height.
+Clicking **Original file** (or focusing it and pressing Enter/Space) copies its URL
+to the clipboard and shows a check icon with **URL copied** beside the field.
+This feedback resets when details are opened again or closed. Tab cycles between
+the copy field and Close within the popup. Local files use
 a percent-encoded `file://` URL resolved against the opened source root; connected
 camera files use a `gphoto2://[usb:BUS,DEVICE]/…` URL with an encoded device-side
 path. Synthetic sources or cameras without a discovered port copy their original

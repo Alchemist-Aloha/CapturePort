@@ -30,6 +30,7 @@ impl Browser {
         self.pair_index.clear();
         self.expanded_bundle = None;
         self.media_detail = None;
+        self.detail_url_copied = false;
         self.explicit_bundle_selection.clear();
         self.source = None;
         self.source_alias = None;

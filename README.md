@@ -40,8 +40,9 @@ Runtime requirements:
    already in your history are marked and left unselected, so new media is what
    remains selected. Use the **All / Photos / Videos / New / Imported /
    Possible** filters, and **View options** to sort by capture time or name and
-   change the thumbnail size. **Details** on a media item shows its preview,
-   metadata, and original file path. Click **Original file** to copy its URL.
+   change the thumbnail size. The details icon beside a media item's filename
+   shows its preview, metadata, and original file path. Click **Original file**
+   to copy its URL; a **URL copied** indicator confirms the action.
 3. **Select what to copy.** Toggle individual items, use **Select all** or
    **Select new**, and click a gallery heading to select everything in one
    shooting session.

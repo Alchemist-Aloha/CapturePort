@@ -48,6 +48,19 @@ impl Render for Browser {
             .text_size(px(14.))
             .text_color(p.text)
             .track_focus(&self.focus_handle(cx))
+            .on_key_down(cx.listener(|t, event: &gpui::KeyDownEvent, window, cx| {
+                if t.page == Page::Browser
+                    && t.media_detail.is_none()
+                    && event.keystroke.key == "tab"
+                {
+                    cx.stop_propagation();
+                    if event.keystroke.modifiers.shift {
+                        window.focus_prev();
+                    } else {
+                        window.focus_next();
+                    }
+                }
+            }))
             .on_action(cx.listener(Self::select_none))
             .when(self.media_detail.is_none(), |view| {
                 view.on_action(cx.listener(Self::open_folder))

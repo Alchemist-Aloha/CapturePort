@@ -506,14 +506,16 @@ impl Browser {
                                 // metadata would otherwise float on the grid with no tile edge.
                                 let metadata = div().w_full().h(px(spacing::MEDIA_DETAILS_HEIGHT)).px(px(spacing::CONTROL_GAP)).py(px(spacing::CONTROL_GAP)).min_w_0()
                                     .bg(if selected { p.selected } else { p.card })
-                                    .child(div().id(("media-name", id.0)).w_full().min_w_0().cursor_pointer().rounded_sm()
-                                        .on_click(cx.listener(move |t, _, _, c| {
-                                            c.stop_propagation();
-                                            t.toggle_group_selection(id, c);
-                                        }))
-                                        .hover(move |style| style.bg(p.selected))
-                                        .child(div().w_full().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
-                                            .truncate().child(item.source_name.clone())))
+                                    .child(div().flex().items_center().gap(px(spacing::TIGHT))
+                                        .child(div().id(("media-name", id.0)).flex_1().min_w_0().cursor_pointer().rounded_sm()
+                                            .on_click(cx.listener(move |t, _, _, c| {
+                                                c.stop_propagation();
+                                                t.toggle_group_selection(id, c);
+                                            }))
+                                            .hover(move |style| style.bg(p.selected))
+                                            .child(div().w_full().text_sm().font_weight(gpui::FontWeight::SEMIBOLD)
+                                                .truncate().child(item.source_name.clone())))
+                                        .child(t.media_detail_trigger(id, p, cx)))
                                     .child(div().mt(px(spacing::TIGHT)).text_xs().text_color(p.muted).truncate().child(
                                         if time_label.is_empty() { size_label } else { format!("{time_label} · {size_label}") }))
                                     .child(div().id(("media-status", id.0)).mt(px(spacing::TIGHT)).truncate().text_xs().font_weight(gpui::FontWeight::SEMIBOLD).cursor_pointer()
@@ -526,10 +528,7 @@ impl Browser {
                                             .child(if members.is_some() {
                                                 if expanded { "Hide files" } else { "View files" }
                                             } else { "" }))
-                                        .child(button(Icon::Review, "Details", p, cx.listener(move |t,_,w,c| {
-                                            c.stop_propagation();
-                                            t.open_media_detail(id,w,c);
-                                        }))));
+                                        );
                                 cards=cards.child(div().id(("media",id.0)).flex_1().min_w_0()
                                     .overflow_hidden().rounded_sm().border_1()
                                     .border_color(if partly_selected || expanded {p.accent}else{p.canvas})
@@ -706,15 +705,7 @@ impl Browser {
                             .flex()
                             .items_center()
                             .gap(px(spacing::CONTROL_GAP))
-                            .child(button(
-                                Icon::Review,
-                                "Details",
-                                p,
-                                cx.listener(move |t, _, w, c| {
-                                    c.stop_propagation();
-                                    t.open_media_detail(id, w, c);
-                                }),
-                            ))
+                            .child(self.media_detail_trigger(id, p, cx))
                             .child(
                                 div()
                                     .text_sm()
