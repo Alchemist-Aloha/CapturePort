@@ -32,7 +32,193 @@ impl Browser {
         );
         cx.notify();
     }
+    pub(crate) fn load_saved_preset(&mut self, id: i64, cx: &mut Context<Self>) {
+        if self.preset_busy {
+            return;
+        }
+        let Some(record) = self.saved_presets.iter().find(|preset| preset.id == id) else {
+            return;
+        };
+        let saved = match saved_presets::SavedSettings::decode(&record.configuration_json) {
+            Ok(saved) => saved,
+            Err(error) => {
+                self.preset_message = Some(format!("Could not load preset: {error}"));
+                cx.notify();
+                return;
+            }
+        };
+        let name = record.name.clone();
+        let replan = self.plan.is_some() || self.planning;
+        self.preset = saved.import;
+        self.preset.name = name.clone();
+        self.ui = saved.appearance;
+        self.backup_required_choice = saved.backup_required;
+        self.settings.sync(&self.preset, cx);
+        self.settings
+            .preset_name
+            .update(cx, |input, cx| input.set_value(name.clone(), cx));
+        self.settings
+            .source_alias
+            .update(cx, |input, cx| input.set_value(saved.source_alias, cx));
+        self.settings
+            .gap_minutes
+            .update(cx, |input, cx| input.set_value(saved.gap_minutes, cx));
+        self.selected_preset = Some(id);
+        self.preset_confirmation = None;
+        self.timezone_menu_open = false;
+        self.template_segment_target = None;
+        self.invalidate_plan();
+        self.rebuild_bundles();
+        self.refresh();
+        self.pump_thumbnails();
+        self.save_preset();
+        self.save_ui();
+        self.preset_message = Some(format!(
+            "Loaded {name}. Save source alias separately; rescan to apply discovery rules."
+        ));
+        if replan && !self.scanning {
+            self.start_plan(cx);
+        }
+        cx.notify();
+    }
+
+    pub(crate) fn manage_preset(
+        &mut self,
+        action: saved_presets::PresetAction,
+        cx: &mut Context<Self>,
+    ) {
+        use saved_presets::{PresetAction, SavedSettings};
+        if self.preset_busy {
+            return;
+        }
+        let selected = self
+            .saved_presets
+            .iter()
+            .find(|preset| Some(preset.id) == self.selected_preset);
+        if action != PresetAction::Create && selected.is_none() {
+            self.preset_message = Some("Choose a saved preset first.".into());
+            cx.notify();
+            return;
+        }
+        if matches!(action, PresetAction::Overwrite | PresetAction::Delete)
+            && self.preset_confirmation != Some(action)
+        {
+            self.preset_confirmation = Some(action);
+            cx.notify();
+            return;
+        }
+        self.preset_confirmation = None;
+        let name = if action == PresetAction::Overwrite || action == PresetAction::Delete {
+            selected.expect("selected preset").name.clone()
+        } else {
+            self.settings
+                .preset_name
+                .read(cx)
+                .value()
+                .trim()
+                .to_string()
+        };
+        if name.is_empty() || name.chars().any(char::is_control) {
+            self.preset_message =
+                Some("Enter a non-empty preset name without control characters.".into());
+            cx.notify();
+            return;
+        }
+        if matches!(action, PresetAction::Create | PresetAction::Rename)
+            && self.saved_presets.iter().any(|preset| {
+                preset.name == name
+                    && (action == PresetAction::Create || Some(preset.id) != self.selected_preset)
+            })
+        {
+            self.preset_message =
+                Some("That name already exists. Choose another name or use Overwrite.".into());
+            cx.notify();
+            return;
+        }
+        let configuration = if matches!(action, PresetAction::Create | PresetAction::Overwrite) {
+            let result = self
+                .settings
+                .read(&self.preset, self.backup_required_choice, cx)
+                .and_then(|mut import| {
+                    import.name = name.clone();
+                    serde_json::to_string(&SavedSettings {
+                        version: 1,
+                        import,
+                        appearance: self.ui,
+                        source_alias: self.settings.source_alias.read(cx).value(),
+                        gap_minutes: self.settings.gap_minutes.read(cx).value(),
+                        backup_required: self.backup_required_choice,
+                    })
+                    .map_err(|error| error.to_string())
+                });
+            match result {
+                Ok(json) => json,
+                Err(error) => {
+                    self.preset_message = Some(format!("Could not save preset: {error}"));
+                    cx.notify();
+                    return;
+                }
+            }
+        } else {
+            String::new()
+        };
+        let id = self.selected_preset;
+        let catalog = self.catalog.clone();
+        let (tx, rx) = mpsc::channel();
+        self.work_receivers.push(rx);
+        self.preset_busy = true;
+        self.preset_message = Some("Saving preset changes…".into());
+        thread::spawn(move || {
+            let result = (|| -> Result<_, String> {
+                let (selected, message) = match action {
+                    PresetAction::Create => {
+                        let record = catalog
+                            .create_preset(name.clone(), configuration, now())
+                            .map_err(|error| error.to_string())?;
+                        (Some(record.id), format!("Created {name}."))
+                    }
+                    PresetAction::Rename => {
+                        catalog
+                            .rename_preset(id.expect("selected preset"), name.clone(), now())
+                            .map_err(|error| error.to_string())?;
+                        (id, format!("Renamed preset to {name}."))
+                    }
+                    PresetAction::Overwrite => {
+                        catalog
+                            .upsert_preset(id, name.clone(), configuration, now())
+                            .map_err(|error| error.to_string())?;
+                        (id, format!("Overwrote {name} with all current settings."))
+                    }
+                    PresetAction::Delete => {
+                        catalog
+                            .delete_preset(id.expect("selected preset"))
+                            .map_err(|error| error.to_string())?;
+                        (
+                            None,
+                            format!(
+                                "Deleted {name}. Current settings and imported files are unchanged."
+                            ),
+                        )
+                    }
+                };
+                let presets = catalog.list_presets().map_err(|error| error.to_string())?;
+                Ok((presets, selected, message))
+            })();
+            let _ = tx.send(WorkMessage::Presets(result));
+        });
+        cx.notify();
+    }
+
     pub(crate) fn choose_preset(&mut self, organized: bool, cx: &mut Context<Self>) {
+        if self.preset_busy {
+            return;
+        }
+        self.selected_preset = None;
+        self.preset_confirmation = None;
+        self.preset_message = None;
+        self.settings
+            .preset_name
+            .update(cx, |input, cx| input.set_value(String::new(), cx));
         let home = std::env::var_os("HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/"));
@@ -124,21 +310,7 @@ impl Browser {
         self.invalidate_plan();
         self.page = Page::Browser;
         self.message = Some("Import settings saved; build a new preview".into());
-        let path = self.config_path.clone();
-        let (tx, rx) = mpsc::channel();
-        self.work_receivers.push(rx);
-        thread::spawn(move || {
-            let result = (|| -> Result<(), String> {
-                let data = serde_json::to_vec_pretty(&preset).map_err(|e| e.to_string())?;
-                let temporary = path.with_extension("json.tmp");
-                std::fs::write(&temporary, data).map_err(|e| e.to_string())?;
-                std::fs::rename(temporary, path).map_err(|e| e.to_string())?;
-                Ok(())
-            })();
-            if let Err(error) = result {
-                let _ = tx.send(WorkMessage::Done(Err(error)));
-            }
-        });
+        self.save_preset();
         if replan && !self.scanning {
             self.start_plan(cx);
         }

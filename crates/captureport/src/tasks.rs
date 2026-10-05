@@ -9,6 +9,7 @@ pub(crate) enum WorkMessage {
     ImportResult(captureport_ingest::ImportResult),
     CacheCleared(usize),
     SourceAlias(i64, Option<String>),
+    Presets(Result<(Vec<captureport_catalog::PresetRecord>, Option<i64>, String), String>),
     MarkedImported {
         generation: ScanGeneration,
         media_ids: Vec<MediaId>,

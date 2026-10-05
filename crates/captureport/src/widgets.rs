@@ -63,13 +63,14 @@ pub(crate) fn danger_button(
         .child(div().min_w_0().truncate().child(label))
 }
 pub(crate) fn chip(
-    label: &'static str,
+    label: impl Into<gpui::SharedString>,
     active: bool,
     palette: Palette,
     handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
+    let label = label.into();
     let chip = div()
-        .id(label)
+        .id(label.clone())
         .min_h(px(spacing::CONTROL_HEIGHT))
         .cursor_pointer()
         .flex()

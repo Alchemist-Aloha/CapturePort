@@ -1,7 +1,8 @@
 use crate::ffi;
 use captureport_core::{
-    classify_path, CancellationToken, MediaId, MediaItem, MediaLocator, MediaSource, MediaType,
-    ScanContext, SourceError, SourceId, SourceIdentity, SourceType,
+    classify_path, CancellationToken, MediaId, MediaItem, MediaLocator, MediaMetadata, MediaSource,
+    MediaType, MetadataState, ScanContext, SourceError, SourceId, SourceIdentity, SourceType,
+    TimestampSource,
 };
 use std::{
     collections::HashMap,
@@ -541,19 +542,22 @@ impl CameraWorker {
                 }
                 let cfile = CString::new(name.as_str()).map_err(|_| err(-1, "file name"))?;
                 let mut info = std::mem::zeroed();
-                let _ = ffi::gp_camera_file_get_info(
+                let info_result = ffi::gp_camera_file_get_info(
                     self.camera,
                     cfolder.as_ptr(),
                     cfile.as_ptr(),
                     &mut info,
                     self.context,
                 );
-                let item = MediaItem::new(
+                let mut item = MediaItem::new(
                     MediaId(self.next_media_id()),
                     self.source_id,
                     &path,
                     info.file.size,
                 );
+                if info_result >= 0 {
+                    item.metadata = MetadataState::Ready(camera_metadata(&info.file));
+                }
                 if reply.send(EnumEvent::Item(Box::new(item))).is_err() {
                     ffi::gp_list_free(files);
                     return Err(err(-1, "enumeration consumer disconnected"));
@@ -741,6 +745,20 @@ fn split_path(path: &str) -> (&str, &str) {
         .map(|(f, n)| (if f.is_empty() { "/" } else { f }, n))
         .unwrap_or(("/", path))
 }
+fn camera_metadata(info: &ffi::CameraFileInfoFile) -> MediaMetadata {
+    // Zero is commonly used for an unavailable PTP date; never invent a capture time.
+    let capture_time = (info.fields & ffi::FILE_INFO_MTIME != 0 && info.mtime > 0)
+        .then(|| chrono::DateTime::from_timestamp(info.mtime, 0))
+        .flatten()
+        .map(|time| time.to_rfc3339());
+    let timestamp_source = capture_time.as_ref().map(|_| TimestampSource::Camera);
+    MediaMetadata {
+        capture_time,
+        timestamp_source,
+        ..MediaMetadata::default()
+    }
+}
+
 fn is_camera_media_path(path: &str) -> bool {
     !matches!(classify_path(path), MediaType::Sidecar | MediaType::Unknown)
 }
@@ -794,6 +812,26 @@ unsafe fn cleanup_open(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn camera_timestamp_requires_valid_flag_and_value() {
+        let mut info: ffi::CameraFileInfoFile = unsafe { std::mem::zeroed() };
+        info.fields = ffi::FILE_INFO_MTIME;
+        info.mtime = 1_767_225_600;
+        let metadata = camera_metadata(&info);
+        assert_eq!(
+            metadata.capture_time.as_deref(),
+            Some("2026-01-01T00:00:00+00:00")
+        );
+        assert_eq!(metadata.timestamp_source, Some(TimestampSource::Camera));
+        info.fields = 0;
+        assert_eq!(camera_metadata(&info), MediaMetadata::default());
+        info.fields = ffi::FILE_INFO_MTIME;
+        for invalid in [0, -1, i64::MAX] {
+            info.mtime = invalid;
+            assert_eq!(camera_metadata(&info), MediaMetadata::default());
+        }
+    }
+
     #[test]
     fn stable_key_is_repeatable() {
         assert_eq!(

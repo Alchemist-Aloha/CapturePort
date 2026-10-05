@@ -87,6 +87,8 @@ pub struct CameraFileInfo {
     pub audio: CameraFileInfoAudio,
 }
 
+pub const FILE_INFO_MTIME: c_int = 1 << 7;
+
 pub const FILE_PREVIEW: c_int = 0;
 pub const FILE_NORMAL: c_int = 1;
 

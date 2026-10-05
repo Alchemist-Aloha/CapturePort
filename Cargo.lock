@@ -811,6 +811,7 @@ name = "captureport-gphoto"
 version = "0.2.0"
 dependencies = [
  "captureport-core",
+ "chrono",
 ]
 
 [[package]]

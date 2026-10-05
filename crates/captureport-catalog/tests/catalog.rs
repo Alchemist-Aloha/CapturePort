@@ -2,6 +2,77 @@ use captureport_catalog::*;
 use rusqlite::Connection;
 use tempfile::tempdir;
 
+#[test]
+fn saved_presets_support_crud_without_silent_overwrite_and_preserve_history() {
+    let directory = tempdir().unwrap();
+    let path = directory.path().join("catalog.sqlite3");
+    let catalog = CatalogHandle::open(path.clone()).unwrap();
+    assert!(catalog.list_presets().unwrap().is_empty());
+    let first = catalog
+        .create_preset(" Travel ".into(), "{\"rules\":1}".into(), "created".into())
+        .unwrap();
+    assert_eq!(first.name, "Travel");
+    assert!(catalog
+        .create_preset("Travel".into(), "replacement".into(), "later".into())
+        .is_err());
+    assert_eq!(
+        catalog.list_presets().unwrap()[0].configuration_json,
+        first.configuration_json
+    );
+    for name in ["", "   ", "bad\nname"] {
+        assert!(catalog
+            .create_preset(name.into(), "{}".into(), "now".into())
+            .is_err());
+    }
+    let second = catalog
+        .create_preset("Studio".into(), "{}".into(), "created".into())
+        .unwrap();
+    assert!(catalog
+        .rename_preset(first.id, second.name.clone(), "later".into())
+        .is_err());
+    catalog
+        .rename_preset(first.id, "Holiday".into(), "renamed".into())
+        .unwrap();
+    let renamed = catalog
+        .list_presets()
+        .unwrap()
+        .into_iter()
+        .find(|preset| preset.id == first.id)
+        .unwrap();
+    assert_eq!(renamed.configuration_json, first.configuration_json);
+    assert_eq!(renamed.created_at, first.created_at);
+    let updated = catalog
+        .upsert_preset(Some(first.id), "Holiday", "{\"rules\":2}", "overwritten")
+        .unwrap();
+    assert_eq!(updated.id, first.id);
+    assert_eq!(updated.created_at, first.created_at);
+    assert_eq!(updated.configuration_json, "{\"rules\":2}");
+    let source = catalog
+        .upsert_source(identity("preset-camera"), "now")
+        .unwrap();
+    let session = catalog
+        .begin_session(source.id, Some(first.id), "now")
+        .unwrap();
+    drop(catalog);
+    let catalog = CatalogHandle::open(path).unwrap();
+    let presets = catalog.list_presets().unwrap();
+    assert_eq!(presets.len(), 2);
+    assert_eq!(presets[0].name, "Holiday");
+    assert_eq!(presets[0].configuration_json, updated.configuration_json);
+    catalog.delete_preset(first.id).unwrap();
+    assert_eq!(catalog.list_presets().unwrap(), vec![second]);
+    let detail = catalog.session_detail(session.id).unwrap();
+    assert_eq!(detail.session.id, session.id);
+    assert_eq!(detail.session.preset_id, None);
+    assert!(catalog.delete_preset(first.id).is_err());
+    assert!(catalog
+        .rename_preset(first.id, "Gone".into(), "now".into())
+        .is_err());
+    assert!(catalog
+        .upsert_preset(Some(first.id), "Gone", "{}", "now")
+        .is_err());
+}
+
 fn identity(stable: &str) -> SourceIdentity {
     SourceIdentity {
         stable_id: Some(stable.into()),

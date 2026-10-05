@@ -13,6 +13,7 @@ pub(crate) enum Page {
     Settings,
 }
 pub(crate) struct SettingsInputs {
+    pub(crate) preset_name: Entity<text_input::TextInput>,
     pub(crate) photo_root: Entity<text_input::TextInput>,
     pub(crate) photo_folder: Entity<text_input::TextInput>,
     pub(crate) video_root: Entity<text_input::TextInput>,
@@ -255,6 +256,7 @@ impl SettingsInputs {
             cx.new(|cx| text_input::TextInput::new(value, "", cx))
         };
         Self {
+            preset_name: field(String::new(), cx),
             photo_root: field(preset.photo.root.display().to_string(), cx),
             photo_folder: field(preset.photo.folder_template.clone(), cx),
             video_root: field(preset.video.root.display().to_string(), cx),

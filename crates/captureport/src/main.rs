@@ -4,6 +4,7 @@ mod icons;
 mod logging;
 mod model;
 mod paths;
+mod saved_presets;
 mod scan;
 mod scrollbar;
 mod spacing;
@@ -111,6 +112,11 @@ struct Browser {
     preset: ImportPreset,
     backup_required_choice: bool,
     settings: SettingsInputs,
+    saved_presets: Vec<captureport_catalog::PresetRecord>,
+    selected_preset: Option<i64>,
+    preset_busy: bool,
+    preset_confirmation: Option<saved_presets::PresetAction>,
+    preset_message: Option<String>,
     template_segment_target: Option<Entity<text_input::TextInput>>,
     config_path: PathBuf,
     ui_path: PathBuf,
@@ -263,6 +269,21 @@ impl Browser {
                 manual = request_rx.recv_timeout(Duration::from_secs(3)).is_ok();
             }
         });
+        let presets_catalog = catalog.clone();
+        let (presets_tx, presets_rx) = mpsc::channel();
+        thread::spawn(move || {
+            let result = presets_catalog
+                .list_presets()
+                .map(|presets| {
+                    (
+                        presets,
+                        None,
+                        "Choose a preset to load its settings.".into(),
+                    )
+                })
+                .map_err(|error| error.to_string());
+            let _ = presets_tx.send(WorkMessage::Presets(result));
+        });
         let mut browser = Self {
             scrollbars: scrollbar::Scrollbars::default(),
             state: AppState::new(),
@@ -283,7 +304,7 @@ impl Browser {
             timezone_menu_open: false,
             explicit_bundle_selection: HashSet::new(),
             receiver: None,
-            work_receivers: vec![recovery_rx],
+            work_receivers: vec![recovery_rx, presets_rx],
             cancellation: None,
             import_cancellation: None,
             reconcile_cancellation: None,
@@ -299,6 +320,11 @@ impl Browser {
             preset,
             backup_required_choice,
             settings,
+            saved_presets: Vec::new(),
+            selected_preset: None,
+            preset_busy: true,
+            preset_confirmation: None,
+            preset_message: None,
             template_segment_target: None,
             config_path,
             ui_path,

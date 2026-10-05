@@ -440,6 +440,12 @@ camera timestamp
 filesystem modification time
 ```
 
+During PTP browsing, CapturePort uses the device-reported file timestamp supplied
+by libgphoto2 as the camera timestamp, when its validity flag is set and the value
+is positive and representable. Missing or invalid dates remain unavailable.
+Browsing does not download full camera files solely to extract embedded metadata;
+filesystem sources continue to prefer embedded capture time.
+
 The importer should support temporary clock correction during an import.
 
 Example:
@@ -1339,6 +1345,31 @@ backup rules
 clock settings
 selection filters
 ```
+
+The Settings page supports named user presets in addition to the read-only
+Everyday and Organized starting points. **Create preset** saves a snapshot of
+all settings-page parameters: destinations and templates, verification, bundle,
+grouping and collision policies, media-discovery rules, clock correction and
+timezone, backup roots and requirement, RAW/JPEG browsing, appearance, and the
+source-alias field. Inactive session-gap and backup-required choices are also
+preserved. The preset name must be non-empty and unique; creating or renaming
+must never silently replace another preset.
+
+Choosing a saved preset restores its fields, immediately applies import and
+browsing/appearance settings, invalidates the previous import plan, and rebuilds
+an existing preview. Changed discovery rules take effect on the next source
+scan. A restored source alias remains an editable field until **Save source
+alias** is explicitly used for the current source; loading must not rename an
+unrelated connected device automatically.
+
+**Rename** changes only the saved name. **Overwrite** replaces the selected
+preset's complete snapshot with the current settings after inline confirmation.
+**Delete preset** requires inline confirmation and removes only the saved preset;
+current settings, import history, and media files remain intact. Both confirmations
+provide Cancel. Built-in starting points cannot be renamed, overwritten, or deleted.
+Snapshots are versioned JSON in the catalog's existing presets table, survive
+restarts, and report save/load errors without claiming success. The active import
+settings and UI preferences continue to use `preset.json` and `ui.json`.
 
 ---
 
@@ -2322,7 +2353,7 @@ schemes are available: Pine, Darkroom, Graphite, and Ink. Each defines a
 complete light and a complete dark palette, so the scheme and the light/dark
 mode are independent choices. The active scheme drives every visual surface,
 including the neutral header, primary buttons, and secondary button surfaces. Scheme, mode,
-and thumbnail size are saved separately from import presets in `ui.json` under
+and thumbnail size are saved as active UI preferences in `ui.json` under
 the XDG configuration directory. Pine is the default for a fresh configuration,
 and a `ui.json` written before color schemes existed keeps its saved mode and
 thumbnail size while using Pine.
@@ -2405,7 +2436,7 @@ breaks with spaces and scroll horizontally to keep the cursor visible.
 Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to open the import preview (and confirm only while reviewing it), and Escape to clear the visible selection on the browser. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
 The browser footer shows the selected count and size with a Preview import action when items are selected. The preview names blocked destinations and only offers Confirm import when every planned item can execute. After an import finishes, the same selection cannot be confirmed again until the selection or settings change and a fresh plan is built.
 
-Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. The screen groups preset/destinations and filename first, followed by import safety, media discovery, capture time, backup copies, source alias, and appearance. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance and source alias save immediately; import settings require the persistent **Apply settings** button at the bottom of the settings view. A blank pair of backup roots disables backup. Skipped collision items do not block other ready copies; the preview counts them separately. Camera/card aliases are stored in the catalog and shown when the device reconnects.
+Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. Named saved presets capture all Settings values in the catalog as described in section 33. The screen groups presets, destinations and filename first, followed by import safety, media discovery, capture time, backup copies, source alias, and appearance. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance and source alias save immediately; import settings require the persistent **Apply settings** button at the bottom of the settings view. A blank pair of backup roots disables backup. Skipped collision items do not block other ready copies; the preview counts them separately. Camera/card aliases are stored in the catalog and shown when the device reconnects.
 
 Recovery, history, reconciliation, thumbnail-cache clearing, and post-import source deletion are separate actions. Recovery cleanup only offers CapturePort-owned partial files, and deleting one requires confirmation. Source deletion requires a second explicit confirmation after a verified filesystem import, states how many originals and how many bytes will be removed and from which source, offers an explicit cancel, and compares the source's full content hash with every planned destination before removing it.
 

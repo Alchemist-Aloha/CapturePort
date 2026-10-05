@@ -69,6 +69,11 @@ directory.
 
 Open **Settings** to control how imports are organized:
 
+- **Presets** — enter a name and **Create preset** to save all Settings values,
+  including browsing, appearance, and the source-alias field. Click a saved name
+  to restore it; use **Rename**, **Overwrite**, or **Delete preset** to manage
+  it. Overwrite and delete require confirmation. Loading an alias does not rename
+  a connected device until you click **Save source alias**.
 - **Destinations** — separate root folders for photos and videos.
 - **Folder and filename templates** — build paths from your media, for example
   `{year}/{date:%Y-%m-%d}/{camera_model}` for folders and

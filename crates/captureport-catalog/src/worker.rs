@@ -122,6 +122,20 @@ pub enum CatalogCommand {
         session_id: i64,
     },
     IncompleteSessions,
+    ListPresets,
+    CreatePreset {
+        name: String,
+        configuration_json: String,
+        updated_at: String,
+    },
+    RenamePreset {
+        id: i64,
+        name: String,
+        updated_at: String,
+    },
+    DeletePreset {
+        id: i64,
+    },
     UpsertPreset {
         id: Option<i64>,
         name: String,
@@ -144,6 +158,7 @@ pub enum CatalogResponse {
     Detail(SessionDetail),
     Incomplete(Vec<IncompleteSession>),
     Preset(PresetRecord),
+    Presets(Vec<PresetRecord>),
     Unit,
 }
 struct Envelope {
@@ -435,6 +450,48 @@ impl CatalogHandle {
             _ => unreachable!(),
         }
     }
+    pub fn list_presets(&self) -> Result<Vec<PresetRecord>, CatalogError> {
+        match self.execute(CatalogCommand::ListPresets)? {
+            CatalogResponse::Presets(presets) => Ok(presets),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn create_preset(
+        &self,
+        name: String,
+        configuration_json: String,
+        updated_at: String,
+    ) -> Result<PresetRecord, CatalogError> {
+        match self.execute(CatalogCommand::CreatePreset {
+            name,
+            configuration_json,
+            updated_at,
+        })? {
+            CatalogResponse::Preset(preset) => Ok(preset),
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn rename_preset(
+        &self,
+        id: i64,
+        name: String,
+        updated_at: String,
+    ) -> Result<(), CatalogError> {
+        self.execute(CatalogCommand::RenamePreset {
+            id,
+            name,
+            updated_at,
+        })?;
+        Ok(())
+    }
+
+    pub fn delete_preset(&self, id: i64) -> Result<(), CatalogError> {
+        self.execute(CatalogCommand::DeletePreset { id })?;
+        Ok(())
+    }
+
     pub fn upsert_preset(
         &self,
         id: Option<i64>,
@@ -452,6 +509,26 @@ impl CatalogHandle {
             _ => unreachable!(),
         }
     }
+}
+
+fn preset_name(name: &str) -> Result<&str, CatalogError> {
+    let name = name.trim();
+    if name.is_empty() || name.chars().any(char::is_control) {
+        return Err(CatalogError::Request(
+            "Enter a non-empty preset name without control characters".into(),
+        ));
+    }
+    Ok(name)
+}
+
+fn preset_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<PresetRecord> {
+    Ok(PresetRecord {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        configuration_json: row.get(2)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
+    })
 }
 
 fn execute(c: &Connection, cmd: CatalogCommand) -> Result<CatalogResponse, CatalogError> {
@@ -632,12 +709,62 @@ fn execute(c: &Connection, cmd: CatalogCommand) -> Result<CatalogResponse, Catal
                     .collect::<Result<Vec<_>, _>>()?,
             ))
         }
+        CatalogCommand::ListPresets => {
+            let mut statement = c.prepare("SELECT id,name,configuration_json,created_at,updated_at FROM presets ORDER BY name COLLATE NOCASE,id")?;
+            let presets = statement
+                .query_map([], preset_from_row)?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(CatalogResponse::Presets(presets))
+        }
+        CatalogCommand::CreatePreset {
+            name,
+            configuration_json,
+            updated_at,
+        } => {
+            let name = preset_name(&name)?;
+            c.execute("INSERT INTO presets(name,configuration_json,created_at,updated_at) VALUES(?1,?2,?3,?3)", rusqlite::params![name, configuration_json, updated_at])?;
+            let preset = c.query_row(
+                "SELECT id,name,configuration_json,created_at,updated_at FROM presets WHERE id=?1",
+                [c.last_insert_rowid()],
+                preset_from_row,
+            )?;
+            Ok(CatalogResponse::Preset(preset))
+        }
+        CatalogCommand::RenamePreset {
+            id,
+            name,
+            updated_at,
+        } => {
+            let name = preset_name(&name)?;
+            if c.execute(
+                "UPDATE presets SET name=?1,updated_at=?2 WHERE id=?3",
+                rusqlite::params![name, updated_at, id],
+            )? == 0
+            {
+                return Err(CatalogError::Request("Preset no longer exists".into()));
+            }
+            Ok(CatalogResponse::Unit)
+        }
+        CatalogCommand::DeletePreset { id } => {
+            // Keep import history intact while removing its optional preset reference.
+            let tx = c.unchecked_transaction()?;
+            tx.execute(
+                "UPDATE import_sessions SET preset_id=NULL WHERE preset_id=?1",
+                [id],
+            )?;
+            if tx.execute("DELETE FROM presets WHERE id=?1", [id])? == 0 {
+                return Err(CatalogError::Request("Preset no longer exists".into()));
+            }
+            tx.commit()?;
+            Ok(CatalogResponse::Unit)
+        }
         CatalogCommand::UpsertPreset {
             id,
             name,
             configuration_json,
             updated_at,
         } => {
+            let name = preset_name(&name)?;
             let id = if let Some(id) = id {
                 c.execute(
                     "UPDATE presets SET name=?1,configuration_json=?2,updated_at=?3 WHERE id=?4",
@@ -664,15 +791,7 @@ fn execute(c: &Connection, cmd: CatalogCommand) -> Result<CatalogResponse, Catal
             let p = c.query_row(
                 "SELECT id,name,configuration_json,created_at,updated_at FROM presets WHERE id=?1",
                 [id],
-                |r| {
-                    Ok(PresetRecord {
-                        id: r.get(0)?,
-                        name: r.get(1)?,
-                        configuration_json: r.get(2)?,
-                        created_at: r.get(3)?,
-                        updated_at: r.get(4)?,
-                    })
-                },
+                preset_from_row,
             )?;
             Ok(CatalogResponse::Preset(p))
         }

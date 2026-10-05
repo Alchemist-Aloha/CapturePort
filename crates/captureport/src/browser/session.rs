@@ -172,6 +172,25 @@ impl Browser {
                         self.message = Some(format!("Cleared {count} cached thumbnail(s)"));
                         changed = true;
                     }
+                    Ok(WorkMessage::Presets(result)) => {
+                        self.preset_busy = false;
+                        match result {
+                            Ok((presets, selected, message)) => {
+                                self.saved_presets = presets;
+                                self.selected_preset = selected;
+                                if let Some(preset) =
+                                    self.saved_presets.iter().find(|p| Some(p.id) == selected)
+                                {
+                                    self.settings.preset_name.update(cx, |input, cx| {
+                                        input.set_value(preset.name.clone(), cx)
+                                    });
+                                }
+                                self.preset_message = Some(message);
+                            }
+                            Err(error) => self.preset_message = Some(format!("Presets: {error}")),
+                        }
+                        changed = true;
+                    }
                     Ok(WorkMessage::SourceAlias(source_id, alias)) => {
                         if self.catalog_source_id == Some(source_id) {
                             self.source_alias = alias;

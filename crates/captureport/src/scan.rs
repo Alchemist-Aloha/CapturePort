@@ -189,9 +189,15 @@ fn process_job(job: MetadataJob) {
     let (capture_time, metadata_result) = match (&filesystem_path, &item.metadata) {
         (_, captureport_core::MetadataState::Failed(error)) => (None, Err(error.clone())),
         (Some(path), _) => match MetadataService::extract(path, item.media_type) {
-            Ok(metadata) => (metadata.capture_time.clone(), Ok(Some(metadata))),
+            Ok(metadata) => (
+                metadata.capture_time.clone(),
+                Ok(Some(metadata.core_metadata())),
+            ),
             Err(error) => (None, Err(error.to_string())),
         },
+        (None, captureport_core::MetadataState::Ready(metadata)) => {
+            (metadata.capture_time.clone(), Ok(Some(metadata.clone())))
+        }
         (None, _) => (None, Ok(None)),
     };
     match metadata_result {
@@ -199,7 +205,7 @@ fn process_job(job: MetadataJob) {
             let _ = sender.send(ScanMessage::Event(Box::new(AppEvent::MetadataReady {
                 generation,
                 media_id: item.id,
-                metadata: metadata.core_metadata(),
+                metadata,
             })));
         }
         Ok(None) => {
@@ -327,4 +333,75 @@ fn catalog_media_type(media_type: MediaType) -> captureport_catalog::MediaType {
 
 fn now() -> String {
     Utc::now().to_rfc3339()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn camera_metadata_survives_scan_and_catalog_observation() {
+        let source: Arc<dyn MediaSource> = Arc::new(FakeSourceBuilder::new().files(1).build());
+        let catalog = CatalogHandle::open(captureport_catalog::CatalogPath::Memory).unwrap();
+        let catalog_source = catalog
+            .upsert_source(
+                CatalogSourceIdentity {
+                    stable_id: Some("test:phone".into()),
+                    source_type: "Camera".into(),
+                    manufacturer: None,
+                    model: None,
+                    serial: None,
+                    volume_uuid: None,
+                    alias: None,
+                },
+                now(),
+            )
+            .unwrap();
+        let metadata = captureport_core::MediaMetadata {
+            capture_time: Some("2026-01-01T00:00:00+00:00".into()),
+            timestamp_source: Some(captureport_core::TimestampSource::Camera),
+            ..Default::default()
+        };
+        let mut item = MediaItem::new(
+            MediaId(1),
+            source.identity().id,
+            "/DCIM/Camera/photo.jpg",
+            1024,
+        );
+        item.metadata = captureport_core::MetadataState::Ready(metadata.clone());
+        let identity = MediaIdentity {
+            source_id: catalog_source.id,
+            source_path: item.source_path.clone(),
+            source_filename: item.source_name.clone(),
+            source_size: item.size,
+            capture_time: metadata.capture_time.clone(),
+        };
+        let (sender, receiver) = mpsc::channel();
+        process_job(MetadataJob {
+            source,
+            item: item.clone(),
+            filesystem_path: None,
+            catalog: catalog.clone(),
+            catalog_source_id: Some(catalog_source.id),
+            generation: ScanGeneration(1),
+            sender,
+        });
+        let ready = receiver
+            .into_iter()
+            .find_map(|message| match message {
+                ScanMessage::Event(event) => match *event {
+                    AppEvent::MetadataReady { metadata, .. } => Some(metadata),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(ready, metadata);
+        item.metadata = captureport_core::MetadataState::Ready(ready);
+        assert_eq!(
+            crate::model::capture_time(&item).to_rfc3339(),
+            metadata.capture_time.unwrap()
+        );
+        assert!(catalog.lookup_media(identity).unwrap().is_some());
+    }
 }

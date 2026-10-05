@@ -463,6 +463,108 @@ impl Browser {
             )
             .into_any_element()
     }
+    fn saved_presets_controls(&self, cx: &mut Context<Self>) -> AnyElement {
+        use saved_presets::PresetAction;
+        let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
+        let selected = self
+            .saved_presets
+            .iter()
+            .find(|preset| Some(preset.id) == self.selected_preset);
+        let mut controls = div().flex().flex_col().gap(px(spacing::CONTROL_GAP))
+            .child(div().text_xs().text_color(p.muted)
+                .child("Saved presets include every setting below: import rules, browsing, appearance, and the source-alias field."));
+        if self.saved_presets.is_empty() && !self.preset_busy {
+            controls = controls.child(div().text_sm().text_color(p.muted).child(
+                "No saved presets yet. Enter a name and create one from your current settings.",
+            ));
+        } else {
+            controls = controls.child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(spacing::CONTROL_GAP))
+                    .children(self.saved_presets.iter().map(|preset| {
+                        let id = preset.id;
+                        div().id(("saved-preset", id as u64)).child(chip(
+                            preset.name.clone(),
+                            self.selected_preset == Some(id),
+                            p,
+                            cx.listener(move |t, _, _, c| t.load_saved_preset(id, c)),
+                        ))
+                    })),
+            );
+        }
+        controls = controls.child(settings_field(
+            "Preset name",
+            self.settings.preset_name.clone(),
+            p,
+            cx,
+        ));
+        if !self.preset_busy {
+            let mut actions = div()
+                .flex()
+                .flex_wrap()
+                .gap(px(spacing::CONTROL_GAP))
+                .child(button(
+                    Icon::AddToList,
+                    "Create preset",
+                    p,
+                    cx.listener(|t, _, _, c| t.manage_preset(PresetAction::Create, c)),
+                ));
+            if selected.is_some() {
+                actions = actions
+                    .child(button(
+                        Icon::Rename,
+                        "Rename",
+                        p,
+                        cx.listener(|t, _, _, c| t.manage_preset(PresetAction::Rename, c)),
+                    ))
+                    .child(button(
+                        Icon::Confirm,
+                        "Overwrite",
+                        p,
+                        cx.listener(|t, _, _, c| t.manage_preset(PresetAction::Overwrite, c)),
+                    ))
+                    .child(button(
+                        Icon::Delete,
+                        "Delete preset",
+                        p,
+                        cx.listener(|t, _, _, c| t.manage_preset(PresetAction::Delete, c)),
+                    ));
+            }
+            controls = controls.child(actions);
+        }
+        if let (Some(action), Some(selected)) = (self.preset_confirmation, selected) {
+            let deleting = action == PresetAction::Delete;
+            controls = controls
+                .child(div().text_sm().child(if deleting {
+                    format!("Delete ‘{}’? This removes only the saved preset, not your current settings or imported files.", selected.name)
+                } else {
+                    format!("Overwrite ‘{}’ with all current settings? Its previous saved settings will be replaced.", selected.name)
+                }))
+                .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
+                    .child(danger_button(if deleting { Icon::Delete } else { Icon::Confirm },
+                        if deleting { "Confirm delete" } else { "Confirm overwrite" }, p,
+                        cx.listener(move |t, _, _, c| t.manage_preset(action, c))))
+                    .child(button(Icon::Cancel, "Cancel", p, cx.listener(|t, _, _, c| {
+                        t.preset_confirmation = None;
+                        c.notify();
+                    }))));
+        }
+        if let Some(message) = &self.preset_message {
+            controls = controls.child(div().text_sm().text_color(p.muted).child(message.clone()));
+        }
+        if self.preset_busy {
+            controls = controls.child(
+                div()
+                    .text_sm()
+                    .text_color(p.muted)
+                    .child("Loading or saving presets…"),
+            );
+        }
+        controls.into_any_element()
+    }
+
     pub(crate) fn settings_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let panel = div()
@@ -487,9 +589,9 @@ impl Browser {
             )
             .child(div().text_sm().text_color(p.muted)
                 .child("Set destinations and naming, then review the safety and media rules. Appearance and source alias save separately."))
-            .child(settings_section("Destinations", p))
+            .child(settings_section("Presets", p))
             .child(div().text_xs().text_color(p.muted)
-                .child("Choose a starting preset to replace the fields below."))
+                .child("Built-in starting points replace import rules. Choose a saved preset to restore all settings."))
             .child(
                 div()
                     .flex()
@@ -497,15 +599,17 @@ impl Browser {
                     .gap(px(spacing::CONTROL_GAP))
                     .child(chip(
                         "Everyday",
-                        self.preset.name == "Everyday", p,
+                        self.selected_preset.is_none() && self.preset.name == "Everyday", p,
                         cx.listener(|t, _, _, c| t.choose_preset(false, c)),
                     ))
                     .child(chip(
                         "Organized",
-                        self.preset.name == "Organized", p,
+                        self.selected_preset.is_none() && self.preset.name == "Organized", p,
                         cx.listener(|t, _, _, c| t.choose_preset(true, c)),
                     )),
             )
+            .child(self.saved_presets_controls(cx))
+            .child(settings_section("Destinations", p))
             .child(settings_field(
                 "Photo destination",
                 self.settings.photo_root.clone(),
