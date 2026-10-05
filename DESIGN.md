@@ -210,6 +210,16 @@ The desktop shell is vertical: a 48px header, a flexible body, and a 52px footer
 
 The browser uses a reflowing contact sheet with 16px grid gaps and 16px content gutters. Thumbnail targets remain the existing stepped sizes; each image well uses `ObjectFit::Contain` so photographs are never cropped. The layout reserves 208px for browser control chrome and 112px for media metadata and the integrated details icon; the resulting media row chrome is 130px (112px details + 16px grid gap + 2px borders). A grouped gallery heading contributes 44px (36px control height + 8px control gap).
 
+The empty browser keeps its guidance and one primary Open a folder action;
+filters and selection tools appear only when media exists, even if a filter
+hides all previews. Source readiness omits zero-valued secondary counts, while
+selection totals appear only in the footer. Current source identity is repeated
+in the rail only on other pages. Reconcile library and Clear thumbnails are
+under Settings → Maintenance; active cancellation controls stay in the rail.
+The selection toolbar is one wrapping flow, keeping view options alongside
+selection rather than adding a third row in compact windows. Compact source
+actions use Open folder and Refresh / Scanning… so their labels remain visible.
+
 The footer keeps selection totals and “Preview import” together. It remains present while status messages change, so the review action has a stable location.
 
 Every page uses 16px header/footer gutters. Settings fields use 16px group separation, with an 8px section margin plus the parent 16px rhythm for a 24px section step; headings end 4px before their content. Hidden sidebar actions are removed from layout so unavailable actions leave no phantom gap. Scrollbars reserve a 16px gutter with a 4px inset.

@@ -54,25 +54,25 @@ impl Browser {
             )
             .child(button(
                 Icon::Folder,
-                "Open folder…",
+                if sidebar_width < 232. {
+                    "Open folder"
+                } else {
+                    "Open folder…"
+                },
                 p,
                 cx.listener(|t, _, w, c| t.open_folder(&OpenFolder, w, c)),
             ))
             .child(button(
                 Icon::Refresh,
-                if self.discovering {
-                    "Scanning devices…"
-                } else {
-                    "Refresh devices"
+                match (self.discovering, sidebar_width < 232.) {
+                    (true, true) => "Scanning…",
+                    (true, false) => "Scanning devices…",
+                    (false, true) => "Refresh",
+                    (false, false) => "Refresh devices",
                 },
                 p,
                 cx.listener(|t, _, w, c| t.discover_sources(&DiscoverSources, w, c)),
-            ))
-            .child(if self.discovering {
-                "Looking for connected cameras and cards…"
-            } else {
-                ""
-            });
+            ));
         for (index, card) in self.unmounted_cards.iter().enumerate() {
             panel = panel.child(
                 div()
@@ -142,6 +142,11 @@ impl Browser {
                     )
                     .hover(move |style| style.bg(p.selected))
                     .on_click(cx.listener(move |t, _, _, c| t.open_discovered(index, c)))
+                    .gap(px(spacing::CONTROL_GAP))
+                    .child(icon(match discovered {
+                        captureport_gphoto::discovery::DiscoveredSource::Ptp(_) => Icon::Camera,
+                        captureport_gphoto::discovery::DiscoveredSource::MountedFilesystem { .. } => Icon::Storage,
+                    }, p.text))
                     .child(
                         div()
                             .flex_1()
@@ -160,18 +165,18 @@ impl Browser {
                     ),
             );
         }
-        let source = self
-            .source_label()
-            .map(|label| label.joined())
-            .unwrap_or_else(|| "No source selected".into());
         panel = panel
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .text_xs()
-                    .text_color(p.muted)
-                    .truncate()
-                    .child(format!("Current: {source}")),
+            .children(
+                self.source_label()
+                    .filter(|_| self.page != Page::Browser)
+                    .map(|label| {
+                        div()
+                            .flex_shrink_0()
+                            .text_xs()
+                            .text_color(p.muted)
+                            .truncate()
+                            .child(format!("Current: {}", label.joined()))
+                    }),
             )
             .child(
                 div()
@@ -227,20 +232,6 @@ impl Browser {
                 p,
                 cx.listener(|t, _, _, c| t.show_settings(c)),
             ))
-            .child(
-                div()
-                    .mt(px(spacing::SECTION - spacing::CONTROL_GAP))
-                    .text_sm()
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .text_color(p.muted)
-                    .child("Tools"),
-            )
-            .child(button(
-                Icon::Catalog,
-                "Reconcile library",
-                p,
-                cx.listener(|t, _, w, c| t.reconcile(&ReconcileLibrary, w, c)),
-            ))
             .child(if self.reconcile_cancellation.is_some() {
                 button(
                     Icon::Cancel,
@@ -252,12 +243,6 @@ impl Browser {
             } else {
                 div().hidden().into_any_element()
             })
-            .child(button(
-                Icon::Delete,
-                "Clear thumbnails",
-                p,
-                cx.listener(|t, _, _, c| t.clear_thumbnail_cache(c)),
-            ))
             .when(cfg!(debug_assertions), |view| {
                 view.child(button(
                     Icon::Play,
@@ -326,6 +311,13 @@ impl Browser {
                         || !matches!(item.metadata, captureport_core::MetadataState::Ready(_)))
             })
             .count();
+        let mut readiness = vec![format!("{visible} ready")];
+        if waiting > failed {
+            readiness.push(format!("{} loading", waiting - failed));
+        }
+        if failed > 0 {
+            readiness.push(format!("{failed} unavailable"));
+        }
         let (columns, image_height) = thumbnail_layout(
             f32::from(window.bounds().size.width),
             f32::from(window.bounds().size.height),
@@ -366,22 +358,22 @@ impl Browser {
             secondary: None,
         });
         div().flex_1().min_w_0().min_h_0().flex().flex_col()
-            .child(div().px(px(spacing::CONTENT)).pt(px(spacing::CONTENT)).pb(px(spacing::CONTROL_GAP)).flex().flex_col().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border)
+            .when(self.state.source.is_some(), |view| view.child(div().px(px(spacing::CONTENT)).pt(px(spacing::CONTENT)).pb(px(spacing::CONTROL_GAP)).flex().flex_col().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border)
                 .child(div().min_w_0().flex().items_baseline().justify_between().gap(px(spacing::CONTENT))
                     .child(div().flex_1().min_w_0().flex().flex_col()
                         .child(div().w_full().font_family(DISPLAY_FONT).text_lg().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_label.primary))
                         .children(source_label.secondary.map(|secondary| div().w_full().text_xs().text_color(p.muted).truncate().child(secondary))))
-                    .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(format!("{visible} ready · {} loading · {failed} unavailable · {} selected{}", waiting.saturating_sub(failed), self.state.selection_summary().count,
-                        if hidden_selected > 0 { format!(" ({hidden_selected} without previews; review import paths)") } else { String::new() }))))
-                .child(div().flex().flex_wrap().gap(px(spacing::TIGHT))
+                    .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(readiness.join(" · "))))
+                .children((hidden_selected > 0).then(|| div().text_xs().text_color(p.muted)
+                    .child(format!("{hidden_selected} selected files have no preview. Review their import paths."))))
+                .when(!self.state.is_empty(), |view| view.child(div().flex().flex_wrap().gap(px(spacing::TIGHT))
                     .child(chip("All",self.state.filter==MediaFilter::All, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
                     .child(chip("Photos",self.state.filter==MediaFilter::Photos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
                     .child(chip("Videos",self.state.filter==MediaFilter::Videos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Videos,c))))
                     .child(chip("New",self.state.filter==MediaFilter::New, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::New,c))))
                     .child(chip("Imported",self.state.filter==MediaFilter::Imported, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Imported,c))))
-                    .child(chip("Possible",self.state.filter==MediaFilter::PossibleDuplicates, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::PossibleDuplicates,c))))))
-            .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP)).flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTROL_GAP)).border_b_1().border_color(p.border)
-                .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
+                    .child(chip("Possible",self.state.filter==MediaFilter::PossibleDuplicates, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::PossibleDuplicates,c))))))))
+            .when(!self.state.is_empty(), |view| view.child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP)).flex().flex_wrap().items_center().gap(px(spacing::CONTROL_GAP)).border_b_1().border_color(p.border)
                     .child(button(Icon::SelectAll, "Select all", p, cx.listener(|t,_,w,c|t.select_all(&SelectAll,w,c))))
                     .child(button(Icon::SelectNew, "Select new", p, cx.listener(|t,_,w,c|t.select_new(&SelectAllNew,w,c))))
                     .child(button(Icon::Clear, "Clear", p, cx.listener(|t,_,w,c|t.select_none(&SelectNone,w,c))))
@@ -393,10 +385,10 @@ impl Browser {
                             .hover(move |style| style.bg(p.selected))
                             .on_click(cx.listener(|t,_,w,c|t.mark_selected_imported(&MarkSelectedImported,w,c))))
                         .child(icon(Icon::Confirm, if self.can_mark_selected_imported() { p.text } else { p.muted }))
-                        .child(if self.marking_imported { "Marking…" } else { "Mark as imported" })))
+                        .child(if self.marking_imported { "Marking…" } else { "Mark as imported" }))
                 .child(button(Icon::ViewOptions, if self.show_view_options { "Hide view options" } else { "View options" }, p,
-                    cx.listener(|t,_,_,c| { t.show_view_options = !t.show_view_options; c.notify() }))))
-            .child(if self.show_view_options {
+                    cx.listener(|t,_,_,c| { t.show_view_options = !t.show_view_options; c.notify() })))))
+            .child(if self.show_view_options && !self.state.is_empty() {
                 div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).flex().flex_wrap().items_center().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border).bg(p.panel)
                     .child(div().flex().items_center().gap(px(spacing::CONTROL_GAP))
                         .child(div().text_sm().text_color(p.muted).child("Sort by"))
@@ -449,8 +441,6 @@ impl Browser {
                             div().flex().flex_wrap().justify_center().gap(px(spacing::CONTROL_GAP))
                                 .child(primary_button(Icon::Folder, "Open a folder…", p,
                                     cx.listener(|t, _, w, c| t.open_folder(&OpenFolder, w, c))))
-                                .child(button(Icon::Camera, if self.discovering { "Scanning devices…" } else { "Scan for cameras" }, p,
-                                    cx.listener(|t, _, w, c| t.discover_sources(&DiscoverSources, w, c))))
                                 .into_any_element()
                         } else if self.state.filter != MediaFilter::All && !self.scanning {
                             button(Icon::Photo, "Show all media", p,  cx.listener(|t, _, _, c| t.filter(MediaFilter::All, c))).into_any_element()

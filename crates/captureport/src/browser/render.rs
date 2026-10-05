@@ -162,12 +162,14 @@ impl Render for Browser {
                             .flex()
                             .items_center()
                             .gap(px(spacing::CONTENT))
-                            .child(format!(
-                                "{} items · {} selected · {}",
-                                self.state.len(),
-                                summary.count,
-                                format_size(summary.bytes)
-                            ))
+                            .children((!self.state.is_empty()).then(|| {
+                                format!(
+                                    "{} items · {} selected · {}",
+                                    self.state.len(),
+                                    summary.count,
+                                    format_size(summary.bytes)
+                                )
+                            }))
                             .child(
                                 if self.page == Page::Browser
                                     && summary.count > 0

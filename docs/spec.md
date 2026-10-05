@@ -243,8 +243,9 @@ mounted filesystem sources.
 
 A detected removable mount is labelled with its device model on the first line
 and its actual mount directory on the second, both in the Sources list button
-and as the browse page title; the Sources "Current:" line joins them with a
-middle dot. The volume's own label (for example `Card · Disk`) is not shown,
+and as the browse page title. The Sources "Current:" line is shown only away
+from the browser, where the source is not already named by the page title, and
+joins the model and directory with a middle dot. The volume's own label (for example `Card · Disk`) is not shown,
 because it does not distinguish one inserted card from another; when the block
 device reports no model, the mount directory stands alone.
 
@@ -267,7 +268,7 @@ presence checks and polls started before source selection do not clear a usable
 source. Ordinary local folders are not cleared by device polling.
 
 Device discovery starts at launch and polls every three seconds. **Refresh devices**
-(and **Scan for cameras** in the empty view) requests an immediate scan on the
+in Sources requests an immediate scan on the
 same serialized worker. While a manual scan is pending, the action shows
 “Scanning devices…” and repeated requests are ignored. Completion reports the
 number of sources found; failure preserves the previous list and offers retry.
@@ -2346,7 +2347,23 @@ Everything else should support that workflow rather than compete with it.
 
 # 64. Browser Behavior
 
-The application opens to an empty source browser. Users can choose a local directory with **Open folder**. A **10k-item demo** button is available only in debug builds for exercising selection and scrolling without a camera; release builds omit the sidebar button. Deterministic `--demo` modes cover empty, camera, importing, errors, and 10,000-item states for UI review; a fixture run uses an in-memory catalog and serves a decodable preview per item, so fixtures never touch real import history and always populate the grid.
+The application opens to an empty source browser. Before a source is open,
+show only the empty-state guidance and its primary **Open a folder** action in
+the content area; omit the empty source title, zero-valued summaries, filters
+and selection toolbar. Sources retains **Open folder** and **Refresh devices**,
+so camera discovery has one persistent entry point. In the compact rail, these
+labels shorten to **Open folder** and **Refresh** (or **Scanning…** while busy).
+Selection actions and View options share one wrapping row rather than nested
+wrapping groups. Once media is discovered,
+filters, selection actions and view options appear, including when the current
+filter has no matches. Selection totals are reported once in the footer;
+the source header reports preview readiness, omitting zero loading/unavailable
+counts. Selected files without previews retain an explicit import-path warning.
+**Reconcile library** and **Clear thumbnails** live under **Settings → Maintenance**
+rather than in the sidebar. Active import and library-scan cancellation remains
+available in the sidebar on every page. No import or recovery feature is removed.
+
+Users can choose a local directory with **Open folder**. A **10k-item demo** button is available only in debug builds for exercising selection and scrolling without a camera; release builds omit the sidebar button. Deterministic `--demo` modes cover empty, camera, importing, errors, and 10,000-item states for UI review; a fixture run uses an in-memory catalog and serves a decodable preview per item, so fixtures never touch real import history and always populate the grid.
 
 Filesystem scanning is recursive and read-only. Hidden entries and common system folders are skipped by default, symbolic links are not followed, and files rejected by the active media rules (see section 8) are omitted. The selected source's relative paths are preserved. Changing sources cancels the previous scan and discards its late results.
 

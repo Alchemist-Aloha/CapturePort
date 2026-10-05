@@ -895,6 +895,20 @@ impl Browser {
                     cx.listener(|t, _, _, c| { if t.ui.dark_mode { t.toggle_dark_mode(c); } })))
                 .child(chip("Dark", self.ui.dark_mode, p,
                     cx.listener(|t, _, _, c| { if !t.ui.dark_mode { t.toggle_dark_mode(c); } }))))
+            .child(settings_section("Maintenance", p))
+            .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
+                .child(if self.reconcile_cancellation.is_some() {
+                    button(Icon::Cancel, "Cancel library scan", p,
+                        cx.listener(|t, _, w, c| t.cancel_reconcile(&CancelReconcile, w, c)))
+                        .into_any_element()
+                } else {
+                    button(Icon::Catalog, "Reconcile library", p,
+                        cx.listener(|t, _, w, c| t.reconcile(&ReconcileLibrary, w, c)))
+                        .into_any_element()
+                })
+                .child(button(Icon::Delete,
+                    if self.cache_clearing { "Clearing thumbnails…" } else { "Clear thumbnails" }, p,
+                    cx.listener(|t, _, _, c| t.clear_thumbnail_cache(c)))))
             .into_any_element();
         div()
             .flex_1()
