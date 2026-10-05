@@ -452,7 +452,10 @@ mod tests {
                 text.contains("viewBox=\"0 0 128 128\""),
                 "{path} grid moved"
             );
-            assert!(text.contains("<path d=\""), "{path} has no geometry");
+            assert!(
+                text.contains("<rect "),
+                "{path} has no rectangular geometry"
+            );
         }
     }
 
@@ -474,8 +477,16 @@ mod tests {
         // Nine identical segments, four in the C and five in the P.
         let c = std::str::from_utf8(include_bytes!("../assets/logo/c.svg")).unwrap();
         let p = std::str::from_utf8(include_bytes!("../assets/logo/p.svg")).unwrap();
-        assert_eq!(c.matches('Z').count(), 4, "C must stay four segments");
-        assert_eq!(p.matches('Z').count(), 5, "P must stay five segments");
+        assert_eq!(c.matches("<rect ").count(), 4, "C must stay four segments");
+        assert_eq!(p.matches("<rect ").count(), 5, "P must stay five segments");
+        for segment in c.lines().chain(p.lines()).map(str::trim) {
+            if segment.starts_with("<rect ") {
+                assert!(
+                    icon.contains(segment),
+                    "mark segment missing from desktop icon: {segment}"
+                );
+            }
+        }
     }
 
     #[test]
