@@ -183,7 +183,7 @@ have to guess its meaning.
 ## Logo
 
 The app mark lives at `crates/captureport/assets/captureport.svg`. It is nine
-identical seven-segment strokes on one grid: four sage strokes (`#A6BBAE`) form
+identical rectangular strokes (23 × 12 units) on one grid: four sage strokes (`#A6BBAE`) form
 the `C` (top-left and bottom-left arms on the left rail) and five sand strokes
 (`#C7B299`) form the `P` (top-right, upper-right, and middle-right bowl on the
 centre rail). Every rail is two segments meeting at the middle, so the centre
