@@ -41,6 +41,8 @@ impl Browser {
         self.work_receivers.push(rx);
         self.import_cancellation = Some(cancel.clone());
         self.importing = true;
+        self.progress = None;
+        self.message = None;
         let cat = self.catalog.clone();
         let sid = self.catalog_source_id;
         let media_ids = self.catalog_media_ids.clone();

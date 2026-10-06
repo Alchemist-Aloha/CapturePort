@@ -391,6 +391,12 @@ impl Browser {
                 completed: 25,
                 total: 100,
                 bytes_copied: 512_000_000,
+                bytes_total: 2_048_000_000,
+                media_id: MediaId(1),
+                destination: PathBuf::from("Pictures/2026/09/27/DSC0001.JPG"),
+                current_file_bytes: 8_000_000,
+                current_file_total: 32_000_000,
+                bytes_per_second: 64_000_000.,
             });
         }
         browser

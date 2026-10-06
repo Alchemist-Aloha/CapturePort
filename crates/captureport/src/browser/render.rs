@@ -1,5 +1,115 @@
 use crate::*;
 
+fn progress_fraction(bytes: u64, total: u64) -> f32 {
+    if total == 0 {
+        0.
+    } else {
+        (bytes as f64 / total as f64).clamp(0., 1.) as f32
+    }
+}
+
+impl Browser {
+    fn active_import_panel(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        if !self.importing {
+            return None;
+        }
+        let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
+        let mut panel = div()
+            .id("active-import")
+            .flex_shrink_0()
+            .px(px(spacing::CONTENT))
+            .py(px(spacing::CONTROL_GAP))
+            .border_t_1()
+            .border_color(p.border)
+            .bg(p.panel)
+            .flex()
+            .flex_col()
+            .gap(px(spacing::TIGHT));
+        if let Some(progress) = &self.progress {
+            let overall = if progress.bytes_total == 0 {
+                progress_fraction(progress.completed, progress.total)
+            } else {
+                progress_fraction(progress.bytes_copied, progress.bytes_total)
+            };
+            let current =
+                progress_fraction(progress.current_file_bytes, progress.current_file_total);
+            let name = self
+                .state
+                .item(progress.media_id)
+                .map(|item| item.source_name.clone())
+                .unwrap_or_else(|| {
+                    progress
+                        .destination
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned()
+                });
+            panel = panel
+                .child(
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .justify_between()
+                        .gap(px(spacing::CONTROL_GAP))
+                        .child(
+                            div()
+                                .text_sm()
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .child(format!(
+                                    "Active import · {:.0}% · {}/{} copies verified",
+                                    overall * 100.,
+                                    progress.completed,
+                                    progress.total
+                                )),
+                        )
+                        .child(button(
+                            Icon::Cancel,
+                            "Cancel import",
+                            p,
+                            cx.listener(|t, _, w, c| t.cancel_import(&CancelImport, w, c)),
+                        )),
+                )
+                .child(
+                    div()
+                        .h(px(4.))
+                        .w_full()
+                        .bg(p.border)
+                        .child(div().h_full().w(gpui::relative(overall)).bg(p.accent)),
+                )
+                .child(div().text_xs().text_color(p.muted).child(format!(
+                    "{} / {} transferred · {}/s",
+                    format_size(progress.bytes_copied),
+                    format_size(progress.bytes_total),
+                    format_size(progress.bytes_per_second.max(0.) as u64)
+                )))
+                .child(div().w_full().text_sm().truncate().child(format!(
+                    "Current copy: {name} · {} / {}",
+                    format_size(progress.current_file_bytes),
+                    format_size(progress.current_file_total)
+                )))
+                .child(
+                    div()
+                        .h(px(4.))
+                        .w_full()
+                        .bg(p.border)
+                        .child(div().h_full().w(gpui::relative(current)).bg(p.accent)),
+                )
+                .child(
+                    div()
+                        .w_full()
+                        .text_xs()
+                        .text_color(p.muted)
+                        .truncate()
+                        .child(format!("To: {}", progress.destination.display())),
+                );
+        } else {
+            panel = panel.child(div().text_sm().child("Preparing import…"));
+        }
+        Some(panel.into_any_element())
+    }
+}
+
 impl Render for Browser {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Device removal can dismiss details without a mouse/keyboard event.
@@ -43,6 +153,7 @@ impl Render for Browser {
             Page::Settings => self.settings_panel(cx),
         };
         let detail = self.media_detail_popup(window, cx);
+        let active_import = self.active_import_panel(cx);
         div()
             .relative()
             .size_full()
@@ -143,6 +254,7 @@ impl Render for Browser {
                     .child(self.sidebar(sidebar_width, cx))
                     .child(content),
             )
+            .children(active_import)
             .child(
                 div()
                     .min_h(px(52.))
@@ -198,5 +310,18 @@ impl Render for Browser {
                     ),
             )
             .children(detail)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::progress_fraction;
+
+    #[test]
+    fn progress_is_bounded_and_handles_empty_files() {
+        assert_eq!(progress_fraction(0, 0), 0.);
+        assert_eq!(progress_fraction(5, 10), 0.5);
+        assert_eq!(progress_fraction(20, 10), 1.);
+        assert_eq!(progress_fraction(u64::MAX, u64::MAX), 1.);
     }
 }

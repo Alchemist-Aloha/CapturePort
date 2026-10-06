@@ -215,6 +215,12 @@ pub(crate) fn run_import(
                 completed: p.files_completed as u64,
                 total: p.files_total as u64,
                 bytes_copied: p.overall_bytes,
+                bytes_total: p.overall_total,
+                media_id: p.media_id,
+                destination: p.destination,
+                current_file_bytes: p.current_file_bytes,
+                current_file_total: p.current_file_total,
+                bytes_per_second: p.bytes_per_second,
             },
         };
         let _ = sender.send(WorkMessage::Event(Box::new(event)));

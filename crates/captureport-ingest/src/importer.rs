@@ -82,6 +82,7 @@ impl std::error::Error for ImportError {}
 #[derive(Clone, Debug)]
 pub struct ImportProgress {
     pub media_id: captureport_core::MediaId,
+    pub destination: std::path::PathBuf,
     pub current_file_bytes: u64,
     pub current_file_total: u64,
     pub overall_bytes: u64,
@@ -254,6 +255,24 @@ impl ImportEngine {
                     });
                     continue;
                 }
+                let mut report = |current_bytes, bytes, completed, force| {
+                    if force || last_progress.elapsed() >= Duration::from_millis(100) {
+                        let elapsed = started.elapsed().as_secs_f64().max(0.001);
+                        progress(ImportProgress {
+                            media_id: item.media_id,
+                            destination: copy.final_destination.clone(),
+                            current_file_bytes: current_bytes,
+                            current_file_total: copy.expected_size,
+                            overall_bytes: bytes,
+                            overall_total,
+                            files_completed: completed,
+                            files_total,
+                            bytes_per_second: bytes as f64 / elapsed,
+                        });
+                        last_progress = Instant::now();
+                    }
+                };
+                report(0, overall_bytes, files_completed, true);
                 let operation = Self::copy_one(
                     source,
                     item,
@@ -261,33 +280,24 @@ impl ImportEngine {
                     plan.verification,
                     cancellation,
                     &mut |current_bytes| {
-                        if last_progress.elapsed() >= Duration::from_millis(100)
-                            || current_bytes == copy.expected_size
-                        {
-                            let elapsed = started.elapsed().as_secs_f64().max(0.001);
-                            progress(ImportProgress {
-                                media_id: item.media_id,
-                                current_file_bytes: current_bytes,
-                                current_file_total: copy.expected_size,
-                                overall_bytes: overall_bytes.saturating_add(current_bytes),
-                                overall_total,
-                                files_completed,
-                                files_total,
-                                bytes_per_second: (overall_bytes.saturating_add(current_bytes))
-                                    as f64
-                                    / elapsed,
-                            });
-                            last_progress = Instant::now();
-                        }
+                        report(
+                            current_bytes,
+                            overall_bytes.saturating_add(current_bytes),
+                            files_completed,
+                            current_bytes == copy.expected_size,
+                        );
                     },
                 );
                 match operation {
                     Ok(digest) => {
                         overall_bytes = overall_bytes.saturating_add(digest.size());
-                        files_completed += 1;
                         let database_result = recorder
                             .record_success(item, copy, &digest, plan.verification)
                             .map_err(ImportError::DatabaseFailed);
+                        if database_result.is_ok() {
+                            files_completed += 1;
+                        }
+                        report(digest.size(), overall_bytes, files_completed, true);
                         item_result.copies.push(CopyResult {
                             destination: copy.final_destination.clone(),
                             state: if database_result.is_ok() {
@@ -504,14 +514,23 @@ mod tests {
         let (source, plan) = prepared(source_dir.path(), destination_dir.path());
         assert_eq!(plan.items[0].status, PlanStatus::Ready);
         let mut recorder = Recorder { calls: 0 };
+        let mut updates = Vec::new();
         let result = ImportEngine::execute(
             &source,
             &plan,
             &CancellationToken::new(),
             &mut recorder,
-            |_| {},
+            |progress| updates.push(progress),
         )
         .unwrap();
+        let first = updates.first().unwrap();
+        assert_eq!(first.current_file_bytes, 0);
+        assert_eq!(first.destination, plan.items[0].copies[0].final_destination);
+        let last = updates.last().unwrap();
+        assert_eq!(last.files_completed, last.files_total);
+        assert_eq!(last.overall_bytes, last.overall_total);
+        assert_eq!(last.current_file_bytes, last.current_file_total);
+        assert!(last.bytes_per_second.is_finite());
         assert_eq!(result.items[0].copies[0].state, ImportItemState::Completed);
         assert_eq!(recorder.calls, 1);
         assert_eq!(
@@ -522,6 +541,39 @@ mod tests {
             fs::read(source_dir.path().join("DSC0001.JPG")).unwrap(),
             b"original"
         );
+    }
+
+    #[test]
+    fn progress_does_not_count_a_copy_whose_history_record_failed() {
+        struct FailedRecorder;
+        impl ImportRecorder for FailedRecorder {
+            fn record_success(
+                &mut self,
+                _: &PlannedImport,
+                _: &PlannedCopy,
+                _: &CopyDigest,
+                _: VerificationMode,
+            ) -> Result<(), String> {
+                Err("database unavailable".into())
+            }
+        }
+        let source_dir = tempfile::tempdir().unwrap();
+        let destination_dir = tempfile::tempdir().unwrap();
+        fs::write(source_dir.path().join("photo.JPG"), b"photo").unwrap();
+        let (source, plan) = prepared(source_dir.path(), destination_dir.path());
+        let mut updates = Vec::new();
+        let result = ImportEngine::execute(
+            &source,
+            &plan,
+            &CancellationToken::new(),
+            &mut FailedRecorder,
+            |progress| updates.push(progress),
+        )
+        .unwrap();
+        assert_eq!(result.items[0].copies[0].state, ImportItemState::Failed);
+        let last = updates.last().unwrap();
+        assert_eq!(last.overall_bytes, last.overall_total);
+        assert_eq!(last.files_completed, 0);
     }
 
     #[test]

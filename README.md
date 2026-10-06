@@ -49,7 +49,9 @@ Runtime requirements:
 4. **Preview the plan.** **Preview import** opens the Review screen with every
    destination path and a count of files to copy, skipped, and blocked.
 5. **Confirm.** Existing files, collisions, and unreadable media are resolved
-   before the copy starts; each file is verified, then published.
+   before the copy starts; each file is verified, then published. The active
+   import panel shows the current filename and destination, per-copy and overall
+   progress, verified copy count, transfer rate, and **Cancel import** on every page.
 6. **Check the result.** **History** lists the session and every destination it
    wrote.
 

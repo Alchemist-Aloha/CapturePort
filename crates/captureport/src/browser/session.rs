@@ -163,6 +163,7 @@ impl Browser {
                             && *generation == self.state.generation
                         {
                             self.progress = Some(progress.clone());
+                            changed = true;
                         }
                         changed |= self.state.apply_event(*e)
                     }

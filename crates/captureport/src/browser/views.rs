@@ -529,7 +529,9 @@ impl Browser {
                             }
                         } else { cards=cards.child(div().flex_1()); }
                     }
-                    let mut view=div().w_full().h(px(image_height + spacing::MEDIA_ROW_CHROME + if grouped { spacing::GALLERY_ROW_CHROME } else { 0. })).flex().flex_col().px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP));
+                    // UniformList does not scope row children: repeated Rename/Save
+                    // buttons must live under a distinct row ID to receive clicks.
+                    let mut view=div().id(("media-row", ids[0].0)).w_full().h(px(image_height + spacing::MEDIA_ROW_CHROME + if grouped { spacing::GALLERY_ROW_CHROME } else { 0. })).flex().flex_col().px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP));
                     if grouped {
                         let heading = if let Some((key, title)) = header {
                             if t.gallery_edit_key.as_ref() == Some(key) {

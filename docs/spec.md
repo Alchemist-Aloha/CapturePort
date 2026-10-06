@@ -2402,6 +2402,16 @@ and reports an error if persistence fails. Display names enter destination templ
 folders continue to come from the import preset's photo/video destination rules
 and their date/time/session variables. Import previews remain authoritative for the exact paths and session numbers of the selected import subset.
 
+While importing, a persistent panel above the footer remains visible on every
+page. It shows the active copy's source filename and final destination, current
+copy bytes and progress, overall transferred bytes and progress, verified copy
+count (including backups), transfer rate, and Cancel import. Byte progress can
+reach 100% before verification and history recording finish; the verified count
+advances only after both succeed. Starting another import clears old progress
+and status messages; completing or cancelling hides the active panel and reports
+the outcome in the footer. Gallery renames invalidate unexecuted previews so
+`{session_name}` destinations are rebuilt before confirmation.
+
 The thumbnail grid adapts its column count to the available window width and
 keeps image previews and labels within their tiles. Card image height also
 shrinks with shorter windows, leaving room for the card's filename and status.

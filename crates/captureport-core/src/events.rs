@@ -6,6 +6,12 @@ pub struct ImportProgress {
     pub completed: u64,
     pub total: u64,
     pub bytes_copied: u64,
+    pub bytes_total: u64,
+    pub media_id: MediaId,
+    pub destination: std::path::PathBuf,
+    pub current_file_bytes: u64,
+    pub current_file_total: u64,
+    pub bytes_per_second: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]

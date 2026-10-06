@@ -85,6 +85,10 @@ impl Browser {
         self.gallery_names = names;
         self.gallery_edit_key = None;
         self.rebuild_gallery_groups();
+        // Session names can appear in both folder and filename templates.
+        if !self.importing {
+            self.invalidate_plan();
+        }
         cx.notify();
     }
 }
