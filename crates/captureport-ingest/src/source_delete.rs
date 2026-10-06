@@ -187,6 +187,7 @@ mod tests {
             copies: copies
                 .into_iter()
                 .map(|(required, path)| PlannedCopy {
+                    destination_identity: None,
                     destination_root: PathBuf::from("/library"),
                     final_destination: PathBuf::from(path),
                     temporary_destination: PathBuf::from("/library/.tmp"),

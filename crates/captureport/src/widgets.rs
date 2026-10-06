@@ -26,6 +26,8 @@ pub(crate) fn button(
         .border_color(palette.ghost_border)
         .bg(palette.ghost_bg)
         .hover(move |style| style.bg(palette.ghost_hover))
+        .tab_index(0)
+        .focus(move |style| style.border_color(palette.accent))
         .on_click(handler)
         .child(icons::icon(icon, palette.text))
         // The label truncates rather than overlapping the button's own border in
@@ -58,6 +60,8 @@ pub(crate) fn danger_button(
         .border_1()
         .border_color(palette.accent)
         .bg(palette.danger)
+        .tab_index(0)
+        .focus(move |style| style.border_color(palette.accent))
         .on_click(handler)
         .child(icons::icon(icon, palette.text))
         .child(div().min_w_0().truncate().child(label))
@@ -71,6 +75,10 @@ pub(crate) fn chip(
     let label = label.into();
     let chip = div()
         .id(label.clone())
+        .tab_index(0)
+        .border_1()
+        .border_color(gpui::rgba(0))
+        .focus(move |style| style.border_color(palette.accent))
         .min_h(px(spacing::CONTROL_HEIGHT))
         .cursor_pointer()
         .flex()

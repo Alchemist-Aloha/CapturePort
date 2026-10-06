@@ -47,6 +47,8 @@ impl Browser {
     }
     pub(crate) fn drain(&mut self, cx: &mut Context<Self>) {
         let mut changed = false;
+        let mut media_changed = false;
+        let mut thumbnail_capacity_changed = false;
         while let Ok((manual, result, volumes, presence)) = self.discovery_receiver.try_recv() {
             let removed = self
                 .source_watch
@@ -101,7 +103,11 @@ impl Browser {
                             input.set_value(alias.unwrap_or_default(), cx)
                         });
                         self.source = Some(s);
-                        self.catalog_source_id = id
+                        self.catalog_source_id = id;
+                        if id.is_none() {
+                            self.message = Some("Import history is unavailable. Reopen the source to retry before importing.".into());
+                            changed = true;
+                        }
                     }
                     Ok(ScanMessage::CatalogMedia(core_id, catalog_id)) => {
                         self.catalog_media_ids.insert(core_id, catalog_id);
@@ -131,11 +137,12 @@ impl Browser {
                             self.pair_index
                                 .note(item.id, item.media_type, &item.source_path);
                         }
-                        changed |= self.state.apply_event(*e);
+                        media_changed |= self.state.apply_event(*e);
                     }
                     Ok(ScanMessage::Finished(result)) => {
                         self.scanning = false;
                         self.rebuild_bundles();
+                        media_changed = true;
                         if let Err(e) = result
                             && e != SourceError::Cancelled
                         {
@@ -165,7 +172,7 @@ impl Browser {
                             self.progress = Some(progress.clone());
                             changed = true;
                         }
-                        changed |= self.state.apply_event(*e)
+                        media_changed |= self.state.apply_event(*e)
                     }
                     Ok(WorkMessage::Plan(revision, plan)) if revision == self.plan_revision => {
                         self.planning = false;
@@ -213,6 +220,7 @@ impl Browser {
                         self.thumbnail_keys.clear();
                         self.requested_thumbnails.clear();
                         self.failed_thumbnails.clear();
+                        media_changed = true;
                         self.message = Some(format!("Cleared {count} cached thumbnail(s)"));
                         changed = true;
                     }
@@ -259,6 +267,7 @@ impl Browser {
                                         self.explicit_bundle_selection.remove(id);
                                     }
                                     self.invalidate_plan();
+                                    media_changed = true;
                                     self.message = Some(format!(
                                         "Marked {} file(s) as imported manually",
                                         media_ids.len()
@@ -285,6 +294,7 @@ impl Browser {
                         changed = true;
                     }
                     Ok(WorkMessage::Done(v)) => {
+                        media_changed |= self.cache_clearing;
                         self.cache_clearing = false;
                         self.message = Some(v.unwrap_or_else(|e| format!("Operation failed: {e}")));
                         changed = true;
@@ -335,22 +345,28 @@ impl Browser {
                         self.requested_thumbnails.remove(&id);
                     }
                 }
-                changed = true;
+                media_changed = true;
             }
         }
         while let Ok(result) = self.camera_preview_receiver.try_recv() {
+            // Even a stale result releases a queue slot for the current source.
+            thumbnail_capacity_changed = true;
             if result.generation == self.generation {
                 if let Some(path) = result.cache_path {
                     self.thumbnail_paths.insert(result.id, path);
                 } else {
                     self.failed_thumbnails.insert(result.id);
                 }
-                changed = true;
+                media_changed = true;
             }
         }
-        if changed {
+        if media_changed || thumbnail_capacity_changed {
             self.pump_thumbnails();
+        }
+        if media_changed {
             self.refresh();
+        }
+        if changed || media_changed {
             cx.notify();
         }
     }
@@ -378,18 +394,23 @@ impl Browser {
         }
     }
     pub(crate) fn refresh(&mut self) {
-        let ready = visible_capture_ids(
-            self.state.visible_items().into_iter().map(|item| item.id),
-            &self.bundle_owner,
-        )
-        .into_iter()
-        .filter(|id| {
-            self.thumbnail_paths.contains_key(&self.preview_id(*id))
-                && self.state.item(*id).is_some_and(|item| {
-                    matches!(item.metadata, captureport_core::MetadataState::Ready(_))
-                })
-        })
-        .collect::<Vec<_>>();
+        let items = match self.state.sort {
+            MediaSort::Name => self.state.visible_items(),
+            MediaSort::CaptureTime => {
+                let mut items = self.state.filtered_items().collect::<Vec<_>>();
+                items.sort_by_cached_key(|item| capture_order_key(item, &self.preset));
+                items
+            }
+        };
+        let ready = visible_capture_ids(items.into_iter().map(|item| item.id), &self.bundle_owner)
+            .into_iter()
+            .filter(|id| {
+                self.thumbnail_paths.contains_key(&self.preview_id(*id))
+                    && self.state.item(*id).is_some_and(|item| {
+                        matches!(item.metadata, captureport_core::MetadataState::Ready(_))
+                    })
+            })
+            .collect::<Vec<_>>();
         append_ready_ids(&mut self.visible_ids, ready);
         self.rebuild_gallery_groups();
     }
@@ -413,13 +434,7 @@ impl Browser {
             .items()
             .filter(|item| !self.bundle_members.contains(&item.id))
             .collect::<Vec<_>>();
-        items.sort_by(|a, b| {
-            effective_time(capture_time(a), &self.preset)
-                .cmp(&effective_time(capture_time(b), &self.preset))
-                .then_with(|| a.source_name.cmp(&b.source_name))
-                .then_with(|| a.source_path.cmp(&b.source_path))
-                .then_with(|| a.id.cmp(&b.id))
-        });
+        items.sort_by_cached_key(|item| capture_order_key(item, &self.preset));
         let times = items
             .iter()
             .map(|item| effective_time(capture_time(item), &self.preset))
@@ -463,22 +478,20 @@ impl Browser {
                     .push(item.id);
             }
         }
-        // Keep the pre-retain titles so items hidden by the current filter still
-        // carry the session name the user typed.
-        let mut titles = self
-            .gallery_groups
-            .iter()
-            .map(|group| (group.key.clone(), group.title.clone()))
-            .collect::<HashMap<_, _>>();
-        self.gallery_groups.retain(|group| !group.ids.is_empty());
+        // Name the complete capture sequence before filtering. Otherwise hidden
+        // galleries change both the visible suffixes and {session_name} paths.
         suffix_duplicate_titles(&mut self.gallery_groups, |key| {
             self.gallery_names
                 .get(key)
                 .is_some_and(|name| !is_legacy_session_name(name))
         });
-        for group in &self.gallery_groups {
-            titles.insert(group.key.clone(), group.title.clone());
-        }
+        let titles = self
+            .gallery_groups
+            .iter()
+            .map(|group| (group.key.clone(), group.title.clone()))
+            .collect::<HashMap<_, _>>();
+        self.gallery_groups.retain(|group| !group.ids.is_empty());
+        order_gallery_members(&mut self.gallery_groups, &self.visible_ids);
         self.gallery_item_names.clear();
         for (id, key) in item_group {
             if let Some(title) = titles.get(&key) {

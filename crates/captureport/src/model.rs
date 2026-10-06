@@ -128,6 +128,20 @@ pub(crate) fn append_ready_ids(displayed: &mut Vec<MediaId>, ready: Vec<MediaId>
     displayed.retain(|id| ready_set.contains(id));
     displayed.extend(ready.into_iter().filter(|id| !previous.contains(id)));
 }
+/// Keep session boundaries chronological, but order their tiles as displayed.
+pub(crate) fn order_gallery_members(groups: &mut [GalleryGroup], displayed: &[MediaId]) {
+    let ranks = displayed
+        .iter()
+        .enumerate()
+        .map(|(rank, id)| (*id, rank))
+        .collect::<HashMap<_, _>>();
+    for group in groups {
+        group
+            .ids
+            .sort_by_key(|id| ranks.get(id).copied().unwrap_or(usize::MAX));
+    }
+}
+
 /// Common UTC offsets offered by the timezone menu.
 pub(crate) const TIMEZONE_CHOICES: &[(&str, i32)] = &[
     ("UTC-12:00", -43_200),
@@ -191,8 +205,17 @@ pub(crate) fn suffix_duplicate_titles(
             continue;
         }
         let index = seen.entry(group.title.clone()).or_default();
-        let suffix = (b'a' + (*index).min(25) as u8) as char;
-        group.title = format!("{}{suffix}", group.title);
+        let mut number = *index;
+        let mut suffix = Vec::new();
+        loop {
+            suffix.push((b'a' + (number % 26) as u8) as char);
+            if number < 26 {
+                break;
+            }
+            number = number / 26 - 1;
+        }
+        let suffix = suffix.into_iter().rev().collect::<String>();
+        group.title.push_str(&suffix);
         *index += 1;
     }
 }
@@ -483,6 +506,18 @@ impl SettingsInputs {
         Ok(preset)
     }
 }
+pub(crate) fn capture_order_key(
+    item: &captureport_core::MediaItem,
+    preset: &ImportPreset,
+) -> (DateTime<FixedOffset>, String, String, MediaId) {
+    (
+        effective_time(capture_time(item), preset),
+        item.source_name.clone(),
+        item.source_path.clone(),
+        item.id,
+    )
+}
+
 pub(crate) fn capture_time(item: &captureport_core::MediaItem) -> DateTime<FixedOffset> {
     if let captureport_core::MetadataState::Ready(m) = &item.metadata {
         if let Some(t) = &m.capture_time {

@@ -56,6 +56,8 @@ impl std::error::Error for PlannerError {}
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlannedCopy {
     pub destination_root: PathBuf,
+    /// Device and inode observed at planning; never recreate a vanished mount.
+    pub destination_identity: Option<(u64, u64)>,
     pub final_destination: PathBuf,
     pub temporary_destination: PathBuf,
     pub expected_size: u64,
@@ -511,6 +513,35 @@ fn make_copies(
     copies
 }
 
+pub(crate) fn destination_identity(path: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    fs::metadata(path)
+        .ok()
+        .filter(|metadata| metadata.is_dir())
+        .map(|metadata| (metadata.dev(), metadata.ino()))
+}
+
+/// Check the nearest existing parent before creating directories or hashing a
+/// collision target. A symlink must not cause writes outside the chosen root.
+// ponytail: path checks, not race-proof capabilities; use directory-FD-relative
+// operations if destinations require protection from hostile concurrent swaps.
+pub(crate) fn destination_parent_is_safe(root: &Path, destination: &Path) -> bool {
+    let Ok(root) = fs::canonicalize(root) else {
+        return false;
+    };
+    let Some(parent) = destination.parent() else {
+        return false;
+    };
+    for ancestor in parent.ancestors() {
+        match fs::canonicalize(ancestor) {
+            Ok(path) => return path.starts_with(&root),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => return false,
+        }
+    }
+    false
+}
+
 fn grouped_folder(folder: &str, grouping: &Grouping, time: DateTime<FixedOffset>) -> PathBuf {
     let mut path = PathBuf::from(folder);
     match grouping {
@@ -543,6 +574,7 @@ fn invalid_copy(
     ));
     PlannedCopy {
         destination_root: absolute_root(root),
+        destination_identity: destination_identity(root),
         temporary_destination,
         final_destination: path,
         expected_size: size,
@@ -571,7 +603,10 @@ fn plan_copy(
     } else {
         PlanStatus::Ready
     };
-    if available {
+    if available && !destination_parent_is_safe(&root, &path) {
+        status = PlanStatus::DestinationUnavailable;
+    }
+    if status == PlanStatus::Ready {
         if let Some(count) = generated.get(&path).copied() {
             let mut next_count = count + 1;
             generated.insert(path.clone(), next_count);
@@ -626,6 +661,7 @@ fn plan_copy(
         Uuid::new_v4()
     ));
     PlannedCopy {
+        destination_identity: destination_identity(&root),
         destination_root: root,
         temporary_destination,
         final_destination: path,

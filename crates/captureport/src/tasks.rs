@@ -20,6 +20,36 @@ pub(crate) enum WorkMessage {
     Done(Result<String, String>),
     Mounted(Result<String, String>),
 }
+fn unchanged_source(before: &std::fs::Metadata, after: &std::fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        after.is_file()
+            && (
+                before.dev(),
+                before.ino(),
+                before.len(),
+                before.mtime(),
+                before.mtime_nsec(),
+                before.ctime(),
+                before.ctime_nsec(),
+            ) == (
+                after.dev(),
+                after.ino(),
+                after.len(),
+                after.mtime(),
+                after.mtime_nsec(),
+                after.ctime(),
+                after.ctime_nsec(),
+            )
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (before, after);
+        false
+    }
+}
+
 pub(crate) struct CameraPreviewJob {
     pub(crate) generation: u64,
     pub(crate) id: MediaId,
@@ -96,12 +126,12 @@ impl captureport_ingest::SourceRemover for VerifiedFilesystemRemover {
         if metadata.len() != *expected {
             return Err("Source size changed after import".into());
         }
-        let source_hash = captureport_ingest::digest_reader(
-            std::fs::File::open(&candidate).map_err(|e| e.to_string())?,
-        )
-        .map_err(|e| e.to_string())?
-        .full()
-        .hex;
+        // Pin the original inode while the potentially slow hashes run.
+        let source_file = std::fs::File::open(&candidate).map_err(|e| e.to_string())?;
+        let source_hash = captureport_ingest::digest_reader(&source_file)
+            .map_err(|e| e.to_string())?
+            .full()
+            .hex;
         let copies = self
             .copies
             .get(&source.0)
@@ -110,15 +140,25 @@ impl captureport_ingest::SourceRemover for VerifiedFilesystemRemover {
             if *destination == candidate {
                 return Err("Source and destination resolve to the same file".into());
             }
-            if !std::fs::symlink_metadata(destination)
-                .map_err(|e| e.to_string())?
-                .file_type()
-                .is_file()
-            {
+            let destination_metadata =
+                std::fs::symlink_metadata(destination).map_err(|e| e.to_string())?;
+            if !destination_metadata.file_type().is_file() {
                 return Err(format!(
                     "Destination is no longer a regular file: {}",
                     destination.display()
                 ));
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::MetadataExt;
+                if (destination_metadata.dev(), destination_metadata.ino())
+                    == (metadata.dev(), metadata.ino())
+                {
+                    return Err(
+                        "Destination is an alias of the original file, not an independent copy"
+                            .into(),
+                    );
+                }
             }
             if std::fs::canonicalize(destination).map_err(|e| e.to_string())? == candidate {
                 return Err("Destination refers to the original file".into());
@@ -135,6 +175,10 @@ impl captureport_ingest::SourceRemover for VerifiedFilesystemRemover {
                     destination.display()
                 ));
             }
+        }
+        let current = std::fs::symlink_metadata(&candidate).map_err(|e| e.to_string())?;
+        if !unchanged_source(&metadata, &current) {
+            return Err("Source changed while verifying destinations; original kept".into());
         }
         std::fs::remove_file(candidate).map_err(|e| e.to_string())
     }
@@ -271,11 +315,12 @@ pub(crate) fn run_import(
                 .flat_map(|item| &item.copies)
                 .filter(|copy| copy.state == captureport_ingest::ImportItemState::Failed)
                 .count();
+            let completed_required = deletable_sources(&plan, &result, false)
+                .into_iter()
+                .map(|item| item.media_id)
+                .collect::<HashSet<_>>();
             for item in &result.items {
-                let completed_required = deletable_sources(&plan, &result, false)
-                    .iter()
-                    .any(|planned| planned.media_id == item.media_id);
-                if completed_required {
+                if completed_required.contains(&item.media_id) {
                     let _ = sender.send(WorkMessage::Event(Box::new(
                         AppEvent::ImportStatusChanged {
                             generation,
@@ -295,7 +340,13 @@ pub(crate) fn run_import(
             };
             (
                 status,
-                Ok(format!("Imported {completed} copy/copies; {failed} failed")),
+                Ok(if result.cancelled {
+                    format!(
+                        "Import cancelled · {completed} copies verified · {failed} failed. Originals unchanged."
+                    )
+                } else {
+                    format!("Imported {completed} copy/copies; {failed} failed")
+                }),
             )
         }
         Err(error) => (
@@ -517,4 +568,31 @@ pub(crate) fn deletable_sources<'a>(
                 })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod deletion_tests {
+    use super::*;
+    #[test]
+    fn changed_originals_do_not_pass_the_final_deletion_check() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), b"photo").unwrap();
+        let before = file.as_file().metadata().unwrap();
+        assert!(unchanged_source(
+            &before,
+            &std::fs::symlink_metadata(file.path()).unwrap()
+        ));
+        std::fs::write(file.path(), b"longer photo").unwrap();
+        assert!(!unchanged_source(
+            &before,
+            &std::fs::symlink_metadata(file.path()).unwrap()
+        ));
+        let before = file.as_file().metadata().unwrap();
+        std::fs::remove_file(file.path()).unwrap();
+        std::fs::write(file.path(), b"longer photo").unwrap();
+        assert!(!unchanged_source(
+            &before,
+            &std::fs::symlink_metadata(file.path()).unwrap()
+        ));
+    }
 }

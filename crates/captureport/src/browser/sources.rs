@@ -177,6 +177,10 @@ impl Browser {
             self.close_media_detail(window, cx);
             return;
         }
+        if self.gallery_edit_key.is_some() {
+            self.cancel_gallery_edit(window, cx);
+            return;
+        }
         if self.page != Page::Browser {
             return;
         }
@@ -246,6 +250,9 @@ impl Browser {
     }
     pub(crate) fn sort(&mut self, s: MediaSort, cx: &mut Context<Self>) {
         self.state.sort = s;
+        // Progressive loading preserves placement, but an explicit sort must
+        // replace it with the newly requested order.
+        self.visible_ids.clear();
         self.refresh();
         cx.notify()
     }

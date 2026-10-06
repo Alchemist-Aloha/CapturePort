@@ -256,18 +256,18 @@ fn process_job(job: MetadataJob) {
             capture_time,
         };
         let media_type = catalog_media_type(item.media_type);
-        // Check before upserting this observation. A freshly inserted row
-        // must not make every new item appear to be a duplicate.
-        let existing = catalog.lookup_media(media.clone()).ok().flatten();
-        let imported_by_identity = catalog.lookup_imported(media.clone()).unwrap_or(false);
+        // Observations alone are not import evidence. Only actual completed
+        // imports or explicit manual declarations can affect duplicate status.
+        let identity_match = catalog.lookup_imported_session_by_identity(media.clone());
         // Quick samples are only evidence of a possible match, never proof that
         // the entire source object still equals a previously imported copy.
-        let quick_match = quick.as_ref().and_then(|fingerprint| {
-            catalog
-                .lookup_imported_session(item.size, fingerprint.hex.clone(), None)
-                .ok()
-                .flatten()
-        });
+        let quick_match = match &quick {
+            Some(fingerprint) => {
+                catalog.lookup_imported_session(item.size, fingerprint.hex.clone(), None)
+            }
+            None => Ok(None),
+        };
+        let classification_failed = identity_match.is_err() || quick_match.is_err();
         let catalog_media_id = catalog
             .execute(CatalogCommand::UpsertMedia {
                 media: media.clone(),
@@ -281,27 +281,36 @@ fn process_job(job: MetadataJob) {
                 captureport_catalog::CatalogResponse::Media(record) => Some(record.id),
                 _ => None,
             });
-        let mut status = captureport_core::ImportStatus::New;
-        let mut prior_import = None;
-        if let Some(found) = quick_match {
-            status = captureport_core::ImportStatus::PossibleDuplicate;
-            prior_import = Some(prior_import_from(found));
-        } else if imported_by_identity || existing.is_some() {
-            status = captureport_core::ImportStatus::PossibleDuplicate;
-        }
-        // Identity is enough to suspect a duplicate but not enough to call it
-        // imported, so name the prior import behind the suspicion.
-        if status == captureport_core::ImportStatus::PossibleDuplicate
-            && prior_import.is_none()
-            && let Ok(Some(found)) = catalog.lookup_imported_session_by_identity(media.clone())
+        let prior_import = quick_match
+            .ok()
+            .flatten()
+            .or_else(|| identity_match.ok().flatten())
+            .map(prior_import_from);
+        let mut status = if prior_import.is_some() {
+            captureport_core::ImportStatus::PossibleDuplicate
+        } else if classification_failed
+            || catalog_media_id.is_none()
+            || (filesystem_path.is_some() && quick.is_none())
         {
-            prior_import = Some(prior_import_from(found));
-        }
-        let manually_imported = status != captureport_core::ImportStatus::Imported
-            // A cached fingerprint must not stand in for a failed fresh read.
-            && (filesystem_path.is_none() || quick.is_some())
-            && catalog_media_id
-                .is_some_and(|id| catalog.lookup_manually_imported(id).unwrap_or(false));
+            captureport_core::ImportStatus::Unknown
+        } else {
+            captureport_core::ImportStatus::New
+        };
+        // A cached fingerprint must not stand in for a failed fresh read.
+        let manual_match = if filesystem_path.is_none() || quick.is_some() {
+            catalog_media_id.map_or(Ok(false), |id| catalog.lookup_manually_imported(id))
+        } else {
+            Ok(false)
+        };
+        let manually_imported = match manual_match {
+            Ok(marked) => marked && status != captureport_core::ImportStatus::Imported,
+            Err(_) => {
+                if prior_import.is_none() {
+                    status = captureport_core::ImportStatus::Unknown;
+                }
+                false
+            }
+        };
         let _ = sender.send(ScanMessage::Event(Box::new(
             AppEvent::ImportStatusChanged {
                 generation,
@@ -322,6 +331,15 @@ fn process_job(job: MetadataJob) {
     });
     if let Some(catalog_media_id) = catalog_media_id {
         let _ = sender.send(ScanMessage::CatalogMedia(item.id, catalog_media_id));
+    } else if catalog_source_id.is_none() {
+        let _ = sender.send(ScanMessage::Event(Box::new(
+            AppEvent::ImportStatusChanged {
+                generation,
+                media_id: item.id,
+                status: captureport_core::ImportStatus::Unknown,
+                prior_import: None,
+            },
+        )));
     }
 }
 
@@ -354,6 +372,82 @@ fn now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_disappeared_file_has_failed_metadata_and_unknown_history_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("photo.JPG");
+        std::fs::write(&path, b"photo").unwrap();
+        let source: Arc<dyn MediaSource> = Arc::new(FilesystemSource::new(dir.path()).unwrap());
+        let item = MediaItem::new(MediaId(1), source.identity().id, "photo.JPG", 5);
+        let catalog = CatalogHandle::open(captureport_catalog::CatalogPath::Memory).unwrap();
+        let record = catalog
+            .upsert_source(
+                CatalogSourceIdentity {
+                    stable_id: source.identity().stable_id,
+                    source_type: "Filesystem".into(),
+                    manufacturer: None,
+                    model: None,
+                    serial: None,
+                    volume_uuid: None,
+                    alias: None,
+                },
+                now(),
+            )
+            .unwrap();
+        std::fs::remove_file(&path).unwrap();
+        let (sender, receiver) = mpsc::channel();
+        process_job(MetadataJob {
+            source,
+            item,
+            filesystem_path: Some(path),
+            catalog,
+            catalog_source_id: Some(record.id),
+            generation: ScanGeneration(1),
+            cancellation: CancellationToken::new(),
+            sender,
+        });
+        let events = receiver
+            .into_iter()
+            .filter_map(|message| match message {
+                ScanMessage::Event(event) => Some(*event),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            events
+                .iter()
+                .any(|event| matches!(event, AppEvent::MetadataFailed { .. }))
+        );
+        assert!(events.iter().any(|event| matches!(
+            event,
+            AppEvent::ImportStatusChanged {
+                status: captureport_core::ImportStatus::Unknown,
+                ..
+            }
+        )));
+    }
+
+    #[test]
+    fn missing_catalog_identity_is_unknown_not_new() {
+        let source: Arc<dyn MediaSource> = Arc::new(FakeSourceBuilder::new().files(1).build());
+        let catalog = CatalogHandle::open(captureport_catalog::CatalogPath::Memory).unwrap();
+        let (sender, receiver) = mpsc::channel();
+        process_job(MetadataJob {
+            item: MediaItem::new(MediaId(1), source.identity().id, "photo.JPG", 1),
+            source,
+            filesystem_path: None,
+            catalog,
+            catalog_source_id: None,
+            generation: ScanGeneration(1),
+            cancellation: CancellationToken::new(),
+            sender,
+        });
+        assert!(receiver.into_iter().any(|message| matches!(message,
+        ScanMessage::Event(event) if matches!(*event, AppEvent::ImportStatusChanged {
+            status: captureport_core::ImportStatus::Unknown, ..
+        }))));
+    }
 
     #[test]
     fn camera_metadata_survives_scan_and_catalog_observation() {

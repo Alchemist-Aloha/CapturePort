@@ -5,6 +5,7 @@ use captureport_core::{CancellationToken, MediaSource};
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Read, Write},
+    path::Path,
     time::{Duration, Instant},
 };
 
@@ -189,9 +190,12 @@ impl ImportEngine {
                     break;
                 }
                 if copy.status == PlanStatus::ExistingIdentical {
-                    let check = source
-                        .open_stream(&item.source)
-                        .map_err(|_| ImportError::SourceReadFailed(item.source_name.clone()))
+                    let check = validate_destination(copy)
+                        .and_then(|()| {
+                            source.open_stream(&item.source).map_err(|_| {
+                                ImportError::SourceReadFailed(item.source_name.clone())
+                            })
+                        })
                         .and_then(|stream| {
                             crate::digest_reader(stream).map_err(|_| {
                                 ImportError::SourceReadFailed(item.source_name.clone())
@@ -204,9 +208,11 @@ impl ImportEngine {
                                 plan.verification
                             };
                             match verify_copy(mode, &digest, &copy.final_destination) {
-                                Ok(true) => recorder
-                                    .record_success(item, copy, &digest, mode)
-                                    .map_err(ImportError::DatabaseFailed),
+                                Ok(true) => validate_destination(copy).and_then(|()| {
+                                    recorder
+                                        .record_success(item, copy, &digest, mode)
+                                        .map_err(ImportError::DatabaseFailed)
+                                }),
                                 Ok(false) => Err(ImportError::VerificationFailed(
                                     copy.final_destination.display().to_string(),
                                 )),
@@ -352,8 +358,9 @@ impl ImportEngine {
         let parent = copy.final_destination.parent().ok_or_else(|| {
             ImportError::DestinationUnavailable(copy.final_destination.display().to_string())
         })?;
-        fs::create_dir_all(parent).map_err(map_io)?;
+        validate_destination(copy)?;
         let canonical_root = fs::canonicalize(&copy.destination_root).map_err(map_io)?;
+        fs::create_dir_all(parent).map_err(map_io)?;
         let canonical_parent = fs::canonicalize(parent).map_err(map_io)?;
         if !canonical_parent.starts_with(&canonical_root) {
             return Err(ImportError::DestinationUnavailable(
@@ -370,6 +377,9 @@ impl ImportEngine {
             .create_new(true)
             .open(&copy.temporary_destination)
             .map_err(map_io)?;
+        // Keep the inode alive until cleanup, even after closing the writer.
+        let _owned_file = temporary.try_clone().map_err(map_io)?;
+        let owned_metadata = temporary.metadata().map_err(map_io)?;
         let operation = (|| -> Result<CopyDigest, ImportError> {
             state = state.advance(ImportItemState::Copying);
             let mut reader = source
@@ -398,6 +408,12 @@ impl ImportEngine {
             temporary.sync_all().map_err(map_io)?;
             drop(temporary);
             state = state.advance(ImportItemState::Verifying);
+            validate_destination(copy)?;
+            if !partial_is_owned(&copy.temporary_destination, &owned_metadata) {
+                return Err(ImportError::DestinationUnavailable(
+                    "Import partial file changed".into(),
+                ));
+            }
             if !verify_copy(verification, &digest, &copy.temporary_destination).map_err(map_io)? {
                 return Err(ImportError::VerificationFailed(item.source_name.clone()));
             }
@@ -405,29 +421,84 @@ impl ImportEngine {
                 return Err(ImportError::Cancelled);
             }
             state = state.advance(ImportItemState::Committing);
-            // hard_link is atomic and refuses to replace a file that appeared after planning.
-            fs::hard_link(&copy.temporary_destination, &copy.final_destination).map_err(
-                |error| {
-                    if error.kind() == io::ErrorKind::AlreadyExists {
-                        ImportError::Collision(copy.final_destination.display().to_string())
-                    } else {
-                        map_io(error)
-                    }
-                },
-            )?;
-            let _ = fs::remove_file(&copy.temporary_destination);
+            validate_destination(copy)?;
+            if !partial_is_owned(&copy.temporary_destination, &owned_metadata) {
+                return Err(ImportError::DestinationUnavailable(
+                    "Import partial file changed".into(),
+                ));
+            }
+            // Linux's no-replace rename also supports filesystems without hard
+            // links (e.g. FAT/exFAT), without ever overwriting a late collision.
+            #[cfg(all(target_os = "linux", target_env = "gnu"))]
+            let publish = nix::fcntl::renameat2(
+                None,
+                &copy.temporary_destination,
+                None,
+                &copy.final_destination,
+                nix::fcntl::RenameFlags::RENAME_NOREPLACE,
+            )
+            .map_err(std::io::Error::from);
+            #[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+            let publish = fs::hard_link(&copy.temporary_destination, &copy.final_destination);
+            publish.map_err(|error| {
+                if error.kind() == io::ErrorKind::AlreadyExists {
+                    ImportError::Collision(copy.final_destination.display().to_string())
+                } else {
+                    map_io(error)
+                }
+            })?;
+            #[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+            remove_owned_partial(copy, &owned_metadata);
             File::open(parent)
                 .and_then(|directory| directory.sync_all())
                 .map_err(map_io)?;
+            validate_destination(copy)?;
             state = state.advance(ImportItemState::Completed);
             debug_assert_eq!(state, ImportItemState::Completed);
             Ok(digest)
         })();
         if operation.is_err() {
-            let _ = fs::remove_file(&copy.temporary_destination);
+            remove_owned_partial(copy, &owned_metadata);
         }
         operation
     }
+}
+
+fn partial_is_owned(path: &Path, owned: &fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        fs::symlink_metadata(path).is_ok_and(|current| {
+            current.is_file() && current.dev() == owned.dev() && current.ino() == owned.ino()
+        })
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (path, owned);
+        false
+    }
+}
+
+fn remove_owned_partial(copy: &PlannedCopy, owned: &fs::Metadata) {
+    if validate_destination(copy).is_ok() && partial_is_owned(&copy.temporary_destination, owned) {
+        let _ = fs::remove_file(&copy.temporary_destination);
+    }
+}
+
+fn validate_destination(copy: &PlannedCopy) -> Result<(), ImportError> {
+    if copy.destination_identity.is_none()
+        || crate::planner::destination_identity(&copy.destination_root) != copy.destination_identity
+        || !crate::planner::destination_parent_is_safe(
+            &copy.destination_root,
+            &copy.final_destination,
+        )
+        || copy.temporary_destination.parent() != copy.final_destination.parent()
+    {
+        return Err(ImportError::DestinationUnavailable(
+            "Destination changed or escapes its root. Reconnect it and rebuild the preview.".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn map_io(error: io::Error) -> ImportError {
@@ -448,6 +519,13 @@ mod tests {
     use std::path::Path;
 
     fn prepared(source_root: &Path, destination_root: &Path) -> (FilesystemSource, ImportPlan) {
+        prepared_with_folder(source_root, destination_root, "")
+    }
+    fn prepared_with_folder(
+        source_root: &Path,
+        destination_root: &Path,
+        folder: &str,
+    ) -> (FilesystemSource, ImportPlan) {
         let source = FilesystemSource::new(source_root).unwrap();
         let mut items = Vec::<MediaItem>::new();
         source
@@ -465,7 +543,7 @@ mod tests {
             .unwrap();
         let mut preset = ImportPreset::everyday(destination_root);
         preset.photo.root = destination_root.to_path_buf();
-        preset.photo.folder_template.clear();
+        preset.photo.folder_template = folder.into();
         let plan = ImportPlanner::build(
             &source,
             items
@@ -574,6 +652,139 @@ mod tests {
         let last = updates.last().unwrap();
         assert_eq!(last.overall_bytes, last.overall_total);
         assert_eq!(last.files_completed, 0);
+    }
+
+    #[test]
+    fn late_collision_never_replaces_the_destination() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let destination_dir = tempfile::tempdir().unwrap();
+        fs::write(source_dir.path().join("photo.JPG"), b"original").unwrap();
+        let (source, plan) = prepared(source_dir.path(), destination_dir.path());
+        let copy = &plan.items[0].copies[0];
+        let result = ImportEngine::execute(
+            &source,
+            &plan,
+            &CancellationToken::new(),
+            &mut NoopRecorder,
+            |p| {
+                if p.current_file_bytes == p.current_file_total {
+                    fs::write(&copy.final_destination, b"keep me").unwrap();
+                }
+            },
+        )
+        .unwrap();
+        assert_eq!(result.items[0].copies[0].state, ImportItemState::Failed);
+        assert!(matches!(
+            result.items[0].copies[0].error,
+            Some(ImportError::Collision(_))
+        ));
+        assert_eq!(fs::read(&copy.final_destination).unwrap(), b"keep me");
+        assert!(!copy.temporary_destination.exists());
+        assert_eq!(
+            fs::read(source_dir.path().join("photo.JPG")).unwrap(),
+            b"original"
+        );
+    }
+
+    #[test]
+    fn changed_partial_paths_are_neither_published_nor_deleted() {
+        for replace_root in [false, true] {
+            let source_dir = tempfile::tempdir().unwrap();
+            let base = tempfile::tempdir().unwrap();
+            let destination = base.path().join("library");
+            let previous = base.path().join("previous");
+            fs::create_dir(&destination).unwrap();
+            fs::write(source_dir.path().join("photo.JPG"), b"original").unwrap();
+            let (source, plan) = prepared(source_dir.path(), &destination);
+            let copy = &plan.items[0].copies[0];
+            let mut changed = false;
+            let result = ImportEngine::execute(
+                &source,
+                &plan,
+                &CancellationToken::new(),
+                &mut NoopRecorder,
+                |progress| {
+                    if changed || progress.current_file_bytes == 0 {
+                        return;
+                    }
+                    changed = true;
+                    if replace_root {
+                        fs::rename(&destination, &previous).unwrap();
+                        fs::create_dir(&destination).unwrap();
+                    } else {
+                        fs::remove_file(&copy.temporary_destination).unwrap();
+                    }
+                    // Even identical bytes do not make someone else's file ours.
+                    fs::write(&copy.temporary_destination, b"original").unwrap();
+                },
+            )
+            .unwrap();
+            assert!(changed);
+            assert_eq!(result.items.len(), 1);
+            assert_eq!(result.items[0].copies[0].state, ImportItemState::Failed);
+            assert_eq!(fs::read(&copy.temporary_destination).unwrap(), b"original");
+            assert!(!copy.final_destination.exists());
+            assert_eq!(
+                fs::read(source_dir.path().join("photo.JPG")).unwrap(),
+                b"original"
+            );
+        }
+    }
+
+    #[test]
+    fn a_replaced_destination_root_requires_a_new_preview() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let base = tempfile::tempdir().unwrap();
+        let destination = base.path().join("library");
+        fs::create_dir(&destination).unwrap();
+        fs::write(source_dir.path().join("photo.JPG"), b"original").unwrap();
+        let (source, plan) = prepared(source_dir.path(), &destination);
+        fs::rename(&destination, base.path().join("unmounted-library")).unwrap();
+        fs::create_dir(&destination).unwrap();
+        let result = ImportEngine::execute(
+            &source,
+            &plan,
+            &CancellationToken::new(),
+            &mut NoopRecorder,
+            |_| {},
+        )
+        .unwrap();
+        assert_eq!(result.items[0].copies[0].state, ImportItemState::Failed);
+        assert_eq!(fs::read_dir(&destination).unwrap().count(), 0);
+        assert_eq!(
+            fs::read(source_dir.path().join("photo.JPG")).unwrap(),
+            b"original"
+        );
+    }
+
+    #[test]
+    fn a_late_symlink_escape_is_rejected_before_creating_directories() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let destination = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        fs::write(source_dir.path().join("photo.JPG"), b"original").unwrap();
+        let (source, plan) =
+            prepared_with_folder(source_dir.path(), destination.path(), "nested/leaf");
+        assert_eq!(plan.items[0].status, PlanStatus::Ready);
+        std::os::unix::fs::symlink(outside.path(), destination.path().join("nested")).unwrap();
+        let result = ImportEngine::execute(
+            &source,
+            &plan,
+            &CancellationToken::new(),
+            &mut NoopRecorder,
+            |_| {},
+        )
+        .unwrap();
+        assert_eq!(result.items[0].copies[0].state, ImportItemState::Failed);
+        assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
+        assert_eq!(
+            fs::read(source_dir.path().join("photo.JPG")).unwrap(),
+            b"original"
+        );
+        // Planning the same escaped path must now report a blocked destination.
+        let (_, blocked) =
+            prepared_with_folder(source_dir.path(), destination.path(), "nested/leaf");
+        assert_eq!(blocked.items[0].status, PlanStatus::DestinationUnavailable);
     }
 
     #[test]

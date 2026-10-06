@@ -117,6 +117,16 @@ impl Render for Browser {
         if self.media_detail.is_none() && self.detail_focus.contains_focused(window, cx) {
             window.focus(&self.focus);
         }
+        if self.page != Page::Browser
+            && self.gallery_edit_key.take().is_some()
+            && self
+                .gallery_edit_input
+                .read(cx)
+                .focus_handle(cx)
+                .is_focused(window)
+        {
+            window.focus(&self.focus);
+        }
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let sidebar_width = if f32::from(window.bounds().size.width) < 760. {
             184.
@@ -165,10 +175,16 @@ impl Render for Browser {
             .text_color(p.text)
             .track_focus(&self.focus_handle(cx))
             .on_key_down(cx.listener(|t, event: &gpui::KeyDownEvent, window, cx| {
-                if t.page == Page::Browser
-                    && t.media_detail.is_none()
-                    && event.keystroke.key == "tab"
+                if t.gallery_edit_key.is_some()
+                    && t.gallery_edit_input
+                        .read(cx)
+                        .focus_handle(cx)
+                        .is_focused(window)
+                    && event.keystroke.key == "enter"
                 {
+                    cx.stop_propagation();
+                    t.save_gallery_name(window, cx);
+                } else if t.media_detail.is_none() && event.keystroke.key == "tab" {
                     cx.stop_propagation();
                     if event.keystroke.modifiers.shift {
                         window.focus_prev();
@@ -178,20 +194,23 @@ impl Render for Browser {
                 }
             }))
             .on_action(cx.listener(Self::select_none))
-            .when(self.media_detail.is_none(), |view| {
-                view.on_action(cx.listener(Self::open_folder))
-                    .on_action(cx.listener(Self::open_demo))
-                    .on_action(cx.listener(Self::select_all))
-                    .on_action(cx.listener(Self::select_new))
-                    .on_action(cx.listener(Self::mark_selected_imported))
-                    .on_action(cx.listener(Self::import_selected))
-                    .on_action(cx.listener(Self::cancel_import))
-                    .on_action(cx.listener(Self::history))
-                    .on_action(cx.listener(Self::reconcile))
-                    .on_action(cx.listener(Self::clock))
-                    .on_action(cx.listener(Self::cancel_reconcile))
-                    .on_action(cx.listener(Self::discover_sources))
-            })
+            .when(
+                self.media_detail.is_none() && self.gallery_edit_key.is_none(),
+                |view| {
+                    view.on_action(cx.listener(Self::open_folder))
+                        .on_action(cx.listener(Self::open_demo))
+                        .on_action(cx.listener(Self::select_all))
+                        .on_action(cx.listener(Self::select_new))
+                        .on_action(cx.listener(Self::mark_selected_imported))
+                        .on_action(cx.listener(Self::import_selected))
+                        .on_action(cx.listener(Self::cancel_import))
+                        .on_action(cx.listener(Self::history))
+                        .on_action(cx.listener(Self::reconcile))
+                        .on_action(cx.listener(Self::clock))
+                        .on_action(cx.listener(Self::cancel_reconcile))
+                        .on_action(cx.listener(Self::discover_sources))
+                },
+            )
             .child(
                 div()
                     .h(px(48.))

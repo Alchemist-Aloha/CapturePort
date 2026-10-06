@@ -141,7 +141,9 @@ fn thumbnail_layout(window_width: f32, window_height: f32, sidebar_width: f32, s
     let columns = thumbnail_columns(available, target);
     let card_width = ((available - spacing::GRID_GAP * (columns - 1) as f32) / columns as f32).max(1.);
     let extra_chrome = if view_options { 86. } else { 0. } + if bundle_open { 240. } else { 0. };
-    let viewport_height = (window_height - 48. - 52. - 208. - spacing::MEDIA_ROW_CHROME - extra_chrome).max(1.);
+    // Keep a usable image well in short windows; the grid can scroll instead
+    // of reducing every photograph and its badges to a one-pixel stripe.
+    let viewport_height = (window_height - 48. - 52. - 208. - spacing::MEDIA_ROW_CHROME - extra_chrome).max(64.);
     let image_height = (card_width - 2.).max(1.).min(target).min(viewport_height);
     (columns, image_height)
 }
@@ -387,7 +389,11 @@ mod thumbnail_layout_tests {
         assert_eq!(narrow_columns, 1);
         assert!(narrow <= normal);
         assert!(short < normal);
-        assert!(with_controls < short);
+        assert!(with_controls <= short);
+        assert!(with_controls >= 64.);
+        for height in [300., 470., 506.] {
+            assert!(thumbnail_layout(600., height, 184., 2, true, true).1 >= 64.);
+        }
     }
     #[test]
     fn media_badges_distinguish_video_and_stills() {
@@ -561,6 +567,10 @@ fn sidebar_nav(
         .font_weight(if active { gpui::FontWeight::SEMIBOLD } else { gpui::FontWeight::NORMAL })
         .text_color(if active { palette.text } else { palette.muted })
         .bg(if active { palette.selected } else { palette.panel })
+        .tab_index(0)
+        .border_1()
+        .border_color(gpui::rgba(0))
+        .focus(move |style| style.border_color(palette.accent))
         .hover(move |style| style.bg(palette.selected))
         .on_click(handler)
         .child(crate::icons::icon(icon, if active { palette.text } else { palette.muted }))
@@ -583,6 +593,10 @@ fn primary_button(
         .text_sm()
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .bg(palette.primary_bg)
+        .tab_index(0)
+        .border_1()
+        .border_color(palette.primary_bg)
+        .focus(move |style| style.border_color(palette.primary_text))
         .text_color(palette.primary_text)
         .hover(move |style| style.bg(palette.primary_hover))
         .on_click(handler)

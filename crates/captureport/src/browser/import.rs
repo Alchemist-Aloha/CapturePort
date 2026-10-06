@@ -53,7 +53,7 @@ impl Browser {
         cx.notify();
     }
     pub(crate) fn start_plan(&mut self, cx: &mut Context<Self>) {
-        if self.marking_imported {
+        if self.importing || self.marking_imported {
             return;
         }
         let Some(source) = self.source.clone() else {

@@ -220,6 +220,11 @@ The selection toolbar is one wrapping flow, keeping view options alongside
 selection rather than adding a third row in compact windows. Compact source
 actions use Open folder and Refresh / Scanning… so their labels remain visible.
 
+Shared action buttons, filter/sort chips, and workspace navigation have stable
+Tab stops, Enter/Space activation, and palette-matched focus borders. In short
+windows the image well keeps a 64px minimum (when width permits) and the grid
+scrolls, rather than reducing photographs and badges to a stripe.
+
 The footer keeps selection totals and “Preview import” together. It remains present while status messages change, so the review action has a stable location.
 
 Every page uses 16px header/footer gutters. Settings fields use 16px group separation, with an 8px section margin plus the parent 16px rhythm for a 24px section step; headings end 4px before their content. Hidden sidebar actions are removed from layout so unavailable actions leave no phantom gap. Scrollbars reserve a 16px gutter with a 4px inset.

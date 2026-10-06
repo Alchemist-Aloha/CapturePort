@@ -9,7 +9,8 @@ use captureport_catalog::{
     CatalogHandle, CatalogPath, MediaIdentity, MediaType as CatalogMediaType,
 };
 use captureport_core::{
-    FakeMediaSource, MediaItem, MediaSource, MediaType, ScanContext, ScanGeneration, SourceId,
+    AppEvent, AppState, FakeMediaSource, MediaItem, MediaSort, MediaSource, MediaType, ScanContext,
+    ScanGeneration, SourceId,
 };
 use captureport_ingest::{
     ImportPlanner, ImportPreset, PlanInput, Template, TemplateContext, digest_reader, quick_path,
@@ -42,6 +43,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (source, items, enumeration) = benchmark_enumeration()?;
     print_sample(enumeration);
     print_sample(benchmark_catalog(&items)?);
+    print_sample(benchmark_browser(&source, &items));
     print_sample(benchmark_templates(&items)?);
     print_sample(benchmark_planner(&source, &items)?);
     print_sample(benchmark_thumbnails(&items)?);
@@ -134,6 +136,32 @@ fn benchmark_catalog(items: &[MediaItem]) -> Result<Sample, Box<dyn std::error::
         units: items.len() * 2,
         bytes: 0,
     })
+}
+
+fn benchmark_browser(source: &FakeMediaSource, items: &[MediaItem]) -> Sample {
+    let mut state = AppState::new();
+    state.apply_event(AppEvent::SourceDetected {
+        generation: ScanGeneration(1),
+        source: source.identity(),
+    });
+    // Deterministic shuffled discovery order, not an already sorted best case.
+    for index in 0..items.len() {
+        state.apply_event(AppEvent::MediaDiscovered {
+            generation: ScanGeneration(1),
+            item: items[index * 7919 % items.len()].clone(),
+        });
+    }
+    state.sort = MediaSort::Name;
+    let started = Instant::now();
+    for _ in 0..100 {
+        black_box(state.visible_items());
+    }
+    Sample {
+        name: "browser_name_sort_100_refreshes",
+        elapsed: started.elapsed(),
+        units: items.len() * 100,
+        bytes: 0,
+    }
 }
 
 fn benchmark_templates(items: &[MediaItem]) -> Result<Sample, Box<dyn std::error::Error>> {

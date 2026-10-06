@@ -73,8 +73,9 @@ impl MetadataService {
     ) -> Result<NormalizedMetadata, MetadataError> {
         let path = path.as_ref();
         let filesystem_time = std::fs::metadata(path)
+            .map_err(|error| MetadataError::Io(error.to_string()))?
+            .modified()
             .ok()
-            .and_then(|m| m.modified().ok())
             .map(format_system_time);
         let mut result = NormalizedMetadata {
             capture_time: None,
@@ -338,6 +339,15 @@ fn format_system_time(t: SystemTime) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_files_are_not_reported_as_ready_empty_metadata() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(matches!(
+            MetadataService::extract(dir.path().join("gone.JPG"), MediaType::Jpeg),
+            Err(MetadataError::Io(_))
+        ));
+    }
 
     fn coordinate(degrees: u32, minutes: u32, seconds: u32) -> Value {
         Value::Rational(

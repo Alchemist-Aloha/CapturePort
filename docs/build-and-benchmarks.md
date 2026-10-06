@@ -35,8 +35,16 @@ Each artifact includes `SHA256SUMS` and is retained for 30 days. Numeric release
 tags such as `v0.2.0` use the tag version; prerelease/build separators are
 normalized to dots for package manager compatibility. Branch builds and other
 tag names use `<crate-version>.dev.<run-number>.<short-commit>`.
-Artifacts are uploaded to the workflow run; the workflow does not create a
-GitHub Release.
+Branch builds upload artifacts only to the workflow run. Tag builds also
+publish a GitHub Release with all assets and a combined `SHA256SUMS` file.
+
+### Userspace installation
+
+See the [one-command install guide](../README.md#one-command-user-install-linux-x86_64).
+`scripts/install.sh` downloads and verifies the latest release's standalone
+Linux x86_64 binary before atomically replacing `~/.local/bin/captureport`.
+No build toolchain or elevated privileges are needed. Run the installer checks
+with `python3 scripts/test-install.py`.
 
 The standalone executable is built on Ubuntu 24.04 and requires compatible
 host graphics and libgphoto2 libraries. After extracting the Actions artifact,
@@ -62,6 +70,7 @@ item counts, bytes actually hashed, and throughput for:
 
 - fake source enumeration;
 - catalog upsert and lookup;
+- 100 browser filename-sort refreshes over shuffled discovery order;
 - template generation;
 - deterministic import planning;
 - bounded thumbnail queue processing;

@@ -485,12 +485,12 @@ fn main() {
                 tracing::warn!(%error, "Could not load bundled fonts");
             }
             cx.bind_keys([
-                KeyBinding::new("cmd-o", OpenFolder, None),
-                KeyBinding::new("cmd-d", OpenDemo, None),
-                KeyBinding::new("cmd-a", SelectAll, None),
-                KeyBinding::new("cmd-shift-a", SelectAllNew, None),
+                KeyBinding::new("ctrl-o", OpenFolder, None),
+                KeyBinding::new("ctrl-d", OpenDemo, None),
+                KeyBinding::new("ctrl-a", SelectAll, None),
+                KeyBinding::new("ctrl-shift-a", SelectAllNew, None),
                 KeyBinding::new("escape", SelectNone, None),
-                KeyBinding::new("cmd-i", ImportSelected, None),
+                KeyBinding::new("ctrl-i", ImportSelected, None),
                 KeyBinding::new(
                     "backspace",
                     text_input::Backspace,
@@ -501,10 +501,14 @@ fn main() {
                 KeyBinding::new("right", text_input::Right, Some("CapturePortTextInput")),
                 KeyBinding::new("home", text_input::Home, Some("CapturePortTextInput")),
                 KeyBinding::new("end", text_input::End, Some("CapturePortTextInput")),
-                KeyBinding::new("cmd-a", text_input::SelectAll, Some("CapturePortTextInput")),
-                KeyBinding::new("cmd-v", text_input::Paste, Some("CapturePortTextInput")),
-                KeyBinding::new("cmd-c", text_input::Copy, Some("CapturePortTextInput")),
-                KeyBinding::new("cmd-x", text_input::Cut, Some("CapturePortTextInput")),
+                KeyBinding::new(
+                    "ctrl-a",
+                    text_input::SelectAll,
+                    Some("CapturePortTextInput"),
+                ),
+                KeyBinding::new("ctrl-v", text_input::Paste, Some("CapturePortTextInput")),
+                KeyBinding::new("ctrl-c", text_input::Copy, Some("CapturePortTextInput")),
+                KeyBinding::new("ctrl-x", text_input::Cut, Some("CapturePortTextInput")),
             ]);
             let bounds = Bounds::centered(None, size(px(1180.), px(760.)), cx);
             cx.open_window(
@@ -671,6 +675,32 @@ mod integration_tests {
     }
 
     #[test]
+    fn gallery_members_follow_display_order_and_capture_sort_uses_instants() {
+        let mut groups = vec![GalleryGroup {
+            key: "g".into(),
+            title: "g".into(),
+            session: 1,
+            ids: vec![MediaId(1), MediaId(2)],
+        }];
+        order_gallery_members(&mut groups, &[MediaId(2), MediaId(1)]);
+        assert_eq!(groups[0].ids, vec![MediaId(2), MediaId(1)]);
+        let item = |id, time: &str| {
+            let mut item =
+                captureport_core::MediaItem::new(MediaId(id), SourceId(1), "photo.JPG", 1);
+            item.metadata =
+                captureport_core::MetadataState::Ready(captureport_core::MediaMetadata {
+                    capture_time: Some(time.into()),
+                    ..Default::default()
+                });
+            item
+        };
+        let earlier = item(1, "2026-01-01T09:00:00+02:00");
+        let later = item(2, "2026-01-01T08:00:00+00:00");
+        let preset = ImportPreset::everyday(std::path::Path::new("/tmp"));
+        assert!(capture_order_key(&earlier, &preset) < capture_order_key(&later, &preset));
+    }
+
+    #[test]
     fn ready_tiles_do_not_jump_when_earlier_media_finishes() {
         let mut displayed = vec![MediaId(2)];
         append_ready_ids(&mut displayed, vec![MediaId(1), MediaId(2)]);
@@ -788,7 +818,16 @@ mod integration_tests {
         );
         restored.filter = MediaFilter::All;
         restored.select_all_new();
-        assert_eq!(restored.selected_count(), 1); // Only NEW.JPG was auto-selected.
+        // Observing KEEP.JPG in an earlier scan did not import it.
+        assert_eq!(restored.selected_count(), 2); // KEEP.JPG and NEW.JPG.
+        assert_eq!(
+            restored
+                .items()
+                .find(|item| item.source_name == "KEEP.JPG")
+                .unwrap()
+                .import_status,
+            captureport_core::ImportStatus::New
+        );
         assert!(
             restored
                 .items()
@@ -843,6 +882,42 @@ mod integration_tests {
             titles,
             ["2026-09-18a", "2026-09-18b", "2026-09-19", "2026-09-18"]
         );
+        let mut many = (0..28)
+            .map(|index| group(&index.to_string(), "2026-09-18"))
+            .collect::<Vec<_>>();
+        suffix_duplicate_titles(&mut many, |_| false);
+        assert_eq!(many[25].title, "2026-09-18z");
+        assert_eq!(many[26].title, "2026-09-18aa");
+        assert_eq!(many[27].title, "2026-09-18ab");
+        assert_eq!(
+            many.iter()
+                .map(|group| &group.title)
+                .collect::<HashSet<_>>()
+                .len(),
+            28
+        );
+    }
+
+    #[test]
+    fn source_deletion_refuses_same_inode_destination_aliases() {
+        let source = tempfile::tempdir().unwrap();
+        let destination = tempfile::tempdir().unwrap();
+        let original = source.path().join("photo.JPG");
+        let alias = destination.path().join("photo.JPG");
+        fs::write(&original, b"photo").unwrap();
+        fs::hard_link(&original, &alias).unwrap();
+        let mut remover = VerifiedFilesystemRemover {
+            root: source.path().to_path_buf(),
+            copies: HashMap::from([("photo.JPG".into(), vec![alias.clone()])]),
+            sizes: HashMap::from([("photo.JPG".into(), 5)]),
+        };
+        let result = captureport_ingest::SourceRemover::remove(
+            &mut remover,
+            &MediaLocator("photo.JPG".into()),
+        );
+        assert!(result.unwrap_err().contains("alias"));
+        assert_eq!(fs::read(original).unwrap(), b"photo");
+        assert_eq!(fs::read(alias).unwrap(), b"photo");
     }
 
     #[test]
@@ -1218,6 +1293,7 @@ mod integration_tests {
         use captureport_ingest::{CopyResult, ImportItemState, ImportResult, ItemResult};
 
         let copy = |media: u64, index: u64, required: bool| PlannedCopy {
+            destination_identity: None,
             destination_root: PathBuf::from("/library"),
             final_destination: PathBuf::from(format!("/library/{media}-{index}.jpg")),
             temporary_destination: PathBuf::from(format!("/library/.partial/{media}-{index}.jpg")),

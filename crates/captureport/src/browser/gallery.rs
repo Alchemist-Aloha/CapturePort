@@ -59,7 +59,12 @@ impl Browser {
         window.focus(&self.gallery_edit_input.read(cx).focus_handle(cx));
         cx.notify();
     }
-    pub(crate) fn save_gallery_name(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn cancel_gallery_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.gallery_edit_key = None;
+        window.focus(&self.focus);
+        cx.notify();
+    }
+    pub(crate) fn save_gallery_name(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(key) = self.gallery_edit_key.clone() else {
             return;
         };
@@ -84,6 +89,7 @@ impl Browser {
         }
         self.gallery_names = names;
         self.gallery_edit_key = None;
+        window.focus(&self.focus);
         self.rebuild_gallery_groups();
         // Session names can appear in both folder and filename templates.
         if !self.importing {

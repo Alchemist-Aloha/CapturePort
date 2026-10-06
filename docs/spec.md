@@ -224,7 +224,10 @@ resolve import-history status incrementally
 ```
 
 A card containing thousands of items should remain responsive while previews
-load. Ready captures appear progressively without reordering already displayed
+load. A file that disappears before metadata extraction is explicitly unavailable,
+not ready with empty metadata. Unusable thumbnail cache metadata resolves to an
+unavailable preview without blocking the rest of the bounded queue.
+Ready captures appear progressively without reordering already displayed
 tiles; loading and unavailable-preview counts remain visible. Failed metadata
 or thumbnail extraction must not produce blank media tiles. Reopening the source
 retries unavailable previews; files remain untouched.
@@ -619,7 +622,11 @@ capture timestamp
 
 A database identity match alone suggests a possible duplicate, not a verified
 match: a source file may have changed in place. Import-time fingerprints must
-remain intact when subsequent scans observe that file again.
+remain intact when subsequent scans observe that file again. A cache observation
+without a completed import or manual declaration is not duplicate evidence:
+rescanning an unimported file leaves it New. Failed catalog checks or fresh
+filesystem fingerprint reads leave unmatched files Unknown rather than assuming
+that they are new.
 
 ---
 
@@ -1199,6 +1206,17 @@ Pictures/2026/09/26/20260926_142301_0001.ARW
 ```
 
 The final destination filename must never represent an incomplete copy.
+Planning records the destination root's device and inode. Execution rechecks
+that identity before copying, re-verifying an existing copy, and publishing;
+a missing or replaced root requires a fresh preview instead of recreating a
+vanished destination on another filesystem. Existing symlink parents that escape
+the root are rejected before creating directories or inspecting collisions.
+On Linux GNU builds, publication uses an atomic no-replace rename rather than
+requiring destination hard-link support; a file created after planning is still
+never overwritten. Partial-file ownership is checked by device/inode while its
+file handle remains open; replacement partial paths are neither published nor
+removed. Cleanup refuses a changed destination root, leaving the original partial
+recoverable rather than deleting an unrelated file on a replacement mount.
 
 ---
 
@@ -2370,6 +2388,10 @@ Filesystem scanning is recursive and read-only. Hidden entries and common system
 Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions regardless of folder, including media under `Pictures/`, `Movies/`, or `DCIM/`. It skips non-media files (including sidecars) before showing them in the browser. Folder traversal remains recursive so camera media outside `DCIM/` is not lost. Explicitly opened ordinary filesystem folders retain the broader unknown-file behavior above.
 
 The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. A tile overlays its media-type badge at the thumbnail's top-right and its file size at the bottom-left, with the source file's modification time in a compact format below the filename; camera items without a local file omit the time. The filename and metadata caption carries its own surface — the `card` tone when unselected and the `selected` tone when selected — so the text never sits directly on the page canvas. The status line below that is icon plus text (`✓ Imported`, `! Possible duplicate`, `? Unknown`, `New`, `Checking…`); for a file classified as imported or a possible duplicate it also names the prior import that matched, as a session number and date, so an uncertain classification is traceable rather than asserted. Selection is shown by the tile background, the tile border, and a `Selected` / `Part selected` label drawn on the image over the same black scrim as the media-type badge. The label never uses a themed surface: a card-coloured chip measures 1.19:1 against a bright frame and disappears over a blown-out photograph, while white ink on the 60% black scrim holds 5.7:1 against the brightest possible frame. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Bulk selection preserves explicit bundle-member choices, including members hidden by the current filter; unavailable previews remain counted in selection and listed in the import preview. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
+An explicit sort immediately replaces the displayed order; later preview arrivals
+continue to append without moving existing tiles. Capture-time ordering uses
+corrected timestamp instants and deterministic name/path/ID tie-breaks, not
+lexicographic timestamp strings.
 
 Every media tile has a compact, unboxed details icon beside its filename;
 expanded bundle members use the same icon. Its tooltip reads **View media
@@ -2396,8 +2418,14 @@ without clearing the selection. Background application shortcuts are inactive
 while it is open, and switching or rescanning a source clears stale details.
 Opening details never downloads a full camera object solely for inspection.
 
-The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Until renamed, a gallery's default name is the creation date of its earliest media (`YYYY-MM-DD`), not a session number; when several galleries share a date, they are suffixed `a`, `b`, `c`, … in chronological order. Stored names that match the old auto-generated `Session N` pattern are ignored so they fall back to the date. Clicking a gallery's display name selects every visible media item in that gallery, or clears them when all are already selected (bundle members are included). Rename focuses the gallery name field immediately; Save keeps the editor open
-and reports an error if persistence fails. Display names enter destination templates only through the explicit
+The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Until renamed, a gallery's default name is the creation date of its earliest media (`YYYY-MM-DD`), not a session number; when several galleries share a date, they are suffixed `a`, `b`, `c`, …, `z`, `aa`, `ab`, … in chronological order. Stored names that match the old auto-generated `Session N` pattern are ignored so they fall back to the date. Clicking a gallery's display name selects every visible media item in that gallery, or clears them when all are already selected (bundle members are included). Rename focuses the gallery name field immediately. Save or Enter persists the
+name and returns focus to the browser; Cancel or Escape discards the edit without
+changing selection. Leaving the browser also discards the edit.
+A persistence failure keeps the editor open and reports an
+error. Background application shortcuts are inactive while renaming. Default
+date suffixes are assigned before visibility filtering, so hidden galleries do
+not change names or `{session_name}` paths. Tiles inside each gallery follow the
+browser's displayed order. Display names enter destination templates only through the explicit
 `{session_name}` segment; otherwise they are display-only, and actual output
 folders continue to come from the import preset's photo/video destination rules
 and their date/time/session variables. Import previews remain authoritative for the exact paths and session numbers of the selected import subset.
@@ -2409,12 +2437,17 @@ count (including backups), transfer rate, and Cancel import. Byte progress can
 reach 100% before verification and history recording finish; the verified count
 advances only after both succeed. Starting another import clears old progress
 and status messages; completing or cancelling hides the active panel and reports
-the outcome in the footer. Gallery renames invalidate unexecuted previews so
-`{session_name}` destinations are rebuilt before confirmation.
+the outcome in the footer. Cancellation explicitly reports a cancelled import,
+verified copy count, failed count, and that originals are unchanged. Gallery renames invalidate unexecuted previews so
+`{session_name}` destinations are rebuilt before confirmation. A running import
+retains its confirmed plan; selection and settings changes apply to a subsequent
+preview, while source removal still cancels and clears the running view.
 
 The thumbnail grid adapts its column count to the available window width and
 keeps image previews and labels within their tiles. Card image height also
 shrinks with shorter windows, leaving room for the card's filename and status.
+The image well retains at least 64 logical pixels when card width permits;
+short windows scroll instead of collapsing previews and badges to a stripe.
 Every card keeps a visible media-type badge after its thumbnail loads; video
 and still formats are clearly distinguished. File size appears alongside the
 timestamp beneath the image. Image previews preserve the complete frame inside
@@ -2449,7 +2482,10 @@ verification, and recovery behavior are unchanged by the visual treatment.
 Spacing uses shared logical-pixel roles: 4 for tight detail groups, 8 for
 adjacent controls, 16 for content gutters and media gaps, and 24 between
 sections. Buttons, source rows, filter tabs, and text fields have a 36-pixel
-minimum height. Buttons and fields use 16-pixel horizontal padding; compact
+minimum height. Shared action buttons, filters and navigation controls are
+keyboard-focusable: Tab/Shift+Tab move focus on every page, and Enter/Space activate
+the focused control. Focus uses a visible palette-matched border.
+Buttons and fields use 16-pixel horizontal padding; compact
 filter tabs use 8. Header, sidebar, content, and footer gutters align at 16
 pixels. A control label truncates rather than overlapping its own outline, so a
 narrow rail never clips a button. Unavailable actions do not leave empty gaps.
@@ -2515,7 +2551,7 @@ The browser footer shows the selected count and size with a Preview import actio
 
 Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. Named saved presets capture all Settings values in the catalog as described in section 33. The screen groups presets, destinations and filename first, followed by import safety, media discovery, capture time, backup copies, source alias, and appearance. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance and source alias save immediately; import settings require the persistent **Apply settings** button at the bottom of the settings view. A blank pair of backup roots disables backup. Skipped collision items do not block other ready copies; the preview counts them separately. Camera/card aliases are stored in the catalog and shown when the device reconnects.
 
-Recovery, history, reconciliation, thumbnail-cache clearing, and post-import source deletion are separate actions. Recovery cleanup only offers CapturePort-owned partial files, and deleting one requires confirmation. Source deletion requires a second explicit confirmation after a verified filesystem import, states how many originals and how many bytes will be removed and from which source, offers an explicit cancel, and compares the source's full content hash with every planned destination before removing it.
+Recovery, history, reconciliation, thumbnail-cache clearing, and post-import source deletion are separate actions. Recovery cleanup only offers CapturePort-owned partial files, and deleting one requires confirmation. Source deletion requires a second explicit confirmation after a verified filesystem import, states how many originals and how many bytes will be removed and from which source, offers an explicit cancel, and compares the source's full content hash with every planned destination before removing it. Same-device/inode destination aliases (including hard links and bind-mounted aliases) are not independent copies and refuse deletion. The original inode remains pinned during hashing; a final identity, size and modification/change-time check refuses originals that changed while verification was running.
 
 ---
 
@@ -2529,4 +2565,13 @@ portable builds also require compatible host graphics and libgphoto2 libraries.
 Workflow artifacts include SHA-256 checksums and are retained for 30 days.
 Numeric release tags supply package versions; other builds carry the crate
 version, workflow run number, and commit identifier. The workflow supports
-manual runs and uploads artifacts without creating a GitHub Release.
+manual runs. Tag pushes also publish the artifacts and a combined `SHA256SUMS`
+file to a GitHub Release; branch pushes only upload workflow artifacts.
+
+A one-command userspace installer downloads the Linux x86_64 executable from
+the latest GitHub Release, verifies its release SHA-256 checksum, and installs
+it to `~/.local/bin/captureport` without sudo or a source build. It resolves a
+single release for both downloads and leaves an existing executable untouched
+if download or verification fails. Rerunning the command updates the binary;
+uninstalling it leaves user settings and history intact. The installer does
+not modify shell profiles, install system dependencies, or add a desktop launcher.

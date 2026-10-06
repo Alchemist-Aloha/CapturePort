@@ -288,7 +288,7 @@ impl Browser {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let visible = self.visible_ids.len();
         let candidates = visible_capture_ids(
-            self.state.visible_items().into_iter().map(|item| item.id),
+            self.state.filtered_items().map(|item| item.id),
             &self.bundle_owner,
         );
         let waiting = candidates.len().saturating_sub(visible);
@@ -538,7 +538,8 @@ impl Browser {
                                 div().w_full().h(px(spacing::CONTROL_HEIGHT)).flex().items_center().gap(px(spacing::CONTROL_GAP))
                                     .child(div().flex_1().min_w_0()
                                         .child(themed_input(t.gallery_edit_input.clone(), p, cx)))
-                                    .child(button(Icon::Confirm, "Save", p,  cx.listener(|t,_,_,c| t.save_gallery_name(c))))
+                                    .child(button(Icon::Confirm, "Save", p, cx.listener(|t,_,w,c| t.save_gallery_name(w,c))))
+                                    .child(button(Icon::Cancel, "Cancel", p, cx.listener(|t,_,w,c| t.cancel_gallery_edit(w,c))))
                             } else {
                                 let key = key.clone();
                                 let name_key = key.clone();

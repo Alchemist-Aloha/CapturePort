@@ -2,6 +2,11 @@ use crate::*;
 
 impl Browser {
     pub(crate) fn invalidate_plan(&mut self) {
+        // Selection/settings edits are for the next import, not the running
+        // operation. Source reset clears state.source first and still cancels it.
+        if self.importing && self.state.source.is_some() {
+            return;
+        }
         self.plan_revision = self.plan_revision.wrapping_add(1);
         self.planning = false;
         self.plan = None;

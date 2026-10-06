@@ -55,6 +55,10 @@ impl Browser {
             return;
         };
         let Some(modified_unix) = self.thumbnail_modified.get(&id).copied() else {
+            // Resolve unusable cache metadata instead of blocking every later
+            // candidate behind this item on each queue refill.
+            self.failed_thumbnails.insert(id);
+            self.requested_thumbnails.insert(id);
             return;
         };
         let request = ThumbnailRequest {

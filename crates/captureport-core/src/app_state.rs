@@ -144,7 +144,7 @@ impl AppState {
             }
             AppEvent::ImportProgress { .. }
             | AppEvent::ImportCompleted { .. }
-            | AppEvent::ImportFailed { .. } => {}
+            | AppEvent::ImportFailed { .. } => return false,
         }
         true
     }
@@ -213,18 +213,16 @@ impl AppState {
                 .fold(0u64, u64::saturating_add),
         }
     }
+    /// Filter without sorting when callers only need counts or membership.
+    pub fn filtered_items(&self) -> impl Iterator<Item = &MediaItem> {
+        self.items().filter(|item| self.matches_filter(item))
+    }
     pub fn visible_items(&self) -> Vec<&MediaItem> {
-        let mut items: Vec<_> = self
-            .items()
-            .filter(|item| self.matches_filter(item))
-            .collect();
+        let mut items: Vec<_> = self.filtered_items().collect();
         match self.sort {
-            MediaSort::Name => items.sort_by(|a, b| {
-                a.source_name
-                    .to_lowercase()
-                    .cmp(&b.source_name.to_lowercase())
-                    .then(a.id.cmp(&b.id))
-            }),
+            MediaSort::Name => {
+                items.sort_by_cached_key(|item| (item.source_name.to_lowercase(), item.id))
+            }
             MediaSort::CaptureTime => items.sort_by(|a, b| {
                 capture_sort_key(a)
                     .cmp(capture_sort_key(b))
@@ -305,6 +303,47 @@ mod tests {
             assert_eq!(state.visible_items().len(), count);
         }
     }
+    #[test]
+    fn name_sort_is_case_insensitive_and_transfer_events_do_not_change_media() {
+        let mut state = AppState::new();
+        state.apply_event(AppEvent::SourceDetected {
+            generation: ScanGeneration(1),
+            source: source(),
+        });
+        for (id, name) in [(3, "z.JPG"), (2, "A.JPG"), (1, "a.JPG")] {
+            state.apply_event(AppEvent::MediaDiscovered {
+                generation: ScanGeneration(1),
+                item: MediaItem::new(MediaId(id), SourceId(1), name, 1),
+            });
+        }
+        state.sort = MediaSort::Name;
+        assert_eq!(
+            state
+                .visible_items()
+                .iter()
+                .map(|item| item.id)
+                .collect::<Vec<_>>(),
+            vec![MediaId(1), MediaId(2), MediaId(3)]
+        );
+        assert_eq!(state.filtered_items().count(), 3);
+        assert!(!state.apply_event(AppEvent::ImportProgress {
+            generation: ScanGeneration(1),
+            progress: crate::ImportProgress {
+                session_id: 1,
+                completed: 0,
+                total: 3,
+                bytes_copied: 1,
+                bytes_total: 3,
+                media_id: MediaId(1),
+                destination: "photo.JPG".into(),
+                current_file_bytes: 1,
+                current_file_total: 1,
+                bytes_per_second: 1.,
+            },
+        }));
+        assert_eq!(state.selected_count(), 3);
+    }
+
     #[test]
     fn duplicate_events_are_idempotent_and_metadata_failures_are_visible() {
         let mut state = AppState::new();
