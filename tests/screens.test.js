@@ -9,6 +9,8 @@ test('walkthrough screens have unique labels, descriptions and real local images
   for (const screen of screens) {
     assert.ok(screen.title && screen.description && screen.alt)
     assert.ok(existsSync(new URL(screen.image)))
-    assert.equal(readFileSync(new URL(screen.image)).subarray(1, 4).toString(), 'PNG')
+    const bytes = readFileSync(new URL(screen.image))
+    assert.equal(bytes.subarray(0, 4).toString(), 'RIFF')
+    assert.equal(bytes.subarray(8, 12).toString(), 'WEBP')
   }
 })

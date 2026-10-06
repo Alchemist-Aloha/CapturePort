@@ -27,8 +27,8 @@ both a domain root and a repository subdirectory.
 
 ## Assets
 
-The five PNG screenshots in `assets/` are copied unchanged from the app
-repository's assets directory. They show the actual application, not a
+The five WebP screenshots in `assets/` are lossless conversions of the app
+repository's PNG assets, preserving their original pixels. They show the actual application, not a
 functional browser version. The walkthrough switches between those screens;
 **View full size** opens the original image.
 
