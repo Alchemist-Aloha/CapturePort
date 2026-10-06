@@ -21,7 +21,7 @@ function move(event, index) {
   <header class="header">
     <nav class="nav wrap" aria-label="Main navigation">
       <a class="brand" href="#" aria-label="CapturePort home"><img :src="logo" alt="" width="30" height="30" /><span>CapturePort</span></a>
-      <div class="nav-links"><a href="#experience">Explore</a><a href="#care">Why CapturePort</a><a class="button small" href="#download">Get CapturePort</a></div>
+      <div class="nav-links"><a href="#experience">Explore</a><a href="#care">Why CapturePort</a><a class="button small" href="#download">Get CapturePort</a><a class="github-link" :href="repo" aria-label="CapturePort on GitHub" title="View on GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .75a11.25 11.25 0 0 0-3.558 21.922c.563.104.768-.244.768-.542 0-.267-.01-.974-.015-1.912-3.13.68-3.79-1.51-3.79-1.51-.512-1.3-1.25-1.646-1.25-1.646-1.022-.699.078-.685.078-.685 1.13.08 1.725 1.16 1.725 1.16 1.004 1.72 2.634 1.224 3.275.936.102-.727.393-1.224.715-1.505-2.498-.284-5.124-1.249-5.124-5.562 0-1.23.44-2.234 1.16-3.022-.116-.285-.503-1.43.11-2.98 0 0 .945-.303 3.094 1.155A10.78 10.78 0 0 1 12 6.19c.956.005 1.918.129 2.817.379 2.148-1.458 3.091-1.155 3.091-1.155.615 1.55.228 2.695.112 2.98.722.788 1.158 1.792 1.158 3.022 0 4.324-2.63 5.275-5.136 5.553.404.35.764 1.042.764 2.1 0 1.516-.014 2.739-.014 3.11 0 .3.203.652.774.542A11.252 11.252 0 0 0 12 .75Z" /></svg></a></div>
     </nav>
   </header>
 

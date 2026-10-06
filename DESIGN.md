@@ -1,14 +1,14 @@
 # CapturePort website
 
-A screenshot-led, Apple-inspired product demonstration: generous white space,
+A screenshot-led, Apple-inspired product demonstration: generous spacing,
 large centered typography, a slim sticky navigation, and an oversized real
-application window. CapturePort's forest-green accent replaces Apple's blue.
+application window. Warm charcoal surfaces and amber accents match CapturePort's native screenshots.
 The website is distinct from the native app; its screenshots remain unchanged.
 
 Self-hosted Outfit Regular and SemiBold carry the marketing and interface
 voice because they preserve the existing app identity. Spectral Bold carries
-the wordmark. Canvas #fafaf9, text #202522, muted #616762, accent #24694e.
-The safety section uses #19271f with pale green secondary text.
+the wordmark. Canvas #1c1b18, text #eee9df, muted #bdb3a4, accent #e9b468.
+Navigation and the safety section use #24221e, with borders #4b453b.
 
 The experience moves from the hero to five selectable app screenshots, a
 dark safety chapter, and a Linux download close. Pills are reserved for
