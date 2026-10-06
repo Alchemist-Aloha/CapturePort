@@ -67,6 +67,23 @@ h2{font-size:clamp(40px,4.8vw,64px);line-height:1.08;letter-spacing:-.035em}
 .download{padding-block:115px;text-align:center}
 .download>img{margin:0 auto 28px}
 .download>p{font-size:21px;line-height:1.55;color:var(--muted);margin-top:25px}
+.download .release-status{font-size:14px;line-height:1.6;margin-top:28px}
+.download-options{max-width:920px;margin:42px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:48px;text-align:left}
+.download-group{min-width:0}
+.download-group h3{font-size:21px;letter-spacing:-.02em;margin-bottom:16px}
+.release-downloads{list-style:none;padding:0;margin:0;border-top:1px solid var(--line)}
+.release-downloads li{border-bottom:1px solid var(--line)}
+.release-downloads a{display:flex;align-items:center;justify-content:space-between;gap:20px;min-height:88px;padding:18px 8px;transition:background .2s ease}
+.release-downloads a:hover{background:#24221e;text-decoration:none}
+.release-downloads a:active{background:#2d2923}
+.package-info{display:flex;flex-direction:column;gap:6px;min-width:0}
+.package-info strong{font-size:17px;font-weight:600;line-height:1.3}
+.package-meta{font-size:13px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.package-action{display:inline-flex;align-items:center;gap:8px;color:var(--accent);font-size:14px;white-space:nowrap}
+.package-action svg{width:18px;height:18px}
+.download .download-actions{margin-top:30px;gap:26px}
+.download-actions .text-link{font-size:15px}
+@media(max-width:700px){.download-options{max-width:480px;grid-template-columns:1fr;gap:32px;margin-top:32px}.download-group h3{font-size:20px;margin-bottom:12px}.release-downloads a{gap:12px;min-height:84px;padding-inline:0}.package-info strong{font-size:16px}.package-action{font-size:13px;gap:6px}.download .download-actions{gap:12px 24px}}
 .download .requirements{font-size:13px;line-height:1.8;margin-top:28px}
 .requirements a{text-decoration:underline}
 .footer{border-top:1px solid var(--line);padding-block:28px;display:flex;align-items:center;justify-content:space-between;gap:25px}

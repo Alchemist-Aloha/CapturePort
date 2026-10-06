@@ -1,11 +1,25 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { screens } from './screens.js'
+import { getLatestRelease, repo } from './releases.js'
 import logo from '../assets/captureport.svg'
+import InstallCommand from './InstallCommand.vue'
 
 const selected = ref(0)
 const screen = computed(() => screens[selected.value])
-const repo = 'https://github.com/Alchemist-Aloha/CapturePort'
+const release = ref(null)
+const downloadGroups = computed(() => ['Distribution packages', 'Portable downloads'].map(label => ({
+  label, downloads: release.value?.downloads.filter(asset => asset.group === label) || [],
+})).filter(group => group.downloads.length))
+const releaseStatus = ref('Checking the latest release…')
+onMounted(async () => {
+  try {
+    release.value = await getLatestRelease()
+    releaseStatus.value = 'Latest release · ' + release.value.version
+  } catch {
+    releaseStatus.value = 'Direct downloads unavailable. Find the latest packages on GitHub.'
+  }
+})
 function move(event, index) {
   const directions = { ArrowRight: 1, ArrowLeft: -1 }
   if (!(event.key in directions) && !['Home', 'End'].includes(event.key)) return
@@ -31,6 +45,7 @@ function move(event, index) {
       <p class="hero-copy">Every shoot deserves a safe landing.<br />Import your photos and videos. Keep your originals.<br class="desktop-break" /> Make the library your own.</p>
       <div class="actions"><a class="button" href="#download">Get CapturePort</a><a class="text-link" href="#experience">See it in action <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></a></div>
       <p class="platform">Native Linux app. Open source. Yours to keep.</p>
+      <InstallCommand />
       <figure class="hero-window">
         <img :src="screens[0].image" :alt="screens[0].alt" width="1919" height="1044" fetchpriority="high" />
         <figcaption>CapturePort, with your next import in view.</figcaption>
@@ -70,7 +85,22 @@ function move(event, index) {
       <img :src="logo" alt="" width="76" height="76" loading="lazy" />
       <h2 id="download-title">Your next shoot.<br /><span>Meet its new home.</span></h2>
       <p>CapturePort for Linux.<br />A focused importer. Not another photo catalog.</p>
-      <div class="actions"><a class="button" :href="repo + '/releases/latest'">Download for Linux <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m-5-5 5 5 5-5M5 17v3h14v-3" /></svg></a><a class="text-link" :href="repo">View on GitHub <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg></a></div>
+      <InstallCommand />
+      <p class="release-status" role="status">{{ releaseStatus }}</p>
+      <div v-if="release" class="download-options">
+        <section v-for="(group, index) in downloadGroups" :key="group.label" class="download-group" :aria-labelledby="'download-group-' + index">
+          <h3 :id="'download-group-' + index">{{ group.label }}</h3>
+          <ul class="release-downloads">
+            <li v-for="asset in group.downloads" :key="asset.name">
+              <a :href="asset.url" :title="asset.name" :aria-label="'Download ' + asset.label + ' for ' + asset.arch + ' (' + asset.format + ')'">
+                <span class="package-info"><strong>{{ asset.label }}</strong><span class="package-meta">{{ asset.arch }} <span aria-hidden="true">·</span> {{ asset.format }}</span></span>
+                <span class="package-action">Download <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m-5-5 5 5 5-5M5 17v3h14v-3" /></svg></span>
+              </a>
+            </li>
+          </ul>
+        </section>
+      </div>
+      <div class="actions download-actions"><a :class="release ? 'text-link' : 'button'" :href="repo + '/releases/latest'">{{ release ? 'Release notes & all assets' : 'Browse downloads on GitHub' }} <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg></a><a class="text-link" :href="repo">View on GitHub <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg></a></div>
       <p class="requirements">Linux x86_64 · Vulkan-capable graphics · libgphoto2 for cameras<br />Debian / Ubuntu, Arch, Fedora, and portable packages.<br /><a :href="repo + '#install'">Installation and runtime requirements</a></p>
     </section>
   </main>
