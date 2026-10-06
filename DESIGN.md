@@ -10,21 +10,37 @@ voice because they preserve the existing app identity. Spectral Bold carries
 the wordmark. Canvas #1c1b18, text #eee9df, muted #bdb3a4, accent #e9b468.
 Navigation and the safety section use #24221e, with borders #4b453b.
 
+The centered hero caps display type at 96px and keeps the installer grouped
+with its actions. A thin divider separates it from the compact walkthrough.
+The safety headline and lead share a desktop row; its three principles use
+aligned rules and tighter spacing, stacking naturally on mobile. Install
+commands and download lists share a 920px measure. Narrow footers stack into
+left-aligned rows with touch-sized links. Below 360px the navigation action
+reads “Get app” while retaining its full accessible name and unclipped wordmark.
+
 The experience moves from the hero to five selectable app screenshots, a
 dark safety chapter, and a Linux download close. Pills are reserved for
 actions, including Previous and Next screenshot controls. Actual app screenshots provide the only
 large imagery; no stock photographs or invented UI.
 
 The walkthrough uses Previous and Next buttons, a live slide counter, and
-arrow/Home/End keyboard navigation without moving focus. Desktop pairs the
-screenshot with its description and caps image size against viewport height,
-keeping the entire section visible beneath the sticky navigation at common
-laptop sizes. Mobile stacks the description, controls, and screenshot.
-Overlapping copy blocks reserve the tallest description without exposing
-inactive text to assistive technology. Full-size screenshot links remain available.
-Motion centers on the hero app window's safe landing: a small perspective
-settle and deepening shadow, linked to its viewport entry where supported,
-with a brief timed fallback. Walkthrough screenshots crossfade in place;
+arrow/Home/End keyboard navigation without moving focus. Chevron-only controls
+sit at the screenshot's left and right, centered on the image, with accessible
+Previous/Next labels and amber outlines. The walkthrough expands to the site's
+1400px measure with stronger display headings. Desktop uses a panoramic detail
+view that removes the repeated sidebar and gives the actual workflow more
+pixels. Slide-specific crops favor Browse's media, Review's paths, Rename's
+session input and photos, and the Organize/Templates configuration fields. Each description sits
+in the source screenshot's empty canvas; the Rename copy stays above the session
+input and photos, and a charcoal matte keeps Review's row rules out of the text.
+Image size is capped against viewport height so the entire section fits beneath
+the sticky navigation at common laptop sizes. Mobile keeps the full screenshot
+and stacks its description below, with chevrons at the image edges. Overlapping
+mobile copy blocks reserve the tallest description without exposing inactive
+text to assistive technology. The slide counter and full-size links stay below;
+full-size links always open the original, unchanged screenshot.
+The hero ends with the install command; screenshots appear only in the
+walkthrough. Walkthrough screenshots crossfade in place;
 hover arrows and a drawn copy check acknowledge user actions, with no loops
 or repeated section reveals. Reduced-motion preferences remove spatial motion
 and animation while retaining immediate selection and copy confirmation.

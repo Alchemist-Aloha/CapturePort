@@ -37,7 +37,7 @@ function move(event) {
   <header class="header">
     <nav class="nav wrap" aria-label="Main navigation">
       <a class="brand" href="#" aria-label="CapturePort home"><img :src="logo" alt="" width="30" height="30" /><span>CapturePort</span></a>
-      <div class="nav-links"><a href="#experience">Explore</a><a href="#care">Why CapturePort</a><a class="button small" href="#download">Get CapturePort</a><a class="github-link" :href="repo" aria-label="CapturePort on GitHub" title="View on GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .75a11.25 11.25 0 0 0-3.558 21.922c.563.104.768-.244.768-.542 0-.267-.01-.974-.015-1.912-3.13.68-3.79-1.51-3.79-1.51-.512-1.3-1.25-1.646-1.25-1.646-1.022-.699.078-.685.078-.685 1.13.08 1.725 1.16 1.725 1.16 1.004 1.72 2.634 1.224 3.275.936.102-.727.393-1.224.715-1.505-2.498-.284-5.124-1.249-5.124-5.562 0-1.23.44-2.234 1.16-3.022-.116-.285-.503-1.43.11-2.98 0 0 .945-.303 3.094 1.155A10.78 10.78 0 0 1 12 6.19c.956.005 1.918.129 2.817.379 2.148-1.458 3.091-1.155 3.091-1.155.615 1.55.228 2.695.112 2.98.722.788 1.158 1.792 1.158 3.022 0 4.324-2.63 5.275-5.136 5.553.404.35.764 1.042.764 2.1 0 1.516-.014 2.739-.014 3.11 0 .3.203.652.774.542A11.252 11.252 0 0 0 12 .75Z" /></svg></a></div>
+      <div class="nav-links"><a href="#experience">Explore</a><a href="#care">Why CapturePort</a><a class="button small" href="#download" aria-label="Get CapturePort"><span class="nav-download-label">Get CapturePort</span><span class="nav-download-short" aria-hidden="true">Get app</span></a><a class="github-link" :href="repo" aria-label="CapturePort on GitHub" title="View on GitHub"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .75a11.25 11.25 0 0 0-3.558 21.922c.563.104.768-.244.768-.542 0-.267-.01-.974-.015-1.912-3.13.68-3.79-1.51-3.79-1.51-.512-1.3-1.25-1.646-1.25-1.646-1.022-.699.078-.685.078-.685 1.13.08 1.725 1.16 1.725 1.16 1.004 1.72 2.634 1.224 3.275.936.102-.727.393-1.224.715-1.505-2.498-.284-5.124-1.249-5.124-5.562 0-1.23.44-2.234 1.16-3.022-.116-.285-.503-1.43.11-2.98 0 0 .945-.303 3.094 1.155A10.78 10.78 0 0 1 12 6.19c.956.005 1.918.129 2.817.379 2.148-1.458 3.091-1.155 3.091-1.155.615 1.55.228 2.695.112 2.98.722.788 1.158 1.792 1.158 3.022 0 4.324-2.63 5.275-5.136 5.553.404.35.764 1.042.764 2.1 0 1.516-.014 2.739-.014 3.11 0 .3.203.652.774.542A11.252 11.252 0 0 0 12 .75Z" /></svg></a></div>
     </nav>
   </header>
 
@@ -48,37 +48,34 @@ function move(event) {
       <div class="actions"><a class="button" href="#download">Get CapturePort</a><a class="text-link" href="#experience">See it in action <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></a></div>
       <p class="platform">Native Linux app. Open source. Yours to keep.</p>
       <InstallCommand />
-      <figure class="hero-window">
-        <img :src="screens[0].image" :alt="screens[0].alt" width="1919" height="1044" fetchpriority="high" />
-        <figcaption>CapturePort, with your next import in view.</figcaption>
-      </figure>
     </section>
 
     <section id="experience" class="experience" aria-labelledby="experience-title">
       <div class="wrap">
-        <div class="section-intro"><h2 id="experience-title">Less busywork.<br /><span>More next adventure.</span></h2><p>From the first look to the final folder, a considered workflow that puts you in control.</p></div>
+        <div class="section-intro"><h2 id="experience-title">Less busywork. <span>More next adventure.</span></h2><p>From the first look to the final folder, a considered workflow that puts you in control.</p></div>
         <div id="preview-panel" role="group" aria-roledescription="carousel" aria-label="CapturePort screenshots" tabindex="0" class="demo-panel" @keydown="move">
-          <div class="demo-details">
+          <figure class="demo-window">
+            <div class="screen-stage" :data-screen="screen.label">
+              <div class="screen-image">
+                <Transition name="screen">
+                  <img :key="screen.image" :src="screen.image" :alt="screen.alt" width="1920" height="1045" loading="lazy" />
+                </Transition>
+              </div>
+              <div class="preview-buttons">
+                <button type="button" @click="step(-1)" aria-label="Previous screenshot" title="Previous screenshot" aria-controls="preview-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg></button>
+                <button type="button" @click="step(1)" aria-label="Next screenshot" title="Next screenshot" aria-controls="preview-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
+              </div>
+            </div>
             <div class="demo-copy">
-              <div v-for="(item, index) in screens" :key="item.label" class="demo-copy-content" :class="{ 'is-selected': selected === index }" :aria-hidden="selected !== index">
+              <div v-for="(item, index) in screens" :key="item.label" class="demo-copy-content" :data-screen="item.label" :class="{ 'is-selected': selected === index }" :aria-hidden="selected !== index">
                 <h3>{{ item.title }}</h3><p>{{ item.description }}</p>
               </div>
             </div>
-            <div class="preview-navigation">
+            <figcaption>
+              <span class="screenshot-credit">Actual application screenshot · {{ screen.label }}</span>
+              <a :href="screen.image" target="_blank" rel="noopener">View full size <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg></a>
               <p class="preview-position" role="status" aria-live="polite" aria-atomic="true">{{ screen.label }} <span>· {{ selected + 1 }} / {{ screens.length }}</span></p>
-              <div class="preview-buttons">
-                <button type="button" @click="step(-1)" aria-controls="preview-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg>Previous</button>
-                <button type="button" @click="step(1)" aria-controls="preview-panel">Next<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
-              </div>
-            </div>
-          </div>
-          <figure class="demo-window">
-            <div class="screen-stage">
-              <Transition name="screen">
-                <img :key="screen.image" :src="screen.image" :alt="screen.alt" width="1920" height="1045" loading="lazy" />
-              </Transition>
-            </div>
-            <figcaption><span>Actual application screenshot · {{ screen.label }}</span><a :href="screen.image" target="_blank" rel="noopener">View full size <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg></a></figcaption>
+            </figcaption>
           </figure>
         </div>
       </div>
@@ -86,8 +83,10 @@ function move(event) {
 
     <section id="care" class="care" aria-labelledby="care-title">
       <div class="wrap">
-        <h2 id="care-title">Made for the files<br />you can’t take twice.</h2>
-        <p class="care-lead">The moment is irreplaceable.<br />The import should be predictable.</p>
+        <div class="care-intro">
+          <h2 id="care-title">Made for the files<br />you can’t take twice.</h2>
+          <p class="care-lead">The moment is irreplaceable.<br />The import should be predictable.</p>
+        </div>
         <div class="principles">
           <article><h3>Review first.<br /><span>Copy second.</span></h3><p>Exact destination paths, up front. Naming collisions are resolved in the plan, never with a silent overwrite.</p></article>
           <article><h3>A copy isn’t done<br /><span>until it’s verified.</span></h3><p>Copies stay under temporary names until verification succeeds. Interrupted work never masquerades as a finished import.</p></article>
