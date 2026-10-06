@@ -12,13 +12,23 @@ Navigation and the safety section use #24221e, with borders #4b453b.
 
 The experience moves from the hero to five selectable app screenshots, a
 dark safety chapter, and a Linux download close. Pills are reserved for
-actions and screenshot selection. Actual app screenshots provide the only
+actions, including Previous and Next screenshot controls. Actual app screenshots provide the only
 large imagery; no stock photographs or invented UI.
 
-The walkthrough supports arrow keys, Home and End, roving focus, and labeled
-tab panels. Screenshot links open full-resolution originals on mobile.
-Motion is a single gentle landing of the hero screenshot and is disabled
-for reduced-motion preferences. Content never starts invisible.
+The walkthrough uses Previous and Next buttons, a live slide counter, and
+arrow/Home/End keyboard navigation without moving focus. Desktop pairs the
+screenshot with its description and caps image size against viewport height,
+keeping the entire section visible beneath the sticky navigation at common
+laptop sizes. Mobile stacks the description, controls, and screenshot.
+Overlapping copy blocks reserve the tallest description without exposing
+inactive text to assistive technology. Full-size screenshot links remain available.
+Motion centers on the hero app window's safe landing: a small perspective
+settle and deepening shadow, linked to its viewport entry where supported,
+with a brief timed fallback. Walkthrough screenshots crossfade in place;
+hover arrows and a drawn copy check acknowledge user actions, with no loops
+or repeated section reveals. Reduced-motion preferences remove spatial motion
+and animation while retaining immediate selection and copy confirmation.
+Content never starts invisible.
 
 The hero and download close share the official Linux x86_64 install command,
 in a compact charcoal command panel. Its header pairs the install label with

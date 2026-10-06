@@ -22,11 +22,11 @@ async function copy() {
 
 <template>
   <div class="install-command">
-    <div class="command-panel">
+    <div class="command-panel" :class="{ 'command-copied': status === 'Copied to clipboard.' }">
       <div class="command-header">
         <p class="install-label">Install with one command</p>
         <button type="button" @click="copy" :disabled="copying" aria-label="Copy install command">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="status === 'Copied to clipboard.'" d="m5 12 4 4L19 6" /><template v-else><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4" /></template></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path v-if="status === 'Copied to clipboard.'" class="copy-check" pathLength="1" d="m5 12 4 4L19 6" /><template v-else><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4" /></template></svg>
           {{ copying ? 'Copying…' : status === 'Copied to clipboard.' ? 'Copied' : 'Copy' }}
         </button>
       </div>
@@ -42,7 +42,10 @@ async function copy() {
 
 <style scoped>
 .install-command{max-width:920px;margin:32px auto 0;text-align:left}
-.command-panel{padding:12px 20px 20px;background:#24221e;border:1px solid var(--line);border-radius:12px}
+.command-panel{padding:12px 20px 20px;background:#24221e;border:1px solid var(--line);border-radius:12px;transition:border-color .2s ease}
+.command-panel.command-copied{border-color:var(--accent)}
+.copy-check{stroke-dasharray:1;animation:confirm-copy .24s var(--settle) both}
+@keyframes confirm-copy{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
 .command-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
 .install-label{font-size:15px;font-weight:600;line-height:1.4;text-wrap:balance}
 code{display:block;font-family:ui-monospace,monospace;font-size:13px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}

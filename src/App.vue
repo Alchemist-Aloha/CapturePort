@@ -20,13 +20,15 @@ onMounted(async () => {
     releaseStatus.value = 'Direct downloads unavailable. Find the latest packages on GitHub.'
   }
 })
-function move(event, index) {
+function step(delta) {
+  selected.value = (selected.value + delta + screens.length) % screens.length
+}
+function move(event) {
   const directions = { ArrowRight: 1, ArrowLeft: -1 }
   if (!(event.key in directions) && !['Home', 'End'].includes(event.key)) return
   event.preventDefault()
-  selected.value = event.key === 'Home' ? 0 : event.key === 'End' ? screens.length - 1
-    : (index + directions[event.key] + screens.length) % screens.length
-  document.getElementById('tab-' + selected.value).focus()
+  if (event.key in directions) step(directions[event.key])
+  else selected.value = event.key === 'Home' ? 0 : screens.length - 1
 }
 </script>
 
@@ -55,13 +57,27 @@ function move(event, index) {
     <section id="experience" class="experience" aria-labelledby="experience-title">
       <div class="wrap">
         <div class="section-intro"><h2 id="experience-title">Less busywork.<br /><span>More next adventure.</span></h2><p>From the first look to the final folder, a considered workflow that puts you in control.</p></div>
-        <div class="tabs" role="tablist" aria-label="Explore CapturePort screens">
-          <button v-for="(item, index) in screens" :id="'tab-' + index" :key="item.label" role="tab" :aria-selected="selected === index" :aria-controls="'panel-' + index" :tabindex="selected === index ? 0 : -1" @click="selected = index" @keydown="move($event, index)">{{ item.label }}</button>
-        </div>
-        <div :id="'panel-' + selected" role="tabpanel" :aria-labelledby="'tab-' + selected" tabindex="0" class="demo-panel">
-          <div class="demo-copy"><h3>{{ screen.title }}</h3><p>{{ screen.description }}</p></div>
+        <div id="preview-panel" role="group" aria-roledescription="carousel" aria-label="CapturePort screenshots" tabindex="0" class="demo-panel" @keydown="move">
+          <div class="demo-details">
+            <div class="demo-copy">
+              <div v-for="(item, index) in screens" :key="item.label" class="demo-copy-content" :class="{ 'is-selected': selected === index }" :aria-hidden="selected !== index">
+                <h3>{{ item.title }}</h3><p>{{ item.description }}</p>
+              </div>
+            </div>
+            <div class="preview-navigation">
+              <p class="preview-position" role="status" aria-live="polite" aria-atomic="true">{{ screen.label }} <span>· {{ selected + 1 }} / {{ screens.length }}</span></p>
+              <div class="preview-buttons">
+                <button type="button" @click="step(-1)" aria-controls="preview-panel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5-7 7 7 7" /></svg>Previous</button>
+                <button type="button" @click="step(1)" aria-controls="preview-panel">Next<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
+              </div>
+            </div>
+          </div>
           <figure class="demo-window">
-            <img :src="screen.image" :alt="screen.alt" width="1920" height="1045" loading="lazy" />
+            <div class="screen-stage">
+              <Transition name="screen">
+                <img :key="screen.image" :src="screen.image" :alt="screen.alt" width="1920" height="1045" loading="lazy" />
+              </Transition>
+            </div>
             <figcaption><span>Actual application screenshot · {{ screen.label }}</span><a :href="screen.image" target="_blank" rel="noopener">View full size <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg></a></figcaption>
           </figure>
         </div>
