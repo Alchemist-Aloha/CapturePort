@@ -1,3 +1,5 @@
+![CapturePort social preview: photo and video importer](assets/github-social-preview.jpg)
+
 # CapturePort
 
 CapturePort copies photos and videos from a camera, memory card, or folder into a library you choose — and shows you exactly where every file will land before it copies anything.
