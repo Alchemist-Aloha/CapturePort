@@ -19,10 +19,37 @@ It is a native Linux application inspired by the classic Windows Import Pictures
 
 ## Install
 
-CapturePort is distributed as Linux packages and a portable archive. Every
-branch and tag push builds x86_64 artifacts for Debian/Ubuntu (`.deb`), Arch
-(pacman), and Fedora (`.rpm`) in the **Linux packages** GitHub Actions workflow.
-Open the workflow run and download them from the **Artifacts** section.
+### One-command user install (Linux x86_64)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Alchemist-Aloha/CapturePort/main/scripts/install.sh | sh
+```
+
+Requires `curl` and standard Linux command-line utilities. No sudo, Rust, or
+source build is needed: the installer downloads the prebuilt binary from the
+[latest GitHub release](https://github.com/Alchemist-Aloha/CapturePort/releases/latest),
+verifies it against the release's `SHA256SUMS`, and installs it as
+`~/.local/bin/captureport`. Rerun the same command to update. A failed download
+or checksum check leaves an existing installation untouched.
+
+If `~/.local/bin` is not on your PATH, add this to your shell profile and reload
+it (or run it in your current terminal):
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Launch with `captureport`, or directly with `~/.local/bin/captureport`.
+Uninstall with `rm ~/.local/bin/captureport`; your settings and import history
+are left intact. The installer does not install system libraries or a desktop
+launcher. The binary is built on Ubuntu 24.04 and needs compatible host libraries.
+
+### Distribution packages
+
+GitHub releases also provide Debian/Ubuntu (`.deb`), Arch (pacman), Fedora
+(`.rpm`), and portable archive downloads. Every branch and tag push builds
+x86_64 artifacts in the **Linux packages** GitHub Actions workflow; development
+builds are available from each run's **Artifacts** section.
 
 Runtime requirements:
 
