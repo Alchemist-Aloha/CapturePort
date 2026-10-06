@@ -1,0 +1,79 @@
+<script setup>
+import { computed, ref } from 'vue'
+import { screens } from './screens.js'
+import logo from '../assets/captureport.svg'
+
+const selected = ref(0)
+const screen = computed(() => screens[selected.value])
+const repo = 'https://github.com/Alchemist-Aloha/CapturePort'
+function move(event, index) {
+  const directions = { ArrowRight: 1, ArrowLeft: -1 }
+  if (!(event.key in directions) && !['Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  selected.value = event.key === 'Home' ? 0 : event.key === 'End' ? screens.length - 1
+    : (index + directions[event.key] + screens.length) % screens.length
+  document.getElementById('tab-' + selected.value).focus()
+}
+</script>
+
+<template>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="header">
+    <nav class="nav wrap" aria-label="Main navigation">
+      <a class="brand" href="#" aria-label="CapturePort home"><img :src="logo" alt="" width="30" height="30" /><span>CapturePort</span></a>
+      <div class="nav-links"><a href="#experience">Explore</a><a href="#care">Why CapturePort</a><a class="button small" href="#download">Get CapturePort</a></div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <h1 id="hero-title">From camera<br />to <span>yours.</span></h1>
+      <p class="hero-copy">Every shoot deserves a safe landing.<br />Import your photos and videos. Keep your originals.<br class="desktop-break" /> Make the library your own.</p>
+      <div class="actions"><a class="button" href="#download">Get CapturePort</a><a class="text-link" href="#experience">See it in action <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></a></div>
+      <p class="platform">Native Linux app. Open source. Yours to keep.</p>
+      <figure class="hero-window">
+        <img :src="screens[0].image" :alt="screens[0].alt" width="1919" height="1044" fetchpriority="high" />
+        <figcaption>CapturePort, with your next import in view.</figcaption>
+      </figure>
+    </section>
+
+    <section id="experience" class="experience" aria-labelledby="experience-title">
+      <div class="wrap">
+        <div class="section-intro"><h2 id="experience-title">Less busywork.<br /><span>More next adventure.</span></h2><p>From the first look to the final folder, a considered workflow that puts you in control.</p></div>
+        <div class="tabs" role="tablist" aria-label="Explore CapturePort screens">
+          <button v-for="(item, index) in screens" :id="'tab-' + index" :key="item.label" role="tab" :aria-selected="selected === index" :aria-controls="'panel-' + index" :tabindex="selected === index ? 0 : -1" @click="selected = index" @keydown="move($event, index)">{{ item.label }}</button>
+        </div>
+        <div :id="'panel-' + selected" role="tabpanel" :aria-labelledby="'tab-' + selected" tabindex="0" class="demo-panel">
+          <div class="demo-copy"><h3>{{ screen.title }}</h3><p>{{ screen.description }}</p></div>
+          <figure class="demo-window">
+            <img :src="screen.image" :alt="screen.alt" width="1920" height="1045" loading="lazy" />
+            <figcaption><span>Actual application screenshot · {{ screen.label }}</span><a :href="screen.image" target="_blank" rel="noopener">View full size <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg></a></figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="care" class="care" aria-labelledby="care-title">
+      <div class="wrap">
+        <h2 id="care-title">Made for the files<br />you can’t take twice.</h2>
+        <p class="care-lead">The moment is irreplaceable.<br />The import should be predictable.</p>
+        <div class="principles">
+          <article><h3>Review first.<br /><span>Copy second.</span></h3><p>Exact destination paths, up front. Naming collisions are resolved in the plan, never with a silent overwrite.</p></article>
+          <article><h3>A copy isn’t done<br /><span>until it’s verified.</span></h3><p>Copies stay under temporary names until verification succeeds. Interrupted work never masquerades as a finished import.</p></article>
+          <article><h3>Your originals.<br /><span>Still original.</span></h3><p>Importing doesn’t move or delete your source files. Your camera or card stays yours to manage.</p></article>
+        </div>
+        <div class="ownership"><p>No proprietary library.<br /><strong>Just your files, in your folders.</strong></p><a :href="repo + '#where-your-data-lives'" class="light-link">Learn how CapturePort stores your data <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></a></div>
+      </div>
+    </section>
+
+    <section id="download" class="download wrap" aria-labelledby="download-title">
+      <img :src="logo" alt="" width="76" height="76" loading="lazy" />
+      <h2 id="download-title">Your next shoot.<br /><span>Meet its new home.</span></h2>
+      <p>CapturePort for Linux.<br />A focused importer. Not another photo catalog.</p>
+      <div class="actions"><a class="button" :href="repo + '/releases/latest'">Download for Linux <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12m-5-5 5 5 5-5M5 17v3h14v-3" /></svg></a><a class="text-link" :href="repo">View on GitHub <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10" /></svg></a></div>
+      <p class="requirements">Linux x86_64 · Vulkan-capable graphics · libgphoto2 for cameras<br />Debian / Ubuntu, Arch, Fedora, and portable packages.<br /><a :href="repo + '#install'">Installation and runtime requirements</a></p>
+    </section>
+  </main>
+
+  <footer class="footer wrap"><a class="brand" href="#"><img :src="logo" alt="" width="24" height="24" /><span>CapturePort</span></a><p>Keep the moment. Own the library.</p><div><a :href="repo + '/blob/main/LICENSE'">MIT license</a><a :href="repo + '/issues'">Support</a><a :href="repo">Source</a></div></footer>
+</template>

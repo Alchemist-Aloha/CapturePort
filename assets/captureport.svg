@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 128 128"
+  width="128"
+  height="128"
+  role="img"
+  aria-labelledby="captureport-title captureport-desc"
+  shape-rendering="geometricPrecision">
+  <title id="captureport-title">CapturePort</title>
+  <desc id="captureport-desc">A rectangular-segment C and P merged into the outline of the 田 glyph.</desc>
+  <!--
+    CapturePort mark: nine identical segments on one grid (rails at x 28 / 64 /
+    100 and y 28 / 64 / 100; each rectangular segment 23 units long and 12 units wide,
+    with 0.5-unit clearance at perpendicular joints). Only the colour groups the letters.
+
+      C  #A6BBAE  top-left, upper-left, lower-left, bottom-left         (4)
+      P  #C7B299  top-right, upper-right, middle-right, stem upper/lower (5)
+
+    Every rail is two segments meeting at the middle, so the centre stem breaks
+    exactly like the left rail. The stem sits in the C's opening, so the strokes
+    read as "CP" while still tracing the frame and cross of 田.
+
+    Palette: a quiet charcoal ground (#15181A) with a 1px hairline rim (#323A3B),
+    a sage C and a warm sand P. The two hues are near-neutral and the sage and
+    sand both clear 8:1 on the ground, so the letters read by hue rather than by
+    saturation. The in-app badge in `icons.rs` mirrors these four values.
+  -->
+  <rect x="0.5" y="0.5" width="127" height="127" rx="27.5" fill="#15181A" stroke="#323A3B" stroke-width="1"/>
+  <g fill="#A6BBAE">
+    <rect x="34.5" y="22" width="23" height="12"/>
+    <rect x="22" y="34.5" width="12" height="23"/>
+    <rect x="22" y="70.5" width="12" height="23"/>
+    <rect x="34.5" y="94" width="23" height="12"/>
+  </g>
+  <g fill="#C7B299">
+    <rect x="70.5" y="22" width="23" height="12"/>
+    <rect x="94" y="34.5" width="12" height="23"/>
+    <rect x="70.5" y="58" width="23" height="12"/>
+    <rect x="58" y="34.5" width="12" height="23"/>
+    <rect x="58" y="70.5" width="12" height="23"/>
+  </g>
+</svg>
