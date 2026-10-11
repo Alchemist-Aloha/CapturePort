@@ -2,6 +2,8 @@
 
 # CapturePort
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 CapturePort copies photos and videos from a camera, memory card, or folder into a library you choose — and shows you exactly where every file will land before it copies anything.
 
 It is a native Linux application inspired by the classic Windows Import Pictures and Videos wizard. There is no catalog to import into and no library to lock you in: the filesystem is the library, and CapturePort's only job is to add files to it safely. It does not edit, rate, or organize media after import.
