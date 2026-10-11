@@ -84,6 +84,17 @@ Runtime requirements:
 6. **Check the result.** **History** lists the session and every destination it
    wrote.
 
+## Interface languages
+
+Choose **Settings → Language** to switch instantly between English, 简体中文,
+繁體中文, Español, Français, Deutsch, Português, 日本語, 한국어, and Italiano.
+The choice is saved automatically and works offline. **System language** follows
+`LC_ALL`, `LC_MESSAGES`, then `LANG`, with English as the fallback.
+
+Only the interface is translated; filenames, paths, template syntax, and your
+custom names stay unchanged. For Chinese, Japanese, or Korean, install a system
+font with the required glyphs (for example Noto Sans CJK).
+
 ## Sources
 
 - **Folders** — any directory, scanned recursively and read-only.

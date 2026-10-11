@@ -1,13 +1,23 @@
 use crate::*;
 
 impl Browser {
+    pub(crate) fn set_language(
+        &mut self,
+        language: Option<i18n::Language>,
+        cx: &mut Context<Self>,
+    ) {
+        self.ui.language = language;
+        i18n::activate(language);
+        self.save_ui();
+        cx.notify();
+    }
     pub(crate) fn show_settings(&mut self, cx: &mut Context<Self>) {
         self.page = Page::Settings;
         cx.notify();
     }
     pub(crate) fn save_source_alias(&mut self, cx: &mut Context<Self>) {
         let Some(source_id) = self.catalog_source_id else {
-            self.message = Some("Open a source before naming it".into());
+            self.message = Some(i18n::tr("Open a source before naming it"));
             cx.notify();
             return;
         };
@@ -42,7 +52,10 @@ impl Browser {
         let saved = match saved_presets::SavedSettings::decode(&record.configuration_json) {
             Ok(saved) => saved,
             Err(error) => {
-                self.preset_message = Some(format!("Could not load preset: {error}"));
+                self.preset_message = Some(i18n::format(
+                    "Could not load preset: {0}",
+                    std::slice::from_ref(&error),
+                ));
                 cx.notify();
                 return;
             }
@@ -51,7 +64,9 @@ impl Browser {
         let replan = self.plan.is_some() || self.planning;
         self.preset = saved.import;
         self.preset.name = name.clone();
+        let language = self.ui.language;
         self.ui = saved.appearance;
+        self.ui.language = language;
         self.backup_required_choice = saved.backup_required;
         self.settings.sync(&self.preset, cx);
         self.settings
@@ -73,8 +88,9 @@ impl Browser {
         self.pump_thumbnails();
         self.save_preset();
         self.save_ui();
-        self.preset_message = Some(format!(
-            "Loaded {name}. Save source alias separately; rescan to apply discovery rules."
+        self.preset_message = Some(i18n::format(
+            "Loaded {0}. Save source alias separately; rescan to apply discovery rules.",
+            std::slice::from_ref(&name),
         ));
         if replan && !self.scanning {
             self.start_plan(cx);
@@ -96,7 +112,7 @@ impl Browser {
             .iter()
             .find(|preset| Some(preset.id) == self.selected_preset);
         if action != PresetAction::Create && selected.is_none() {
-            self.preset_message = Some("Choose a saved preset first.".into());
+            self.preset_message = Some(i18n::tr("Choose a saved preset first."));
             cx.notify();
             return;
         }
@@ -119,8 +135,9 @@ impl Browser {
                 .to_string()
         };
         if name.is_empty() || name.chars().any(char::is_control) {
-            self.preset_message =
-                Some("Enter a non-empty preset name without control characters.".into());
+            self.preset_message = Some(i18n::tr(
+                "Enter a non-empty preset name without control characters.",
+            ));
             cx.notify();
             return;
         }
@@ -130,8 +147,9 @@ impl Browser {
                     && (action == PresetAction::Create || Some(preset.id) != self.selected_preset)
             })
         {
-            self.preset_message =
-                Some("That name already exists. Choose another name or use Overwrite.".into());
+            self.preset_message = Some(i18n::tr(
+                "That name already exists. Choose another name or use Overwrite.",
+            ));
             cx.notify();
             return;
         }
@@ -154,7 +172,10 @@ impl Browser {
             match result {
                 Ok(json) => json,
                 Err(error) => {
-                    self.preset_message = Some(format!("Could not save preset: {error}"));
+                    self.preset_message = Some(i18n::format(
+                        "Could not save preset: {0}",
+                        std::slice::from_ref(&error),
+                    ));
                     cx.notify();
                     return;
                 }
@@ -167,7 +188,7 @@ impl Browser {
         let (tx, rx) = mpsc::channel();
         self.work_receivers.push(rx);
         self.preset_busy = true;
-        self.preset_message = Some("Saving preset changes…".into());
+        self.preset_message = Some(i18n::tr("Saving preset changes…"));
         thread::spawn(move || {
             let result = (|| -> Result<_, String> {
                 let (selected, message) = match action {
@@ -175,19 +196,31 @@ impl Browser {
                         let record = catalog
                             .create_preset(name.clone(), configuration, now())
                             .map_err(|error| error.to_string())?;
-                        (Some(record.id), format!("Created {name}."))
+                        (
+                            Some(record.id),
+                            i18n::format("Created {0}.", std::slice::from_ref(&name)),
+                        )
                     }
                     PresetAction::Rename => {
                         catalog
                             .rename_preset(id.expect("selected preset"), name.clone(), now())
                             .map_err(|error| error.to_string())?;
-                        (id, format!("Renamed preset to {name}."))
+                        (
+                            id,
+                            i18n::format("Renamed preset to {0}.", std::slice::from_ref(&name)),
+                        )
                     }
                     PresetAction::Overwrite => {
                         catalog
                             .upsert_preset(id, name.clone(), configuration, now())
                             .map_err(|error| error.to_string())?;
-                        (id, format!("Overwrote {name} with all current settings."))
+                        (
+                            id,
+                            i18n::format(
+                                "Overwrote {0} with all current settings.",
+                                std::slice::from_ref(&name),
+                            ),
+                        )
                     }
                     PresetAction::Delete => {
                         catalog
@@ -195,8 +228,9 @@ impl Browser {
                             .map_err(|error| error.to_string())?;
                         (
                             None,
-                            format!(
-                                "Deleted {name}. Current settings and imported files are unchanged."
+                            i18n::format(
+                                "Deleted {0}. Current settings and imported files are unchanged.",
+                                std::slice::from_ref(&name),
                             ),
                         )
                     }
@@ -299,7 +333,7 @@ impl Browser {
         {
             Ok(preset) => preset,
             Err(error) => {
-                self.message = Some(format!("Settings: {error}"));
+                self.message = Some(i18n::format("Settings: {0}", std::slice::from_ref(&error)));
                 cx.notify();
                 return;
             }
@@ -309,7 +343,7 @@ impl Browser {
         self.rebuild_gallery_groups();
         self.invalidate_plan();
         self.page = Page::Browser;
-        self.message = Some("Import settings saved; build a new preview".into());
+        self.message = Some(i18n::tr("Import settings saved; build a new preview"));
         self.save_preset();
         if replan && !self.scanning {
             self.start_plan(cx);

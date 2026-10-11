@@ -7,7 +7,7 @@ impl Browser {
             return div()
                 .flex_1()
                 .p(px(spacing::CONTENT))
-                .child("No preview yet")
+                .child(i18n::tr("No preview yet"))
                 .into_any_element();
         };
         let count = plan.items.len();
@@ -30,15 +30,12 @@ impl Browser {
             .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).border_b_1().border_color(p.border)
                 .child(div().flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTROL_GAP))
                     .child(div().font_family(DISPLAY_FONT).text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
-                        .child(format!("Review import · {count} files")))
+                        .child(i18n::format("Review import · {0} files", &[format!("{}", count)])))
                     .child(button(Icon::Back, "Back to media", p,  cx.listener(|t, _, _, c| { t.page = Page::Browser; c.notify() }))))
                 .child(div().text_sm().text_color(p.muted)
-                    .child(if blocked > 0 { format!("{blocked} blocked · Review the affected paths below") } else { "Check each final destination before copying.".into() })))
+                    .child(if blocked > 0 { i18n::format("{0} blocked · Review the affected paths below", &[format!("{}", blocked)]) } else { i18n::tr("Check each final destination before copying.") })))
             .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border).bg(p.panel)
-                .child(div().text_sm().child(format!(
-                    "{} to copy · {skipped} skipped · {blocked} blocked · {} preset · {:?} verification",
-                    count.saturating_sub(blocked + skipped), plan.preset_name, plan.verification
-                )))
+                .child(div().text_sm().child(i18n::format("{0} to copy · {1} skipped · {2} blocked · {3} preset · {4} verification", &[format!("{}", count.saturating_sub(blocked + skipped)), format!("{}", skipped), format!("{}", blocked), plan.preset_name.to_string(), i18n::tr(&format!("{:?}", plan.verification))])))
                 .child(if blocked == 0 && count > 0 && !self.importing && self.last_import_result.is_none() {
                     primary_button(Icon::Import, "Confirm import", p,
                         cx.listener(|t, _, w, c| t.import_selected(&ImportSelected, w, c)))
@@ -75,12 +72,10 @@ impl Browser {
                                             .text_sm()
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
                                             .child(self.deletion_scope().unwrap_or_else(|| {
-                                                "Delete verified originals from this source".into()
+                                                i18n::tr("Delete verified originals from this source")
                                             })),
                                     )
-                                    .child(div().text_xs().text_color(p.muted).child(
-                                        "This cannot be undone. Only files whose required copies verified are removed.",
-                                    )),
+                                    .child(div().text_xs().text_color(p.muted).child(i18n::tr("This cannot be undone. Only files whose required copies verified are removed."))),
                             )
                             .child(
                                 div()
@@ -146,15 +141,12 @@ impl Browser {
                                     .find_map(|item| t.thumbnail_modified.get(&item.media_id))
                                     .copied()
                                     .map(|seconds| {
-                                        format!(
-                                            " · Modified {}",
-                                            format_file_time(
+                                        i18n::format(" · Modified {0}", &[format_file_time(
                                                 seconds,
                                                 t.preset
                                                     .time_correction
                                                     .assumed_utc_offset_seconds
-                                            )
-                                        )
+                                            ).to_string()])
                                     })
                                     .unwrap_or_default();
                                 let destinations = items
@@ -164,8 +156,8 @@ impl Browser {
                                         format!(
                                             "{}{} · {}",
                                             c.final_destination.display(),
-                                            if c.required { "" } else { " (optional)" },
-                                            plan_status_label(c.status)
+                                            i18n::tr(if c.required { "" } else { " (optional)" }),
+                                            i18n::tr(plan_status_label(c.status))
                                         )
                                     })
                                     .collect::<Vec<_>>()
@@ -182,7 +174,7 @@ impl Browser {
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
                                             .child(format!(
                                                 "{names} · {}{modified}",
-                                                plan_status_label(status)
+                                                i18n::tr(plan_status_label(status))
                                             )),
                                     )
                                     .child(
@@ -224,7 +216,10 @@ impl Browser {
                     .font_family(DISPLAY_FONT)
                     .text_lg()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child(format!("Import history · {} sessions", self.history.len())),
+                    .child(i18n::format(
+                        "Import history · {0} sessions",
+                        &[format!("{}", self.history.len())],
+                    )),
             );
         for entry in &self.history {
             let session = &entry.detail.session;
@@ -275,15 +270,19 @@ impl Browser {
                                 session.started_at, entry.source_name, session.status
                             )),
                     )
-                    .child(div().text_xs().child(format!(
-                        "{imported} imported · {} · {destination}",
-                        format_size(bytes)
+                    .child(div().text_xs().child(i18n::format(
+                        "{0} imported · {1} · {2}",
+                        &[
+                            format!("{}", imported),
+                            format_size(bytes).to_string(),
+                            destination.to_string(),
+                        ],
                     ))),
             );
         }
         if self.history.is_empty() {
             panel = panel.child(div().p(px(spacing::CONTENT)).text_color(p.muted)
-                .child("No imports yet. Open a source, select media, then review an import to start your history."));
+                .child(i18n::tr("No imports yet. Open a source, select media, then review an import to start your history.")));
         }
         if let Some(detail) = &self.session_detail {
             panel = panel.child(
@@ -291,10 +290,12 @@ impl Browser {
                     .px(px(spacing::CONTENT))
                     .py(px(spacing::CONTENT))
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child(format!(
-                        "Session {} · {} copies",
-                        detail.session.id,
-                        detail.imports.len()
+                    .child(i18n::format(
+                        "Session {0} · {1} copies",
+                        &[
+                            format!("{}", detail.session.id),
+                            format!("{}", detail.imports.len()),
+                        ],
                     )),
             );
             let mut index = 0;
@@ -325,7 +326,7 @@ impl Browser {
                             self.preset.time_correction.assumed_utc_offset_seconds,
                         )
                     })
-                    .unwrap_or_else(|| "unknown".into());
+                    .unwrap_or_else(|| i18n::tr("unknown"));
                 panel = panel.child(
                     div()
                         .px(px(spacing::CONTENT))
@@ -337,10 +338,13 @@ impl Browser {
                                 .text_sm()
                                 .child(format!("{destinations} · {:?}", first.status)),
                         )
-                        .child(div().text_xs().child(format!(
-                            "Modified {modified} · Verification: {} · {}",
-                            first.verification_method.as_deref().unwrap_or("pending"),
-                            first.error.as_deref().unwrap_or("")
+                        .child(div().text_xs().child(i18n::format(
+                            "Modified {0} · Verification: {1} · {2}",
+                            &[
+                                modified.to_string(),
+                                i18n::tr(first.verification_method.as_deref().unwrap_or("pending")),
+                                first.error.as_deref().unwrap_or("").to_string(),
+                            ],
                         ))),
                 );
                 index = group_end;
@@ -376,24 +380,28 @@ impl Browser {
                     .font_family(DISPLAY_FONT)
                     .text_lg()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("Import recovery"),
+                    .child(i18n::tr("Import recovery")),
             )
-            .child(div().text_sm().child(format!(
-                "{} unfinished session(s) · {} incomplete file(s)",
-                self.incomplete_sessions.len(),
-                self.partial_files.len()
+            .child(div().text_sm().child(i18n::format(
+                "{0} unfinished session(s) · {1} incomplete file(s)",
+                &[
+                    format!("{}", self.incomplete_sessions.len()),
+                    format!("{}", self.partial_files.len()),
+                ],
             )));
         if self.incomplete_sessions.is_empty() && self.partial_files.is_empty() {
             panel = panel.child(div().mt(px(spacing::CONTENT)).p(px(spacing::CONTENT)).rounded_sm().bg(p.card)
-                .child("Nothing needs recovery. Interrupted imports and incomplete files will appear here."));
+                .child(i18n::tr("Nothing needs recovery. Interrupted imports and incomplete files will appear here.")));
         }
         for session in &self.incomplete_sessions {
             panel = panel.child(div().p(px(spacing::CONTENT)).bg(p.card).rounded_sm().child(
-                format!(
-                    "Session {} · started {} · {} recorded copies",
-                    session.session.id,
-                    session.session.started_at,
-                    session.imports.len()
+                i18n::format(
+                    "Session {0} · started {1} · {2} recorded copies",
+                    &[
+                        format!("{}", session.session.id),
+                        session.session.started_at.to_string(),
+                        format!("{}", session.imports.len()),
+                    ],
                 ),
             ));
         }
@@ -472,11 +480,11 @@ impl Browser {
             .find(|preset| Some(preset.id) == self.selected_preset);
         let mut controls = div().flex().flex_col().gap(px(spacing::CONTROL_GAP))
             .child(div().text_xs().text_color(p.muted)
-                .child("Saved presets include every setting below: import rules, browsing, appearance, and the source-alias field."));
+                .child(i18n::tr("Saved presets include every setting below: import rules, browsing, appearance, and the source-alias field.")));
         if self.saved_presets.is_empty() && !self.preset_busy {
-            controls = controls.child(div().text_sm().text_color(p.muted).child(
+            controls = controls.child(div().text_sm().text_color(p.muted).child(i18n::tr(
                 "No saved presets yet. Enter a name and create one from your current settings.",
-            ));
+            )));
         } else {
             controls = controls.child(
                 div()
@@ -538,9 +546,9 @@ impl Browser {
             let deleting = action == PresetAction::Delete;
             controls = controls
                 .child(div().text_sm().child(if deleting {
-                    format!("Delete ‘{}’? This removes only the saved preset, not your current settings or imported files.", selected.name)
+                    i18n::format("Delete ‘{0}’? This removes only the saved preset, not your current settings or imported files.", std::slice::from_ref(&selected.name))
                 } else {
-                    format!("Overwrite ‘{}’ with all current settings? Its previous saved settings will be replaced.", selected.name)
+                    i18n::format("Overwrite ‘{0}’ with all current settings? Its previous saved settings will be replaced.", std::slice::from_ref(&selected.name))
                 }))
                 .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
                     .child(danger_button(if deleting { Icon::Delete } else { Icon::Confirm },
@@ -559,7 +567,7 @@ impl Browser {
                 div()
                     .text_sm()
                     .text_color(p.muted)
-                    .child("Loading or saving presets…"),
+                    .child(i18n::tr("Loading or saving presets…")),
             );
         }
         controls.into_any_element()
@@ -585,25 +593,23 @@ impl Browser {
                     .font_family(DISPLAY_FONT)
                     .text_lg()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("Settings"),
+                    .child(i18n::tr("Settings")),
             )
             .child(div().text_sm().text_color(p.muted)
-                .child("Set destinations and naming, then review the safety and media rules. Appearance and source alias save separately."))
+                .child(i18n::tr("Set destinations and naming, then review the safety and media rules. Appearance and source alias save separately.")))
             .child(settings_section("Presets", p))
             .child(div().text_xs().text_color(p.muted)
-                .child("Built-in starting points replace import rules. Choose a saved preset to restore all settings."))
+                .child(i18n::tr("Built-in starting points replace import rules. Choose a saved preset to restore all settings.")))
             .child(
                 div()
                     .flex()
                     .flex_wrap()
                     .gap(px(spacing::CONTROL_GAP))
-                    .child(chip(
-                        "Everyday",
+                    .child(chip(i18n::tr("Everyday"),
                         self.selected_preset.is_none() && self.preset.name == "Everyday", p,
                         cx.listener(|t, _, _, c| t.choose_preset(false, c)),
                     ))
-                    .child(chip(
-                        "Organized",
+                    .child(chip(i18n::tr("Organized"),
                         self.selected_preset.is_none() && self.preset.name == "Organized", p,
                         cx.listener(|t, _, _, c| t.choose_preset(true, c)),
                     )),
@@ -617,7 +623,7 @@ impl Browser {
                 cx,
             ))
             .child(div().text_xs().text_color(p.muted)
-                .child("Destination roots are absolute paths, for example /home/you/Pictures. Folder templates create subfolders inside these roots."))
+                .child(i18n::tr("Destination roots are absolute paths, for example /home/you/Pictures. Folder templates create subfolders inside these roots.")))
             .child(settings_template_field(
                 "Photo folder template",
                 self.settings.photo_folder.clone(),
@@ -654,7 +660,7 @@ impl Browser {
             ))
             .child(settings_section("Import safety", p))
             .child(div().text_xs().text_color(p.muted)
-                .child("Click a rule to cycle its options. Verification checks copies; collision controls what happens when a destination exists."))
+                .child(i18n::tr("Click a rule to cycle its options. Verification checks copies; collision controls what happens when a destination exists.")))
             .child(
                 div()
                     .flex()
@@ -667,7 +673,7 @@ impl Browser {
                             .p(px(spacing::CONTROL_GAP))
                             .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
-                            .child(format!("Verification: {:?}", self.preset.verification))
+                            .child(i18n::format("Verification: {0}", &[i18n::tr(&format!("{:?}", self.preset.verification))]))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_verification(c))),
                     )
                     .child(
@@ -677,7 +683,7 @@ impl Browser {
                             .p(px(spacing::CONTROL_GAP))
                             .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
-                            .child(format!("Bundles: {:?}", self.preset.bundle_policy))
+                            .child(i18n::format("Bundles: {0}", &[i18n::tr(&format!("{:?}", self.preset.bundle_policy))]))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_bundle_policy(c))),
                     ),
             )
@@ -693,7 +699,10 @@ impl Browser {
                             .p(px(spacing::CONTROL_GAP))
                             .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
-                            .child(format!("Grouping: {:?}", self.preset.grouping))
+                            .child(i18n::format("Grouping: {0}", &[match self.preset.grouping {
+                                Grouping::TimeGap { threshold_minutes } => i18n::format("Time gap: {0} min", &[threshold_minutes.to_string()]),
+                                _ => i18n::tr(&format!("{:?}", self.preset.grouping)),
+                            }]))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_grouping(c))),
                     )
                     .child(
@@ -703,13 +712,13 @@ impl Browser {
                             .p(px(spacing::CONTROL_GAP))
                             .bg(p.card).rounded_sm().border_1().border_color(p.border)
                             .hover(move |style| style.bg(p.selected))
-                            .child(format!("Collision: {:?}", self.preset.collision))
+                            .child(i18n::format("Collision: {0}", &[i18n::tr(&format!("{:?}", self.preset.collision))]))
                             .on_click(cx.listener(|t, _, _, c| t.cycle_collision(c))),
                     ),
             )
             .child(settings_section("Media discovery", p))
             .child(div().text_xs().text_color(p.muted)
-                .child("These rules determine which files appear when you scan a source."))
+                .child(i18n::tr("These rules determine which files appear when you scan a source.")))
             .child(settings_field(
                 "Additional photo extensions (comma separated)",
                 self.settings.include_photo.clone(),
@@ -735,7 +744,7 @@ impl Browser {
                 cx,
             ))
             .child(div().text_xs().text_color(p.muted)
-                .child("Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser."))
+                .child(i18n::tr("Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.")))
             .child(settings_field(
                 "Ignored media types (raw, photo, video, sidecar, unknown)",
                 self.settings.ignore_types.clone(),
@@ -744,19 +753,17 @@ impl Browser {
             ))
             .child(settings_section("Browsing", p))
             .child(div().text_xs().text_color(p.muted)
-                .child("Choose whether a RAW and its JPEG sidecar appear as one item or as separate files."))
+                .child(i18n::tr("Choose whether a RAW and its JPEG sidecar appear as one item or as separate files.")))
             .child(
                 div()
                     .flex()
                     .flex_wrap()
                     .gap(px(spacing::CONTROL_GAP))
-                    .child(chip(
-                        "Merge RAW+JPEG",
+                    .child(chip(i18n::tr("Merge RAW+JPEG"),
                         self.ui.merge_raw_jpeg, p,
                         cx.listener(|t, _, _, c| t.set_merge_raw_jpeg(true, c)),
                     ))
-                    .child(chip(
-                        "Separate files",
+                    .child(chip(i18n::tr("Separate files"),
                         !self.ui.merge_raw_jpeg, p,
                         cx.listener(|t, _, _, c| t.set_merge_raw_jpeg(false, c)),
                     )),
@@ -783,13 +790,11 @@ impl Browser {
                         div()
                             .text_xs()
                             .text_color(p.muted)
-                            .child("Timezone applied to capture times"),
+                            .child(i18n::tr("Timezone applied to capture times")),
                     )
                     .child(button(
                         Icon::Time,
-                        format!(
-                            "Timezone: {}",
-                            timezone_label(
+                        i18n::format("Timezone: {0}", &[timezone_label(
                                 self.settings
                                     .timezone_seconds
                                     .read(cx)
@@ -797,8 +802,7 @@ impl Browser {
                                     .trim()
                                     .parse::<i32>()
                                     .ok()
-                            )
-                        ), p,
+                            ).to_string()]), p,
                         cx.listener(|t, _, _, c| {
                             t.timezone_menu_open = !t.timezone_menu_open;
                             c.notify()
@@ -816,7 +820,7 @@ impl Browser {
                             .flex_col()
                             .gap(px(spacing::TIGHT))
                             .child(timezone_choice(
-                                "Capture metadata".into(),
+                                i18n::tr("Capture metadata"),
                                 self.settings.timezone_seconds.read(cx).value().trim().is_empty(),
                                 u64::MAX,
                                 p,
@@ -872,7 +876,7 @@ impl Browser {
                     .p(px(spacing::CONTROL_GAP))
                     .bg(p.card).rounded_sm().border_1().border_color(p.border)
                     .hover(move |style| style.bg(p.selected))
-                    .child(format!("Backup required: {}", self.backup_required_choice))
+                    .child(i18n::format("Backup required: {0}", &[i18n::tr(if self.backup_required_choice { "Yes" } else { "No" })]))
                     .on_click(cx.listener(|t, _, _, c| t.toggle_backup_required(c))),
             )
             .child(settings_section("Source", p))
@@ -882,18 +886,28 @@ impl Browser {
             ))
             .child(button(Icon::Confirm, "Save source alias", p,
                 cx.listener(|t, _, _, c| t.save_source_alias(c))))
+            .child(settings_section("Language", p))
+            .child(div().text_xs().text_color(p.muted)
+                .child(i18n::tr("Language changes save immediately.")))
+            .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
+                .child(chip(i18n::tr("System language"), self.ui.language.is_none(), p,
+                    cx.listener(|t, _, _, c| t.set_language(None, c))))
+                .children(i18n::Language::ALL.map(|language| chip(
+                    language.native_name(), self.ui.language == Some(language), p,
+                    cx.listener(move |t, _, _, c| t.set_language(Some(language), c)),
+                ))))
             .child(settings_section("Appearance", p))
             .child(div().text_xs().text_color(p.muted)
-                .child("Color scheme and light or dark mode save immediately."))
+                .child(i18n::tr("Color scheme and light or dark mode save immediately.")))
             .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
                 .children(ColorScheme::ALL.map(|scheme| chip(
-                    scheme.label(), self.ui.scheme == scheme, p,
+                    i18n::tr(scheme.label()), self.ui.scheme == scheme, p,
                     cx.listener(move |t, _, _, c| t.set_scheme(scheme, c)),
                 ))))
             .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
-                .child(chip("Light", !self.ui.dark_mode, p,
+                .child(chip(i18n::tr("Light"), !self.ui.dark_mode, p,
                     cx.listener(|t, _, _, c| { if t.ui.dark_mode { t.toggle_dark_mode(c); } })))
-                .child(chip("Dark", self.ui.dark_mode, p,
+                .child(chip(i18n::tr("Dark"), self.ui.dark_mode, p,
                     cx.listener(|t, _, _, c| { if !t.ui.dark_mode { t.toggle_dark_mode(c); } }))))
             .child(settings_section("Maintenance", p))
             .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
@@ -945,7 +959,7 @@ impl Browser {
                         div()
                             .text_xs()
                             .text_color(p.muted)
-                            .child("Review the import preview before copying."),
+                            .child(i18n::tr("Review the import preview before copying.")),
                     )
                     .child(primary_button(
                         Icon::Confirm,

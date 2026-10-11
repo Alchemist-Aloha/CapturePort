@@ -11,7 +11,9 @@ impl Browser {
             return;
         }
         if self.scanning {
-            self.message = Some("Wait for the source scan to finish before planning".into());
+            self.message = Some(i18n::tr(
+                "Wait for the source scan to finish before planning",
+            ));
             cx.notify();
             return;
         }
@@ -29,7 +31,7 @@ impl Browser {
         };
         let plan = self.plan.clone().expect("plan checked above");
         if plan.items.iter().any(|i| blocks_import(i.status)) {
-            self.message = Some("Import preview contains blocked destinations".into());
+            self.message = Some(i18n::tr("Import preview contains blocked destinations"));
             cx.notify();
             return;
         }
@@ -57,7 +59,7 @@ impl Browser {
             return;
         }
         let Some(source) = self.source.clone() else {
-            self.message = Some("Open a source first".into());
+            self.message = Some(i18n::tr("Open a source first"));
             cx.notify();
             return;
         };
@@ -79,7 +81,7 @@ impl Browser {
             })
             .collect();
         if inputs.is_empty() {
-            self.message = Some("Select at least one item".into());
+            self.message = Some(i18n::tr("Select at least one item"));
             cx.notify();
             return;
         }
@@ -91,7 +93,7 @@ impl Browser {
         let (tx, rx) = mpsc::channel();
         self.work_receivers.push(rx);
         self.planning = true;
-        self.message = Some("Building import preview…".into());
+        self.message = Some(i18n::tr("Building import preview…"));
         thread::spawn(move || {
             let plan = ImportPlanner::build_with_explicit_members(
                 source.as_ref(),
@@ -112,7 +114,7 @@ impl Browser {
         if let Some(t) = &self.import_cancellation {
             t.cancel()
         }
-        self.message = Some("Cancelling import…".into());
+        self.message = Some(i18n::tr("Cancelling import…"));
         cx.notify()
     }
     pub(crate) fn history(&mut self, _: &ShowHistory, _: &mut Window, cx: &mut Context<Self>) {
@@ -128,7 +130,9 @@ impl Browser {
                         let source = cat.source_by_id(session.source_id)?;
                         let source_name = source
                             .and_then(|source| source.identity.alias.or(source.identity.model))
-                            .unwrap_or_else(|| format!("Source {}", session.source_id));
+                            .unwrap_or_else(|| {
+                                i18n::format("Source {0}", &[format!("{}", session.source_id)])
+                            });
                         Ok(HistoryEntry {
                             detail,
                             source_name,
@@ -195,16 +199,17 @@ impl Browser {
     pub(crate) fn arm_delete_sources(&mut self, cx: &mut Context<Self>) {
         self.deletion_armed = true;
         self.message = Some(match self.deletion_scope() {
-            Some(scope) => format!(
-                "{scope}. Deleting originals cannot be undone; only files whose required copies verified are removed"
+            Some(scope) => i18n::format(
+                "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed",
+                std::slice::from_ref(&scope),
             ),
-            None => "Review the verified copies, then confirm source deletion separately".into(),
+            None => i18n::tr("Review the verified copies, then confirm source deletion separately"),
         });
         cx.notify();
     }
     pub(crate) fn cancel_delete_sources(&mut self, cx: &mut Context<Self>) {
         self.deletion_armed = false;
-        self.message = Some("Original deletion cancelled".into());
+        self.message = Some(i18n::tr("Original deletion cancelled"));
         cx.notify();
     }
     /// "Delete 47 originals (2.1 GB) from Card · X", or `None` when the scope is
@@ -226,11 +231,14 @@ impl Browser {
                     .as_ref()
                     .and_then(|source| source.display_name.clone())
             })
-            .unwrap_or_else(|| "this source".into());
-        Some(format!(
-            "Delete {} original(s) ({}) from {source}",
-            deletable.len(),
-            format_size(bytes)
+            .unwrap_or_else(|| i18n::tr("this source"));
+        Some(i18n::format(
+            "Delete {0} original(s) ({1}) from {2}",
+            &[
+                format!("{}", deletable.len()),
+                format_size(bytes).to_string(),
+                source.to_string(),
+            ],
         ))
     }
     pub(crate) fn delete_sources(&mut self, cx: &mut Context<Self>) {
@@ -243,8 +251,9 @@ impl Browser {
             self.plan.clone(),
             self.last_import_result.clone(),
         ) else {
-            self.message =
-                Some("A verified filesystem import is required before deleting originals".into());
+            self.message = Some(i18n::tr(
+                "A verified filesystem import is required before deleting originals",
+            ));
             cx.notify();
             return;
         };
@@ -263,18 +272,20 @@ impl Browser {
                     require_all_destinations: true,
                 },
             );
-            let _ = tx.send(WorkMessage::Done(Ok(format!(
-                "Deleted {} verified original(s); {} refused; {} failed",
-                report.deleted.len(),
-                report.refused.len(),
-                report.failed.len()
+            let _ = tx.send(WorkMessage::Done(Ok(i18n::format(
+                "Deleted {0} verified original(s); {1} refused; {2} failed",
+                &[
+                    format!("{}", report.deleted.len()),
+                    format!("{}", report.refused.len()),
+                    format!("{}", report.failed.len()),
+                ],
             ))));
         });
         cx.notify();
     }
     pub(crate) fn cancel_clean_partial(&mut self, cx: &mut Context<Self>) {
         self.armed_partial = None;
-        self.message = Some("Incomplete file kept".into());
+        self.message = Some(i18n::tr("Incomplete file kept"));
         cx.notify();
     }
     pub(crate) fn clean_partial(&mut self, index: usize, cx: &mut Context<Self>) {
@@ -285,10 +296,12 @@ impl Browser {
             // Deleting an incomplete file is permanent, so the first click only
             // says which file is about to go.
             self.armed_partial = Some(index);
-            self.message = Some(format!(
-                "Confirm deleting {} ({}) — this cannot be undone",
-                partial.path.display(),
-                format_size(partial.size)
+            self.message = Some(i18n::format(
+                "Confirm deleting {0} ({1}) — this cannot be undone",
+                &[
+                    format!("{}", partial.path.display()),
+                    format_size(partial.size).to_string(),
+                ],
             ));
             cx.notify();
             return;
@@ -313,9 +326,9 @@ impl Browser {
                     let _ = tx.send(WorkMessage::Done(Err(error.to_string())));
                 }
                 None => {
-                    let _ = tx.send(WorkMessage::Done(Err(
-                        "Partial is outside configured destinations".into(),
-                    )));
+                    let _ = tx.send(WorkMessage::Done(Err(i18n::tr(
+                        "Partial is outside configured destinations",
+                    ))));
                 }
             }
         });
@@ -328,7 +341,7 @@ impl Browser {
         cx: &mut Context<Self>,
     ) {
         if self.importing || self.reconcile_cancellation.is_some() {
-            self.message = Some("Finish the active import or reconciliation first".into());
+            self.message = Some(i18n::tr("Finish the active import or reconciliation first"));
             cx.notify();
             return;
         }
@@ -355,7 +368,7 @@ impl Browser {
     ) {
         if let Some(cancel) = &self.reconcile_cancellation {
             cancel.cancel();
-            self.message = Some("Stopping library scan…".into());
+            self.message = Some(i18n::tr("Stopping library scan…"));
             cx.notify();
         }
     }

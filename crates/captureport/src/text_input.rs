@@ -389,7 +389,7 @@ impl Element for TextElement {
     ) -> PaintState {
         let input = self.input.read(cx);
         let content = if input.content.is_empty() {
-            input.placeholder.clone()
+            crate::i18n::tr(&input.placeholder).into()
         } else {
             input.content.clone()
         };

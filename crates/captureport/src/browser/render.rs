@@ -56,11 +56,13 @@ impl Browser {
                             div()
                                 .text_sm()
                                 .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .child(format!(
-                                    "Active import · {:.0}% · {}/{} copies verified",
-                                    overall * 100.,
-                                    progress.completed,
-                                    progress.total
+                                .child(i18n::format(
+                                    "Active import · {0}% · {1}/{2} copies verified",
+                                    &[
+                                        format!("{:.0}", overall * 100.),
+                                        format!("{}", progress.completed),
+                                        format!("{}", progress.total),
+                                    ],
                                 )),
                         )
                         .child(button(
@@ -77,16 +79,21 @@ impl Browser {
                         .bg(p.border)
                         .child(div().h_full().w(gpui::relative(overall)).bg(p.accent)),
                 )
-                .child(div().text_xs().text_color(p.muted).child(format!(
-                    "{} / {} transferred · {}/s",
-                    format_size(progress.bytes_copied),
-                    format_size(progress.bytes_total),
-                    format_size(progress.bytes_per_second.max(0.) as u64)
+                .child(div().text_xs().text_color(p.muted).child(i18n::format(
+                    "{0} / {1} transferred · {2}/s",
+                    &[
+                        format_size(progress.bytes_copied).to_string(),
+                        format_size(progress.bytes_total).to_string(),
+                        format_size(progress.bytes_per_second.max(0.) as u64).to_string(),
+                    ],
                 )))
-                .child(div().w_full().text_sm().truncate().child(format!(
-                    "Current copy: {name} · {} / {}",
-                    format_size(progress.current_file_bytes),
-                    format_size(progress.current_file_total)
+                .child(div().w_full().text_sm().truncate().child(i18n::format(
+                    "Current copy: {0} · {1} / {2}",
+                    &[
+                        name.to_string(),
+                        format_size(progress.current_file_bytes).to_string(),
+                        format_size(progress.current_file_total).to_string(),
+                    ],
                 )))
                 .child(
                     div()
@@ -101,10 +108,13 @@ impl Browser {
                         .text_xs()
                         .text_color(p.muted)
                         .truncate()
-                        .child(format!("To: {}", progress.destination.display())),
+                        .child(i18n::format(
+                            "To: {0}",
+                            &[format!("{}", progress.destination.display())],
+                        )),
                 );
         } else {
-            panel = panel.child(div().text_sm().child("Preparing import…"));
+            panel = panel.child(div().text_sm().child(i18n::tr("Preparing import…")));
         }
         Some(panel.into_any_element())
     }
@@ -139,20 +149,22 @@ impl Render for Browser {
                 self.progress
                     .as_ref()
                     .map(|p| {
-                        format!(
-                            "Importing · {}/{} files · {}",
-                            p.completed,
-                            p.total,
-                            format_size(p.bytes_copied)
+                        i18n::format(
+                            "Importing · {0}/{1} files · {2}",
+                            &[
+                                format!("{}", p.completed),
+                                format!("{}", p.total),
+                                format_size(p.bytes_copied).to_string(),
+                            ],
                         )
                     })
-                    .unwrap_or_else(|| "Importing…".into())
+                    .unwrap_or_else(|| i18n::tr("Importing…"))
             } else if self.scanning {
-                "Scanning…".into()
+                i18n::tr("Scanning…")
             } else if self.state.source.is_none() {
-                "Choose a source to begin".into()
+                i18n::tr("Choose a source to begin")
             } else {
-                "Ready".into()
+                i18n::tr("Ready")
             }
         });
         let content = match self.page {
@@ -247,7 +259,7 @@ impl Render for Browser {
                                 div()
                                     .text_sm()
                                     .text_color(p.header_muted)
-                                    .child("Photo and video ingest"),
+                                    .child(i18n::tr("Photo and video ingest")),
                             ),
                     )
                     .child(button(
@@ -294,11 +306,13 @@ impl Render for Browser {
                             .items_center()
                             .gap(px(spacing::CONTENT))
                             .children((!self.state.is_empty()).then(|| {
-                                format!(
-                                    "{} items · {} selected · {}",
-                                    self.state.len(),
-                                    summary.count,
-                                    format_size(summary.bytes)
+                                i18n::format(
+                                    "{0} items · {1} selected · {2}",
+                                    &[
+                                        format!("{}", self.state.len()),
+                                        format!("{}", summary.count),
+                                        format_size(summary.bytes).to_string(),
+                                    ],
                                 )
                             }))
                             .child(

@@ -32,7 +32,7 @@ pub(crate) fn button(
         .child(icons::icon(icon, palette.text))
         // The label truncates rather than overlapping the button's own border in
         // a narrow rail; a control must never clip its own outline.
-        .child(div().min_w_0().truncate().child(label))
+        .child(div().min_w_0().truncate().child(i18n::tr(&label)))
 }
 /// A destructive action. Shares the button geometry so the danger surface is a
 /// state of the same control, not a hand-rolled look-alike.
@@ -64,7 +64,7 @@ pub(crate) fn danger_button(
         .focus(move |style| style.border_color(palette.accent))
         .on_click(handler)
         .child(icons::icon(icon, palette.text))
-        .child(div().min_w_0().truncate().child(label))
+        .child(div().min_w_0().truncate().child(i18n::tr(&label)))
 }
 pub(crate) fn chip(
     label: impl Into<gpui::SharedString>,

@@ -1,5 +1,6 @@
 mod browser;
 mod devices;
+mod i18n;
 mod icons;
 mod logging;
 mod model;
@@ -180,6 +181,7 @@ impl Browser {
             initial_source,
             demo_importing,
         } = startup;
+        i18n::activate(ui.language);
         let focus = cx.focus_handle();
         window.focus(&focus);
         let settings = SettingsInputs::new(&preset, cx);
@@ -289,7 +291,7 @@ impl Browser {
                     (
                         presets,
                         None,
-                        "Choose a preset to load its settings.".into(),
+                        i18n::tr("Choose a preset to load its settings."),
                     )
                 })
                 .map_err(|error| error.to_string());

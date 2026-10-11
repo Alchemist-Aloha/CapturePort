@@ -37,7 +37,10 @@ fn detail_rows(item: &MediaItem) -> Vec<(&'static str, String)> {
     let mut rows = vec![
         (
             "File size",
-            format!("{} ({} bytes)", format_size(item.size), item.size),
+            i18n::format(
+                "{0} ({1} bytes)",
+                &[format_size(item.size).to_string(), format!("{}", item.size)],
+            ),
         ),
         ("Import status", import_status_line(item)),
     ];
@@ -49,7 +52,7 @@ fn detail_rows(item: &MediaItem) -> Vec<(&'static str, String)> {
                     metadata
                         .capture_time
                         .clone()
-                        .unwrap_or_else(|| "Unavailable".into()),
+                        .unwrap_or_else(|| i18n::tr("Unavailable")),
                 ),
                 (
                     "Timestamp source",
@@ -66,7 +69,7 @@ fn detail_rows(item: &MediaItem) -> Vec<(&'static str, String)> {
                     "Dimensions",
                     match (metadata.width, metadata.height) {
                         (Some(width), Some(height)) => format!("{width} × {height}"),
-                        _ => "Unavailable".into(),
+                        _ => i18n::tr("Unavailable"),
                     },
                 ),
                 (
@@ -94,7 +97,10 @@ fn detail_rows(item: &MediaItem) -> Vec<(&'static str, String)> {
                 rows.push(("Orientation", format!("{orientation:?}")));
             }
             if let Some(millis) = metadata.duration_millis {
-                rows.push(("Duration", format!("{:.3} seconds", millis as f64 / 1000.)));
+                rows.push((
+                    "Duration",
+                    i18n::format("{0} seconds", &[format!("{:.3}", millis as f64 / 1000.)]),
+                ));
             }
             if let Some((lat, lon)) = metadata.gps_e7 {
                 rows.push((
@@ -107,8 +113,11 @@ fn detail_rows(item: &MediaItem) -> Vec<(&'static str, String)> {
                 ));
             }
         }
-        MetadataState::Pending => rows.push(("Metadata", "Loading…".into())),
-        MetadataState::Failed(error) => rows.push(("Metadata", format!("Unavailable: {error}"))),
+        MetadataState::Pending => rows.push(("Metadata", i18n::tr("Loading…"))),
+        MetadataState::Failed(error) => rows.push((
+            "Metadata",
+            i18n::format("Unavailable: {0}", std::slice::from_ref(error)),
+        )),
     }
     if let Some(prior) = &item.prior_import {
         rows.push(("Prior import destination", prior.destination.clone()));
@@ -129,7 +138,7 @@ impl Render for DetailTooltip {
             .border_color(self.0.border)
             .rounded_sm()
             .text_sm()
-            .child("View media details")
+            .child(i18n::tr("View media details"))
     }
 }
 
@@ -239,7 +248,7 @@ impl Browser {
                     .as_ref()
                     .and_then(|source| source.display_name.clone())
             })
-            .unwrap_or_else(|| "Source".into());
+            .unwrap_or_else(|| i18n::tr("Source"));
         let wide = f32::from(window.bounds().size.width) >= 860.;
         let compact = f32::from(window.bounds().size.width) < 600.;
         let preview_height = if wide {
@@ -277,7 +286,11 @@ impl Browser {
                         .into_any_element()
                 } else {
                     image_well
-                        .child(div().text_color(p.muted).child("Preview unavailable"))
+                        .child(
+                            div()
+                                .text_color(p.muted)
+                                .child(i18n::tr("Preview unavailable")),
+                        )
                         .into_any_element()
                 },
             )
@@ -315,7 +328,12 @@ impl Browser {
                             .items_center()
                             .justify_between()
                             .gap(px(spacing::CONTROL_GAP))
-                            .child(div().text_xs().text_color(p.muted).child("Original file"))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(p.muted)
+                                    .child(i18n::tr("Original file")),
+                            )
                             .child(
                                 div()
                                     .flex()
@@ -334,11 +352,11 @@ impl Browser {
                                             p.accent,
                                         ))
                                     })
-                                    .child(if self.detail_url_copied {
+                                    .child(i18n::tr(if self.detail_url_copied {
                                         "URL copied"
                                     } else {
                                         "Click to copy URL"
-                                    }),
+                                    })),
                             ),
                     )
                     .child(
@@ -397,7 +415,7 @@ impl Browser {
                         .text_xs()
                         .text_color(p.muted)
                         .when(!compact, |view| view.w(px(120.)))
-                        .child(label),
+                        .child(i18n::tr(label)),
                 )
                 .child(
                     div()
@@ -407,7 +425,7 @@ impl Browser {
                         .overflow_x_scroll()
                         .text_sm()
                         .child(if value.is_empty() {
-                            "Unavailable".into()
+                            i18n::tr("Unavailable")
                         } else {
                             value
                         }),
@@ -489,7 +507,7 @@ impl Browser {
                                         .font_family(DISPLAY_FONT)
                                         .text_lg()
                                         .font_weight(gpui::FontWeight::SEMIBOLD)
-                                        .child("Media details"),
+                                        .child(i18n::tr("Media details")),
                                 )
                                 .child(
                                     div()

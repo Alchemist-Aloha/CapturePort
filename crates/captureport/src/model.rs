@@ -221,7 +221,7 @@ pub(crate) fn suffix_duplicate_titles(
 }
 pub(crate) fn timezone_label(offset: Option<i32>) -> String {
     match offset {
-        None => "Capture metadata".into(),
+        None => i18n::tr("Capture metadata"),
         Some(seconds) => {
             let sign = if seconds < 0 { '-' } else { '+' };
             let absolute = seconds.abs();
@@ -258,6 +258,8 @@ pub(crate) fn format_file_time_compact(seconds: u64, offset: Option<i32>) -> Str
 #[derive(Clone, Copy, Deserialize, Serialize)]
 #[serde(default)]
 pub(crate) struct UiPreferences {
+    /// None follows LC_ALL / LC_MESSAGES / LANG.
+    pub(crate) language: Option<i18n::Language>,
     pub(crate) dark_mode: bool,
     pub(crate) scheme: ColorScheme,
     pub(crate) thumbnail_size: u8,
@@ -267,6 +269,7 @@ pub(crate) struct UiPreferences {
 impl Default for UiPreferences {
     fn default() -> Self {
         Self {
+            language: None,
             dark_mode: false,
             scheme: ColorScheme::default(),
             thumbnail_size: 2,
@@ -411,7 +414,7 @@ impl SettingsInputs {
             if path.is_absolute() {
                 Ok(path)
             } else {
-                Err("Destination roots must be absolute paths".into())
+                Err(i18n::tr("Destination roots must be absolute paths"))
             }
         };
         let photo_folder = self.photo_folder.read(cx).value();
@@ -423,23 +426,23 @@ impl SettingsInputs {
             ("Filename", &filename, true, false),
         ] {
             template_help::example(template, is_filename, video)
-                .map_err(|error| format!("{label}: {error}"))?;
+                .map_err(|error| format!("{}: {error}", i18n::tr(label)))?;
         }
         let clock_seconds = self
             .clock_seconds
             .read(cx)
             .value()
             .parse::<i64>()
-            .map_err(|_| "Clock correction must be a number of seconds".to_string())?;
+            .map_err(|_| i18n::tr("Clock correction must be a number of seconds"))?;
         let timezone = self.timezone_seconds.read(cx).value();
         let assumed_utc_offset_seconds = if timezone.trim().is_empty() {
             None
         } else {
             let value = timezone
                 .parse::<i32>()
-                .map_err(|_| "Timezone offset must be seconds east of UTC".to_string())?;
+                .map_err(|_| i18n::tr("Timezone offset must be seconds east of UTC"))?;
             if !(-86_400..=86_400).contains(&value) {
-                return Err("Timezone offset is out of range".into());
+                return Err(i18n::tr("Timezone offset is out of range"));
             }
             Some(value)
         };
@@ -449,7 +452,7 @@ impl SettingsInputs {
             None
         } else {
             if backup_photo.trim().is_empty() || backup_video.trim().is_empty() {
-                return Err("Set both backup roots or clear both".into());
+                return Err(i18n::tr("Set both backup roots or clear both"));
             }
             Some(BackupRule {
                 photo: DestinationRule {
@@ -482,9 +485,9 @@ impl SettingsInputs {
                 .read(cx)
                 .value()
                 .parse::<u32>()
-                .map_err(|_| "Session gap must be a number of minutes".to_string())?;
+                .map_err(|_| i18n::tr("Session gap must be a number of minutes"))?;
             if threshold_minutes == 0 {
-                return Err("Session gap must be greater than zero".into());
+                return Err(i18n::tr("Session gap must be greater than zero"));
             }
             preset.grouping = Grouping::TimeGap { threshold_minutes };
         }

@@ -163,16 +163,16 @@ fn import_status_label(status: &captureport_core::ImportStatus) -> &'static str 
 /// state this product must never leave the user guessing about.
 fn import_status_line(item: &captureport_core::MediaItem) -> String {
     if item.manually_marked_imported {
-        return "✓ Imported · marked manually".into();
+        return i18n::tr("✓ Imported · marked manually");
     }
-    let label = import_status_label(&item.import_status);
+    let label = i18n::tr(import_status_label(&item.import_status));
     match &item.prior_import {
         Some(prior) => {
             // Stored RFC 3339; the date is what fits on a tile.
             let day = prior.imported_at.get(..10).unwrap_or(prior.imported_at.as_str());
-            format!("{label} · session {} · {day}", prior.session_id)
+            i18n::format("{0} · session {1} · {2}", &[label.to_string(), format!("{}", prior.session_id), day.to_string()])
         }
-        None => label.to_string(),
+        None => label,
     }
 }
 
@@ -303,7 +303,7 @@ fn status_chip(label: &'static str, palette: Palette) -> impl IntoElement {
         .bg(palette.border)
         .text_sm()
         .text_color(status_chip_ink(palette))
-        .child(label)
+        .child(i18n::tr(label))
 }
 
 fn group_plan_items(items: &[captureport_ingest::PlannedImport]) -> Vec<Vec<usize>> {
@@ -428,7 +428,7 @@ fn timezone_choice(
 
 fn settings_section(label: &'static str, palette: Palette) -> impl IntoElement {
     div().mt(px(spacing::CONTROL_GAP)).pb(px(spacing::TIGHT)).border_b_1().border_color(palette.border)
-        .font_family(DISPLAY_FONT).text_base().font_weight(gpui::FontWeight::SEMIBOLD).child(label)
+        .font_family(DISPLAY_FONT).text_base().font_weight(gpui::FontWeight::SEMIBOLD).child(i18n::tr(label))
 }
 fn settings_field(
     label: &'static str,
@@ -440,7 +440,7 @@ fn settings_field(
         .flex()
         .flex_col()
         .gap(px(spacing::TIGHT))
-        .child(div().text_xs().text_color(palette.muted).child(label))
+        .child(div().text_xs().text_color(palette.muted).child(i18n::tr(label)))
         .child(themed_input(input, palette, cx))
         .into_any_element()
 }
@@ -472,7 +472,7 @@ fn settings_template_field(
         .flex().flex_col().gap(px(spacing::TIGHT)).min_w_0().w_full()
         .child(
             div().flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTROL_GAP))
-                .child(div().text_xs().text_color(p.muted).child(label))
+                .child(div().text_xs().text_color(p.muted).child(i18n::tr(label)))
                 .child(button(
                     Icon::TemplateSyntax,
                     segment_help_label(label, expanded),
@@ -484,29 +484,29 @@ fn settings_template_field(
                 )),
         )
         .child(themed_input(input.clone(), p, cx))
-        .child(div().text_xs().text_color(p.muted).child(if filename {
+        .child(div().text_xs().text_color(p.muted).child(i18n::tr(if filename {
             "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here."
         } else {
             "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root."
-        }))
+        })))
         .child(div().text_xs().text_color(if example.is_ok() { p.muted } else { p.text })
             .child(match example {
-                Ok(value) if value.is_empty() => "Example (sample metadata): destination root".into(),
-                Ok(value) => format!("Example (sample metadata): {value}"),
-                Err(error) => format!("Check template: {error}"),
+                Ok(value) if value.is_empty() => i18n::tr("Example (sample metadata): destination root"),
+                Ok(value) => i18n::format("Example (sample metadata): {0}", std::slice::from_ref(&value)),
+                Err(error) => i18n::format("Check template: {0}", &[format!("{}", error)]),
             }));
     if expanded {
         let mut reference = div().flex().flex_col().gap(px(spacing::CONTROL_GAP)).py(px(spacing::CONTENT))
-            .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child("Supported segments"))
+            .child(div().text_sm().font_weight(gpui::FontWeight::SEMIBOLD).child(i18n::tr("Supported segments")))
             .child(div().text_xs().text_color(p.muted)
-                .child("Click a segment to insert it at the cursor. Use {sequence:04} for 0001 or {session:02} for 02 (width 1–12). Date formats use %Y, %m, %d, %H, %M and %S; for example {datetime:%Y-%m-%d_%H-%M-%S}."))
+                .child(i18n::tr("Click a segment to insert it at the cursor. Use {sequence:04} for 0001 or {session:02} for 02 (width 1–12). Date formats use %Y, %m, %d, %H, %M and %S; for example {datetime:%Y-%m-%d_%H-%M-%S}.")))
             .child(div().text_xs().text_color(p.muted)
-                .child("Missing lens, dimensions, duration, GPS or timestamp metadata becomes unknown; missing camera identity stays blank. Unsafe characters in metadata become underscores. Date segments use your corrected capture time; capture_time and filesystem_time show the original timestamps. The import preview shows your actual final paths."));
+                .child(i18n::tr("Missing lens, dimensions, duration, GPS or timestamp metadata becomes unknown; missing camera identity stays blank. Unsafe characters in metadata become underscores. Date segments use your corrected capture time; capture_time and filesystem_time show the original timestamps. The import preview shows your actual final paths.")));
         let mut previous_group = "";
         for (index, token) in captureport_ingest::TEMPLATE_TOKENS.iter().enumerate() {
             if token.group != previous_group {
                 reference = reference.child(div().mt(px(spacing::CONTROL_GAP)).text_sm()
-                    .font_weight(gpui::FontWeight::SEMIBOLD).child(token.group));
+                    .font_weight(gpui::FontWeight::SEMIBOLD).child(i18n::tr(token.group)));
                 previous_group = token.group;
             }
             let target = input.clone();
@@ -521,7 +521,7 @@ fn settings_template_field(
                         cx.notify();
                     }))
                     .child(syntax))
-                .child(div().text_xs().text_color(p.muted).child(token.description)));
+                .child(div().text_xs().text_color(p.muted).child(i18n::tr(token.description))));
         }
         field = field.child(reference);
     }
@@ -574,7 +574,7 @@ fn sidebar_nav(
         .hover(move |style| style.bg(palette.selected))
         .on_click(handler)
         .child(crate::icons::icon(icon, if active { palette.text } else { palette.muted }))
-        .child(label)
+        .child(i18n::tr(label))
 }
 
 fn primary_button(
@@ -601,7 +601,7 @@ fn primary_button(
         .hover(move |style| style.bg(palette.primary_hover))
         .on_click(handler)
         .child(crate::icons::icon(icon, palette.primary_text))
-        .child(label)
+        .child(i18n::tr(label))
 }
 
 
@@ -784,8 +784,10 @@ mod palette_tests {
         assert_eq!(legacy.scheme, ColorScheme::Pine);
         // A file written before the setting existed merges RAW+JPEG pairs.
         assert!(legacy.merge_raw_jpeg);
+        assert_eq!(legacy.language, None);
 
         let prefs = UiPreferences {
+            language: Some(i18n::Language::TraditionalChinese),
             dark_mode: false,
             scheme: ColorScheme::Darkroom,
             thumbnail_size: 3,
@@ -794,6 +796,7 @@ mod palette_tests {
         let encoded = serde_json::to_string(&prefs).expect("encode preferences");
         assert!(encoded.contains("\"darkroom\""), "{encoded}");
         let decoded: UiPreferences = serde_json::from_str(&encoded).expect("decode preferences");
+        assert_eq!(decoded.language, Some(i18n::Language::TraditionalChinese));
         assert_eq!(decoded.scheme, ColorScheme::Darkroom);
         assert_eq!(decoded.thumbnail_size, 3);
         assert!(!decoded.merge_raw_jpeg);

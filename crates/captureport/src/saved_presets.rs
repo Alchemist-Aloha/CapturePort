@@ -69,6 +69,7 @@ mod tests {
             version: 1,
             import,
             appearance: UiPreferences {
+                language: Some(crate::i18n::Language::SimplifiedChinese),
                 dark_mode: true,
                 scheme: ColorScheme::ALL[2],
                 thumbnail_size: 4,

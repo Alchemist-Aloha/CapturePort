@@ -83,7 +83,10 @@ impl Browser {
                 std::fs::rename(temporary, &self.gallery_names_path).map_err(|e| e.to_string())
             });
         if let Err(error) = result {
-            self.message = Some(format!("Could not save gallery name: {error}"));
+            self.message = Some(i18n::format(
+                "Could not save gallery name: {0}",
+                std::slice::from_ref(&error),
+            ));
             cx.notify();
             return;
         }

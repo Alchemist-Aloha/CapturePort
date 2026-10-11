@@ -10,7 +10,10 @@ impl Browser {
             Ok(())
         })();
         if let Err(error) = result {
-            self.message = Some(format!("Appearance: {error}"));
+            self.message = Some(i18n::format(
+                "Appearance: {0}",
+                std::slice::from_ref(&error),
+            ));
         }
     }
     pub(crate) fn set_thumbnail_size(&mut self, size: u8, cx: &mut Context<Self>) {
@@ -78,16 +81,19 @@ impl Browser {
                 match result {
                     Ok((sources, aliases)) => {
                         if manual && !removed {
-                            self.message = Some(format!(
-                                "Device scan complete · {} source(s) found",
-                                sources.len() + self.unmounted_cards.len()
+                            self.message = Some(i18n::format(
+                                "Device scan complete · {0} source(s) found",
+                                &[format!("{}", sources.len() + self.unmounted_cards.len())],
                             ));
                         }
                         self.discovered_sources = sources;
                         self.discovery_aliases = aliases;
                     }
                     Err(error) if manual && !removed => {
-                        self.message = Some(format!("Device scan failed: {error}. Try again."))
+                        self.message = Some(i18n::format(
+                            "Device scan failed: {0}. Try again.",
+                            std::slice::from_ref(&error),
+                        ))
                     }
                     Err(_) => {}
                 }
@@ -105,7 +111,9 @@ impl Browser {
                         self.source = Some(s);
                         self.catalog_source_id = id;
                         if id.is_none() {
-                            self.message = Some("Import history is unavailable. Reopen the source to retry before importing.".into());
+                            self.message = Some(i18n::tr(
+                                "Import history is unavailable. Reopen the source to retry before importing.",
+                            ));
                             changed = true;
                         }
                     }
@@ -146,7 +154,8 @@ impl Browser {
                         if let Err(e) = result
                             && e != SourceError::Cancelled
                         {
-                            self.message = Some(format!("Scan stopped: {e}"));
+                            self.message =
+                                Some(i18n::format("Scan stopped: {0}", &[format!("{}", e)]));
                         }
                         changed = true;
                         break;
@@ -176,9 +185,9 @@ impl Browser {
                     }
                     Ok(WorkMessage::Plan(revision, plan)) if revision == self.plan_revision => {
                         self.planning = false;
-                        self.message = Some(format!(
-                            "Review {} planned item(s) before importing",
-                            plan.items.len()
+                        self.message = Some(i18n::format(
+                            "Review {0} planned item(s) before importing",
+                            &[format!("{}", plan.items.len())],
                         ));
                         self.plan = Some(plan);
                         self.page = Page::Preview;
@@ -196,15 +205,15 @@ impl Browser {
                         self.partial_files = partials;
                         if !self.incomplete_sessions.is_empty() || !self.partial_files.is_empty() {
                             self.page = Page::Recovery;
-                            self.message = Some("An unfinished import needs review".into());
+                            self.message = Some(i18n::tr("An unfinished import needs review"));
                         }
                         changed = true;
                     }
                     Ok(WorkMessage::PartialCleaned(path)) => {
                         self.partial_files.retain(|partial| partial.path != path);
-                        self.message = Some(format!(
-                            "Removed incomplete CapturePort file: {}",
-                            path.display()
+                        self.message = Some(i18n::format(
+                            "Removed incomplete CapturePort file: {0}",
+                            &[format!("{}", path.display())],
                         ));
                         changed = true;
                     }
@@ -221,7 +230,10 @@ impl Browser {
                         self.requested_thumbnails.clear();
                         self.failed_thumbnails.clear();
                         media_changed = true;
-                        self.message = Some(format!("Cleared {count} cached thumbnail(s)"));
+                        self.message = Some(i18n::format(
+                            "Cleared {0} cached thumbnail(s)",
+                            &[format!("{}", count)],
+                        ));
                         changed = true;
                     }
                     Ok(WorkMessage::Presets(result)) => {
@@ -239,14 +251,17 @@ impl Browser {
                                 }
                                 self.preset_message = Some(message);
                             }
-                            Err(error) => self.preset_message = Some(format!("Presets: {error}")),
+                            Err(error) => {
+                                self.preset_message =
+                                    Some(i18n::format("Presets: {0}", std::slice::from_ref(&error)))
+                            }
                         }
                         changed = true;
                     }
                     Ok(WorkMessage::SourceAlias(source_id, alias)) => {
                         if self.catalog_source_id == Some(source_id) {
                             self.source_alias = alias;
-                            self.message = Some("Source alias saved".into());
+                            self.message = Some(i18n::tr("Source alias saved"));
                             changed = true;
                         }
                     }
@@ -268,14 +283,15 @@ impl Browser {
                                     }
                                     self.invalidate_plan();
                                     media_changed = true;
-                                    self.message = Some(format!(
-                                        "Marked {} file(s) as imported manually",
-                                        media_ids.len()
+                                    self.message = Some(i18n::format(
+                                        "Marked {0} file(s) as imported manually",
+                                        &[format!("{}", media_ids.len())],
                                     ));
                                 }
                                 Err(error) => {
-                                    self.message = Some(format!(
-                                        "Could not mark selected files as imported: {error}"
+                                    self.message = Some(i18n::format(
+                                        "Could not mark selected files as imported: {0}",
+                                        std::slice::from_ref(&error),
                                     ))
                                 }
                             }
@@ -285,10 +301,14 @@ impl Browser {
                     Ok(WorkMessage::Mounted(result)) => {
                         self.mounting = None;
                         self.message = Some(match result {
-                            Ok(name) => {
-                                format!("Mounted {name}. Select it in Sources to browse media.")
-                            }
-                            Err(error) => format!("Could not mount device: {error}"),
+                            Ok(name) => i18n::format(
+                                "Mounted {0}. Select it in Sources to browse media.",
+                                std::slice::from_ref(&name),
+                            ),
+                            Err(error) => i18n::format(
+                                "Could not mount device: {0}",
+                                std::slice::from_ref(&error),
+                            ),
                         });
                         let _ = self.discovery_requests.send(());
                         changed = true;
@@ -296,22 +316,26 @@ impl Browser {
                     Ok(WorkMessage::Done(v)) => {
                         media_changed |= self.cache_clearing;
                         self.cache_clearing = false;
-                        self.message = Some(v.unwrap_or_else(|e| format!("Operation failed: {e}")));
+                        self.message = Some(v.unwrap_or_else(|e| {
+                            i18n::format("Operation failed: {0}", std::slice::from_ref(&e))
+                        }));
                         changed = true;
                     }
                     Ok(WorkMessage::ImportDone(generation, v)) => {
                         self.importing = false;
                         self.import_cancellation = None;
                         if generation == self.state.generation {
-                            self.message =
-                                Some(v.unwrap_or_else(|e| format!("Import failed: {e}")));
+                            self.message = Some(v.unwrap_or_else(|e| {
+                                i18n::format("Import failed: {0}", std::slice::from_ref(&e))
+                            }));
                         }
                         changed = true;
                     }
                     Ok(WorkMessage::ReconcileDone(v)) => {
                         self.reconcile_cancellation = None;
-                        self.message =
-                            Some(v.unwrap_or_else(|e| format!("Reconciliation failed: {e}")));
+                        self.message = Some(v.unwrap_or_else(|e| {
+                            i18n::format("Reconciliation failed: {0}", std::slice::from_ref(&e))
+                        }));
                         changed = true;
                     }
                     Err(mpsc::TryRecvError::Empty) => break,
@@ -520,7 +544,7 @@ impl Browser {
                 std::fs::rename(temporary, &self.config_path).map_err(|e| e.to_string())
             });
         if let Err(error) = result {
-            self.message = Some(format!("Settings: {error}"));
+            self.message = Some(i18n::format("Settings: {0}", std::slice::from_ref(&error)));
         }
     }
 }

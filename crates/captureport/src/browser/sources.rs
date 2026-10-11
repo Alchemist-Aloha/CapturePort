@@ -3,8 +3,9 @@ use crate::*;
 impl Browser {
     pub(crate) fn scan(&mut self, request: SourceRequest, cx: &mut Context<Self>) {
         if self.importing {
-            self.message =
-                Some("Finish or cancel the current import before changing sources".into());
+            self.message = Some(i18n::tr(
+                "Finish or cancel the current import before changing sources",
+            ));
             cx.notify();
             return;
         }
@@ -94,15 +95,16 @@ impl Browser {
         if matches!(self.page, Page::Browser | Page::Preview) {
             self.page = Page::Browser;
         }
-        self.message =
-            Some("Source disconnected. Reconnect it and choose a source to begin.".into());
+        self.message = Some(i18n::tr(
+            "Source disconnected. Reconnect it and choose a source to begin.",
+        ));
     }
     pub(crate) fn open_folder(&mut self, _: &OpenFolder, _: &mut Window, cx: &mut Context<Self>) {
         let picker = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
             multiple: false,
-            prompt: Some("Choose a media folder".into()),
+            prompt: Some(i18n::tr("Choose a media folder").into()),
         });
         cx.spawn(async move |this, cx| match picker.await {
             Ok(Ok(Some(paths))) => {
@@ -115,13 +117,19 @@ impl Browser {
             Ok(Ok(None)) => {}
             Ok(Err(error)) => {
                 let _ = this.update(cx, |this, cx| {
-                    this.message = Some(format!("Could not choose a folder: {error}"));
+                    this.message = Some(i18n::format(
+                        "Could not choose a folder: {0}",
+                        &[format!("{}", error)],
+                    ));
                     cx.notify();
                 });
             }
             Err(error) => {
                 let _ = this.update(cx, |this, cx| {
-                    this.message = Some(format!("Could not open the folder picker: {error}"));
+                    this.message = Some(i18n::format(
+                        "Could not open the folder picker: {0}",
+                        &[format!("{}", error)],
+                    ));
                     cx.notify();
                 });
             }
@@ -224,9 +232,9 @@ impl Browser {
         self.work_receivers.push(rx);
         self.marking_imported = true;
         self.invalidate_plan();
-        self.message = Some(format!(
-            "Marking {} selected file(s) as imported…",
-            selected.len()
+        self.message = Some(i18n::format(
+            "Marking {0} selected file(s) as imported…",
+            &[format!("{}", selected.len())],
         ));
         thread::spawn(move || {
             let catalog_ids = selected.iter().map(|(_, catalog_id)| *catalog_id).collect();
@@ -266,10 +274,12 @@ impl Browser {
             return;
         }
         self.discovering = true;
-        self.message = Some("Scanning for cameras and cards…".into());
+        self.message = Some(i18n::tr("Scanning for cameras and cards…"));
         if self.discovery_requests.send(()).is_err() {
             self.discovering = false;
-            self.message = Some("Device scanner stopped. Restart CapturePort to try again.".into());
+            self.message = Some(i18n::tr(
+                "Device scanner stopped. Restart CapturePort to try again.",
+            ));
         }
         cx.notify()
     }
@@ -281,20 +291,25 @@ impl Browser {
             return;
         };
         self.mounting = Some(card.path.clone());
-        self.message = Some(format!("Mounting {}…", card.label));
+        self.message = Some(i18n::format(
+            "Mounting {0}…",
+            std::slice::from_ref(&card.label),
+        ));
         let (tx, rx) = mpsc::channel();
         self.work_receivers.push(rx);
         thread::spawn(move || {
             let result = (|| -> Result<String, String> {
                 if !removable_volumes()?.unmounted.contains(&card) {
-                    return Err("Device changed or is no longer available. Refresh devices.".into());
+                    return Err(i18n::tr(
+                        "Device changed or is no longer available. Refresh devices.",
+                    ));
                 }
                 let output = Command::new("udisksctl")
                     .arg("mount")
                     .arg("-b")
                     .arg(&card.path)
                     .output()
-                    .map_err(|e| format!("udisksctl: {e}"))?;
+                    .map_err(|e| i18n::format("udisksctl: {0}", &[format!("{}", e)]))?;
                 if !output.status.success() {
                     return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
                 }

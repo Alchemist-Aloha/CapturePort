@@ -50,7 +50,7 @@ impl Browser {
                     .text_color(p.muted)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .flex_shrink_0()
-                    .child("Sources"),
+                    .child(i18n::tr("Sources")),
             )
             .child(button(
                 Icon::Folder,
@@ -79,11 +79,10 @@ impl Browser {
                     .flex()
                     .flex_col()
                     .gap(px(spacing::TIGHT))
-                    .child(
-                        div()
-                            .text_sm()
-                            .child(format!("Card · {} · Not mounted", card.label)),
-                    )
+                    .child(div().text_sm().child(i18n::format(
+                        "Card · {0} · Not mounted",
+                        std::slice::from_ref(&card.label),
+                    )))
                     .child(button(
                         Icon::Storage,
                         if self.mounting.as_ref() == Some(&card.path) {
@@ -99,7 +98,7 @@ impl Browser {
         for (index, discovered) in self.discovered_sources.iter().enumerate() {
             let label = match discovered {
                 captureport_gphoto::discovery::DiscoveredSource::Ptp(camera) => SourceLabel {
-                    primary: format!("Camera · {}", camera.model),
+                    primary: i18n::format("Camera · {0}", std::slice::from_ref(&camera.model)),
                     secondary: None,
                 },
                 captureport_gphoto::discovery::DiscoveredSource::MountedFilesystem {
@@ -175,7 +174,7 @@ impl Browser {
                             .text_xs()
                             .text_color(p.muted)
                             .truncate()
-                            .child(format!("Current: {}", label.joined()))
+                            .child(i18n::format("Current: {0}", &[label.joined().to_string()]))
                     }),
             )
             .child(
@@ -184,7 +183,7 @@ impl Browser {
                     .text_xs()
                     .text_color(p.muted)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("Workspace"),
+                    .child(i18n::tr("Workspace")),
             )
             .child(sidebar_nav(
                 Icon::Photo,
@@ -268,7 +267,10 @@ impl Browser {
                     .flex_shrink_0()
                     .text_xs()
                     .text_color(p.muted)
-                    .child(format!("Preset: {}", self.preset.name)),
+                    .child(i18n::format(
+                        "Preset: {0}",
+                        std::slice::from_ref(&self.preset.name),
+                    )),
             );
         div()
             .w(px(sidebar_width))
@@ -311,12 +313,15 @@ impl Browser {
                         || !matches!(item.metadata, captureport_core::MetadataState::Ready(_)))
             })
             .count();
-        let mut readiness = vec![format!("{visible} ready")];
+        let mut readiness = vec![i18n::format("{0} ready", &[format!("{}", visible)])];
         if waiting > failed {
-            readiness.push(format!("{} loading", waiting - failed));
+            readiness.push(i18n::format(
+                "{0} loading",
+                &[format!("{}", waiting - failed)],
+            ));
         }
         if failed > 0 {
-            readiness.push(format!("{failed} unavailable"));
+            readiness.push(i18n::format("{0} unavailable", &[format!("{}", failed)]));
         }
         let (columns, image_height) = thumbnail_layout(
             f32::from(window.bounds().size.width),
@@ -354,7 +359,7 @@ impl Browser {
         let row_count = rows.len();
         let rows = std::sync::Arc::new(rows);
         let source_label = self.source_label().unwrap_or(SourceLabel {
-            primary: "No source open".into(),
+            primary: i18n::tr("No source open"),
             secondary: None,
         });
         div().flex_1().min_w_0().min_h_0().flex().flex_col()
@@ -365,14 +370,14 @@ impl Browser {
                         .children(source_label.secondary.map(|secondary| div().w_full().text_xs().text_color(p.muted).truncate().child(secondary))))
                     .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(readiness.join(" · "))))
                 .children((hidden_selected > 0).then(|| div().text_xs().text_color(p.muted)
-                    .child(format!("{hidden_selected} selected files have no preview. Review their import paths."))))
+                    .child(i18n::format("{0} selected files have no preview. Review their import paths.", &[format!("{}", hidden_selected)]))))
                 .when(!self.state.is_empty(), |view| view.child(div().flex().flex_wrap().gap(px(spacing::TIGHT))
-                    .child(chip("All",self.state.filter==MediaFilter::All, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
-                    .child(chip("Photos",self.state.filter==MediaFilter::Photos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
-                    .child(chip("Videos",self.state.filter==MediaFilter::Videos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Videos,c))))
-                    .child(chip("New",self.state.filter==MediaFilter::New, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::New,c))))
-                    .child(chip("Imported",self.state.filter==MediaFilter::Imported, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Imported,c))))
-                    .child(chip("Possible",self.state.filter==MediaFilter::PossibleDuplicates, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::PossibleDuplicates,c))))))))
+                    .child(chip(i18n::tr("All"),self.state.filter==MediaFilter::All, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
+                    .child(chip(i18n::tr("Photos"),self.state.filter==MediaFilter::Photos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
+                    .child(chip(i18n::tr("Videos"),self.state.filter==MediaFilter::Videos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Videos,c))))
+                    .child(chip(i18n::tr("New"),self.state.filter==MediaFilter::New, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::New,c))))
+                    .child(chip(i18n::tr("Imported"),self.state.filter==MediaFilter::Imported, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Imported,c))))
+                    .child(chip(i18n::tr("Possible"),self.state.filter==MediaFilter::PossibleDuplicates, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::PossibleDuplicates,c))))))))
             .when(!self.state.is_empty(), |view| view.child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTROL_GAP)).flex().flex_wrap().items_center().gap(px(spacing::CONTROL_GAP)).border_b_1().border_color(p.border)
                     .child(button(Icon::SelectAll, "Select all", p, cx.listener(|t,_,w,c|t.select_all(&SelectAll,w,c))))
                     .child(button(Icon::SelectNew, "Select new", p, cx.listener(|t,_,w,c|t.select_new(&SelectAllNew,w,c))))
@@ -385,17 +390,17 @@ impl Browser {
                             .hover(move |style| style.bg(p.selected))
                             .on_click(cx.listener(|t,_,w,c|t.mark_selected_imported(&MarkSelectedImported,w,c))))
                         .child(icon(Icon::Confirm, if self.can_mark_selected_imported() { p.text } else { p.muted }))
-                        .child(if self.marking_imported { "Marking…" } else { "Mark as imported" }))
+                        .child(i18n::tr(if self.marking_imported { "Marking…" } else { "Mark as imported" })))
                 .child(button(Icon::ViewOptions, if self.show_view_options { "Hide view options" } else { "View options" }, p,
                     cx.listener(|t,_,_,c| { t.show_view_options = !t.show_view_options; c.notify() })))))
             .child(if self.show_view_options && !self.state.is_empty() {
                 div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).flex().flex_wrap().items_center().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border).bg(p.panel)
                     .child(div().flex().items_center().gap(px(spacing::CONTROL_GAP))
-                        .child(div().text_sm().text_color(p.muted).child("Sort by"))
-                        .child(chip("Time",self.state.sort==MediaSort::CaptureTime, p, cx.listener(|t,_,_,c|t.sort(MediaSort::CaptureTime,c))))
-                        .child(chip("Name",self.state.sort==MediaSort::Name, p, cx.listener(|t,_,_,c|t.sort(MediaSort::Name,c)))))
+                        .child(div().text_sm().text_color(p.muted).child(i18n::tr("Sort by")))
+                        .child(chip(i18n::tr("Time"),self.state.sort==MediaSort::CaptureTime, p, cx.listener(|t,_,_,c|t.sort(MediaSort::CaptureTime,c))))
+                        .child(chip(i18n::tr("Name"),self.state.sort==MediaSort::Name, p, cx.listener(|t,_,_,c|t.sort(MediaSort::Name,c)))))
                     .child(div().flex().items_center().gap(px(spacing::CONTROL_GAP))
-                        .child(div().text_sm().text_color(p.muted).child("Thumbnail size"))
+                        .child(div().text_sm().text_color(p.muted).child(i18n::tr("Thumbnail size")))
                         .child(div().id("thumbnail-size-slider").flex().items_center().gap(px(spacing::TIGHT))
                             .children((0..=4).map(|step| {
                                 let active = step <= self.ui.thumbnail_size;
@@ -408,9 +413,9 @@ impl Browser {
                                     .child(div().w_full().h(px(if active { 6. } else { 4. }))
                                         .rounded_full().bg(if active { p.accent } else { p.border }))
                             })))
-                        .child(div().text_xs().text_color(p.muted).child(format!("{} px", image_height.round() as u32))))
+                        .child(div().text_xs().text_color(p.muted).child(i18n::format("{0} px", &[format!("{}", image_height.round() as u32)]))))
                     .child(div().flex().items_center().gap(px(spacing::CONTROL_GAP))
-                        .child(div().text_sm().text_color(p.muted).child("Session gap"))
+                        .child(div().text_sm().text_color(p.muted).child(i18n::tr("Session gap")))
                         .child(div().id("gallery-gap-slider").flex().items_center().gap(px(spacing::TIGHT))
                             .children([5_u32, 15, 30, 60, 120, 240, 480, 1440].into_iter().map(|minutes| {
                                 let active = matches!(self.preset.grouping, Grouping::TimeGap { threshold_minutes } if threshold_minutes >= minutes);
@@ -424,8 +429,8 @@ impl Browser {
                                         .bg(if active { p.accent } else { p.border }))
                             })))
                         .child(div().text_xs().text_color(p.muted).child(match self.preset.grouping {
-                            Grouping::TimeGap { threshold_minutes } => format!("{} min", threshold_minutes),
-                            _ => "Off".into(),
+                            Grouping::TimeGap { threshold_minutes } => i18n::format("{0} min", &[format!("{}", threshold_minutes)]),
+                            _ => i18n::tr("Off"),
                         })))
                     .into_any_element()
             } else { div().hidden().into_any_element() })
@@ -434,9 +439,9 @@ impl Browser {
                 div().flex_1().flex().items_center().justify_center().px(px(spacing::CONTENT))
                     .child(div().flex().flex_col().items_center().gap(px(spacing::CONTENT))
                         .child(div().font_family(DISPLAY_FONT).text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child(if self.scanning { "Scanning source…" } else if waiting > failed { "Preparing previews…" } else if failed > 0 { "Previews unavailable" } else if self.state.source.is_none() { "Start with a source" } else if self.state.filter == MediaFilter::All { "No media found in this source" } else { "No media matches this filter" }))
+                            .child(i18n::tr(if self.scanning { "Scanning source…" } else if waiting > failed { "Preparing previews…" } else if failed > 0 { "Previews unavailable" } else if self.state.source.is_none() { "Start with a source" } else if self.state.filter == MediaFilter::All { "No media found in this source" } else { "No media matches this filter" })))
                         .child(div().text_sm().text_color(p.muted)
-                            .child(if self.scanning { "Media appears after metadata and its thumbnail are ready." } else if failed > 0 && waiting == failed { "Some files could not be previewed. Check the source or video decoder, then reopen it to retry." } else if waiting > 0 { "Metadata and thumbnails are loading." } else if self.state.source.is_none() { if self.discovered_sources.is_empty() && !self.unmounted_cards.is_empty() { "Mount the card in Sources to browse media." } else if self.discovered_sources.is_empty() { "Open a folder or connect a camera to browse media." } else { "Choose a discovered camera or card in Sources to browse media." } } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." }))
+                            .child(i18n::tr(if self.scanning { "Media appears after metadata and its thumbnail are ready." } else if failed > 0 && waiting == failed { "Some files could not be previewed. Check the source or video decoder, then reopen it to retry." } else if waiting > 0 { "Metadata and thumbnails are loading." } else if self.state.source.is_none() { if self.discovered_sources.is_empty() && !self.unmounted_cards.is_empty() { "Mount the card in Sources to browse media." } else if self.discovered_sources.is_empty() { "Open a folder or connect a camera to browse media." } else { "Choose a discovered camera or card in Sources to browse media." } } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." })))
                         .child(if self.state.source.is_none() && !self.scanning {
                             div().flex().flex_wrap().justify_center().gap(px(spacing::CONTROL_GAP))
                                 .child(primary_button(Icon::Folder, "Open a folder…", p,
@@ -481,12 +486,12 @@ impl Browser {
                                             .flex().items_center().gap(px(spacing::TIGHT))
                                             .text_xs().font_weight(gpui::FontWeight::SEMIBOLD)
                                             .child(icons::icon_sized(badge.0, icons::ICON_SIZE_COMPACT, image_badge_surface().1))
-                                            .child(badge.1))
+                                            .child(i18n::tr(badge.1)))
                                         .child(if partly_selected {
                                             div().absolute().top(px(spacing::TIGHT)).left(px(spacing::TIGHT)).px(px(spacing::CONTROL_GAP)).py(px(spacing::TIGHT)).rounded_sm()
                                                 .bg(image_badge_surface().0).text_color(image_badge_surface().1).text_xs()
                                                 .font_weight(gpui::FontWeight::SEMIBOLD)
-                                                .child(if selected { "Selected" } else { "Part selected" })
+                                                .child(i18n::tr(if selected { "Selected" } else { "Part selected" }))
                                                 .into_any_element()
                                         } else { div().hidden().into_any_element() })
                                         .into_any_element()
@@ -517,9 +522,9 @@ impl Browser {
                                     .child(div().flex().items_center().justify_between().gap(px(spacing::TIGHT))
                                         .child(div().id(("media-disclosure", id.0)).when(members.is_none(), |style| style.hidden()).text_xs().text_color(p.muted).cursor_pointer()
                                             .on_click(cx.listener(move |t,_,_,c| t.toggle_bundle(id,c)))
-                                            .child(if members.is_some() {
+                                            .child(i18n::tr(if members.is_some() {
                                                 if expanded { "Hide files" } else { "View files" }
-                                            } else { "" }))
+                                            } else { "" })))
                                         );
                                 cards=cards.child(div().id(("media",id.0)).flex_1().min_w_0()
                                     .overflow_hidden().rounded_sm().border_1()
@@ -581,7 +586,7 @@ impl Browser {
                 .map(|item| item.media_type),
         );
         let title = self.state.item(primary).map_or_else(
-            || "Media group".to_string(),
+            || i18n::tr("Media group"),
             |item| format!("{label} · {}", item.source_name),
         );
         let selected_count = members
@@ -615,9 +620,13 @@ impl Browser {
                             .on_click(
                                 cx.listener(move |t, _, _, c| t.toggle_group_selection(primary, c)),
                             )
-                            .child(format!(
-                                "{title} · {selected_count}/{} selected",
-                                members.len()
+                            .child(i18n::format(
+                                "{0} · {1}/{2} selected",
+                                &[
+                                    title.to_string(),
+                                    format!("{}", selected_count),
+                                    format!("{}", members.len()),
+                                ],
                             )),
                     )
                     .child(button(
@@ -690,7 +699,7 @@ impl Browser {
                             .child(div().text_sm().truncate().child(item.source_name.clone()))
                             .child(div().text_xs().text_color(p.muted).child(format!(
                                 "{} · {} · {}{modified}",
-                                media_type_badge(item.media_type).1,
+                                i18n::tr(media_type_badge(item.media_type).1),
                                 format_size(item.size),
                                 import_status_line(item)
                             ))),
@@ -705,7 +714,7 @@ impl Browser {
                                 div()
                                     .text_sm()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .child(if selected { "Selected" } else { "Select" }),
+                                    .child(i18n::tr(if selected { "Selected" } else { "Select" })),
                             ),
                     ),
             );

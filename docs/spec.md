@@ -2467,6 +2467,29 @@ and thumbnail size are saved as active UI preferences in `ui.json` under
 the XDG configuration directory. Pine is the default for a fresh configuration,
 and a `ui.json` written before color schemes existed keeps its saved mode and
 thumbnail size while using Pine.
+### Interface languages
+
+CapturePort ships offline interface translations for English, Simplified Chinese
+(`zh-Hans`), Traditional Chinese (`zh-Hant`), Spanish, French, German, Portuguese,
+Japanese, Korean, and Italian. Settings → Language lists each language by its
+native name and offers **System language**. A selection changes the interface
+immediately and is saved separately from import rules in `ui.json`. Loading a
+saved import preset does not change the active language. Older preference files
+follow the system language; unknown saved language codes fall back to English.
+
+System detection uses the first nonempty `LC_ALL`, `LC_MESSAGES`, or `LANG`.
+Chinese Taiwan, Hong Kong, Macau, and Hant locales use Traditional Chinese;
+other Chinese locales use Simplified Chinese. Unsupported locales use English.
+Labels, help, workflow notices, import status, and safety confirmations are
+translated. Existing notices retain the language in which they were produced
+until replaced. Raw operating-system/backend diagnostics may remain in their
+original language. Filenames, source identities, user-created names, destination
+paths, template syntax, stored verification identifiers, and ISO-style timestamp
+formats remain unchanged. Missing translation keys fall back to English.
+Catalog tests require complete key coverage and unchanged interpolation/template
+placeholders across all supported languages. Non-Latin glyphs use the host's
+font fallback; CJK users need a compatible system font, such as Noto Sans CJK.
+
 The desktop interface uses bundled Spectral for its display voice and bundled
 Outfit for the interface, for consistent typography across Linux
 installations. Spectral, an OFL-licensed serif, sets the wordmark and every

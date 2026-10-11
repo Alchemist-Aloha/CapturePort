@@ -97,7 +97,7 @@ impl captureport_ingest::SourceRemover for VerifiedFilesystemRemover {
             .components()
             .any(|part| !matches!(part, std::path::Component::Normal(_)))
         {
-            return Err("Source locator is not a safe relative path".into());
+            return Err(i18n::tr("Source locator is not a safe relative path"));
         }
         let original = self.root.join(&source.0);
         if !std::fs::symlink_metadata(&original)
@@ -105,26 +105,26 @@ impl captureport_ingest::SourceRemover for VerifiedFilesystemRemover {
             .file_type()
             .is_file()
         {
-            return Err("Source path is not a regular file".into());
+            return Err(i18n::tr("Source path is not a regular file"));
         }
         let root = std::fs::canonicalize(&self.root).map_err(|e| e.to_string())?;
         let candidate = std::fs::canonicalize(&original).map_err(|e| e.to_string())?;
         if candidate != root.join(relative) {
-            return Err("Source path changed after import".into());
+            return Err(i18n::tr("Source path changed after import"));
         }
         if !candidate.starts_with(&root) {
-            return Err("Source path escaped its selected root".into());
+            return Err(i18n::tr("Source path escaped its selected root"));
         }
         let metadata = std::fs::symlink_metadata(&candidate).map_err(|e| e.to_string())?;
         if !metadata.file_type().is_file() {
-            return Err("Source is no longer a regular file".into());
+            return Err(i18n::tr("Source is no longer a regular file"));
         }
         let expected = self
             .sizes
             .get(&source.0)
             .ok_or("Source was not in the import plan")?;
         if metadata.len() != *expected {
-            return Err("Source size changed after import".into());
+            return Err(i18n::tr("Source size changed after import"));
         }
         // Pin the original inode while the potentially slow hashes run.
         let source_file = std::fs::File::open(&candidate).map_err(|e| e.to_string())?;
@@ -138,14 +138,14 @@ impl captureport_ingest::SourceRemover for VerifiedFilesystemRemover {
             .ok_or("No verified destinations were planned")?;
         for destination in copies {
             if *destination == candidate {
-                return Err("Source and destination resolve to the same file".into());
+                return Err(i18n::tr("Source and destination resolve to the same file"));
             }
             let destination_metadata =
                 std::fs::symlink_metadata(destination).map_err(|e| e.to_string())?;
             if !destination_metadata.file_type().is_file() {
-                return Err(format!(
-                    "Destination is no longer a regular file: {}",
-                    destination.display()
+                return Err(i18n::format(
+                    "Destination is no longer a regular file: {0}",
+                    &[format!("{}", destination.display())],
                 ));
             }
             #[cfg(unix)]
@@ -161,7 +161,7 @@ impl captureport_ingest::SourceRemover for VerifiedFilesystemRemover {
                 }
             }
             if std::fs::canonicalize(destination).map_err(|e| e.to_string())? == candidate {
-                return Err("Destination refers to the original file".into());
+                return Err(i18n::tr("Destination refers to the original file"));
             }
             let destination_hash = captureport_ingest::digest_reader(
                 std::fs::File::open(destination).map_err(|e| e.to_string())?,
@@ -170,15 +170,17 @@ impl captureport_ingest::SourceRemover for VerifiedFilesystemRemover {
             .full()
             .hex;
             if destination_hash != source_hash {
-                return Err(format!(
-                    "Destination changed after import: {}",
-                    destination.display()
+                return Err(i18n::format(
+                    "Destination changed after import: {0}",
+                    &[format!("{}", destination.display())],
                 ));
             }
         }
         let current = std::fs::symlink_metadata(&candidate).map_err(|e| e.to_string())?;
         if !unchanged_source(&metadata, &current) {
-            return Err("Source changed while verifying destinations; original kept".into());
+            return Err(i18n::tr(
+                "Source changed while verifying destinations; original kept",
+            ));
         }
         std::fs::remove_file(candidate).map_err(|e| e.to_string())
     }
@@ -196,10 +198,12 @@ impl ImportRecorder for Recorder {
         digest: &CopyDigest,
         verification: VerificationMode,
     ) -> Result<(), String> {
-        let media_id =
-            self.media_ids.get(&item.media_id).copied().ok_or_else(|| {
-                format!("Media {} was not recorded in the catalog", item.source_name)
-            })?;
+        let media_id = self.media_ids.get(&item.media_id).copied().ok_or_else(|| {
+            i18n::format(
+                "Media {0} was not recorded in the catalog",
+                std::slice::from_ref(&item.source_name),
+            )
+        })?;
         self.catalog
             .update_media_fingerprints(media_id, Some(digest.quick().hex), Some(digest.full().hex))
             .map_err(|e| e.to_string())?;
@@ -235,7 +239,7 @@ pub(crate) fn run_import(
     let Some(source_id) = source_id else {
         let _ = sender.send(WorkMessage::ImportDone(
             generation,
-            Err("source was not recorded".into()),
+            Err(i18n::tr("source was not recorded")),
         ));
         return;
     };
@@ -341,11 +345,15 @@ pub(crate) fn run_import(
             (
                 status,
                 Ok(if result.cancelled {
-                    format!(
-                        "Import cancelled · {completed} copies verified · {failed} failed. Originals unchanged."
+                    i18n::format(
+                        "Import cancelled · {0} copies verified · {1} failed. Originals unchanged.",
+                        &[format!("{}", completed), format!("{}", failed)],
                     )
                 } else {
-                    format!("Imported {completed} copy/copies; {failed} failed")
+                    i18n::format(
+                        "Imported {0} copy/copies; {1} failed",
+                        &[format!("{}", completed), format!("{}", failed)],
+                    )
                 }),
             )
         }
@@ -362,8 +370,9 @@ pub(crate) fn run_import(
     );
     let message = match completion {
         Ok(_) => message,
-        Err(error) => Err(format!(
-            "Copies finished, but session history could not be saved: {error}"
+        Err(error) => Err(i18n::format(
+            "Copies finished, but session history could not be saved: {0}",
+            &[format!("{}", error)],
         )),
     };
     let _ = sender.send(WorkMessage::ImportDone(generation, message));
@@ -468,12 +477,17 @@ pub(crate) fn run_reconcile(
             session.id,
             Some(now()),
             status,
-            (errors > 0).then(|| format!("{errors} scan or catalog errors")),
+            (errors > 0)
+                .then(|| i18n::format("{0} scan or catalog errors", &[format!("{}", errors)])),
         )
         .map_err(|e| e.to_string())?;
-    Ok(format!(
-        "Reconciled {recorded} files ({errors} errors{})",
-        if was_cancelled { ", cancelled" } else { "" }
+    Ok(i18n::format(
+        "Reconciled {0} files ({1} errors{2})",
+        &[
+            format!("{}", recorded),
+            format!("{}", errors),
+            i18n::tr(if was_cancelled { ", cancelled" } else { "" }).to_string(),
+        ],
     ))
 }
 pub(crate) fn aliases_for_sources(
@@ -529,10 +543,7 @@ pub(crate) fn manual_mark_selection(
             && item.import_status != captureport_core::ImportStatus::Imported)
         .map(|item| {
             catalog_ids.get(&item.id).copied().map(|catalog_id| (item.id, catalog_id))
-                .ok_or_else(|| format!(
-                    "Cannot mark {} yet: its catalog record is unavailable. Rescan the source and try again.",
-                    item.source_name
-                ))
+                .ok_or_else(|| i18n::format("Cannot mark {0} yet: its catalog record is unavailable. Rescan the source and try again.", std::slice::from_ref(&item.source_name)))
         })
         .collect()
 }
