@@ -2,7 +2,7 @@
 
 # CapturePort
 
-[English](README.md) | [简体中文](README.zh-CN.md)
+[English](README.md) | [中文](README.zh-CN.md)
 
 CapturePort 帮你把相机、存储卡或文件夹里的照片和视频，安全地复制到指定位置。开始复制前，你就能看到每个文件将存放在哪里。
 
