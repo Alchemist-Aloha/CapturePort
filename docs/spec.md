@@ -82,7 +82,7 @@ Basic preview, metadata inspection, rating display, and source browsing are acce
 Primary implementation:
 
 ```text
-Language         Rust
+Language         Rust (stable; minimum 1.99.1)
 GUI              GPUI
 Database         SQLite via rusqlite
 Hashing          BLAKE3
@@ -2604,9 +2604,34 @@ are decorative and are deliberately exempt; they are asserted only at 1.2:1.
 
 Editable text fields in import settings and gallery names use the active light
 or dark palette for their surface, text, border, selection, and focus state.
-Clicking positions the cursor, dragging or Shift-click selects text, and
-Ctrl+V/C/X pastes, copies, or cuts. Single-line fields replace pasted line
-breaks with spaces and scroll horizontally to keep the cursor visible.
+All editable fields share one text editor: gallery rename, preset name,
+source alias, destination and backup roots, folder/filename templates, discovery
+rules and numeric clock/timezone/session-gap values. Clicking positions the
+cursor; dragging (including outside the field with horizontal auto-scroll) or
+Shift-click extends selection. Double-click selects a Unicode word or boundary
+segment; triple-click selects the entire field.
+
+Ctrl+A selects field text without changing media selection. Ctrl+C/X/V and
+Ctrl+Insert/Shift+Delete/Shift+Insert copy, cut and paste. Shift+Arrow/Home/End
+extends selection; Ctrl+Arrow moves by Unicode word and Ctrl+Shift+Arrow extends
+by word. Ctrl+Backspace/Delete removes the previous/next word. Arrow and deletion
+boundaries preserve combined characters and emoji grapheme clusters. Ctrl+Z
+undoes; Ctrl+Shift+Z or Ctrl+Y redoes. Each field retains up to 100 individual
+edits without typing coalescing; loading a new value resets its history. Template
+segment insertion participates in the same undo history.
+
+Right-click or Shift+F10/the Menu key opens a palette-matched edit menu with Undo,
+Redo, Cut, Copy, Paste and Select all. Unavailable actions are disabled. Up/Down
+select an enabled action, Enter runs it, and Escape or an outside click dismisses
+it without changing text. Gallery Enter-to-save remains inactive while this menu
+is open. Background open/demo/import/media-selection shortcuts do not fire while
+an input has focus. Tab/Shift+Tab still move between controls.
+
+All input paths, including paste and IME commits, normalize line breaks and tabs
+to spaces. IME marked-text replacement and insertion-relative UTF-16 selections
+support non-ASCII text without corrupting byte offsets. Fields scroll
+horizontally to keep the caret visible; IME hit-testing uses those same scrolled
+coordinates. Read-only media-detail URLs retain their separate copy-only action.
 
 Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to open the import preview (and confirm only while reviewing it), and Escape to clear the visible selection on the browser. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
 The browser footer shows the selected count and size with a Preview import action when items are selected. The preview names blocked destinations and only offers Confirm import when every planned item can execute. After an import finishes, the same selection cannot be confirmed again until the selection or settings change and a fresh plan is built.

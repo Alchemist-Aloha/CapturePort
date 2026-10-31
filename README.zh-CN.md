@@ -114,6 +114,12 @@ GitHub Release 还提供 Debian/Ubuntu（`.deb`）、Arch（pacman）、Fedora�
 | `Escape` | 在浏览页面取消选择 |
 | `Ctrl+I` | 打开导入预览（在检查页面再次按下，即开始复制） |
 
+在所有文本框中，`Ctrl+A/C/X/V` 用于全选、复制、剪切和粘贴；
+`Shift+方向键/Home/End` 扩展选择，`Ctrl+方向键` 按词移动，
+`Ctrl+Backspace/Delete` 按词删除。`Ctrl+Z` 撤销，`Ctrl+Shift+Z` 或
+`Ctrl+Y` 重做。双击选择词，三击全选；右键或 `Shift+F10` 打开编辑菜单。
+这些快捷键适用于设置和拍摄组名称，不会误选媒体文件。
+
 ## 数据保存在哪里
 
 CapturePort 遵循 XDG 基础目录规范，分别保存：
@@ -147,7 +153,7 @@ rtk cargo test --workspace --offline
 rtk cargo run -p captureport --offline
 ```
 
-从源码构建需要 Rust 1.88 或更高版本、Cargo、C 编译器、GPUI 所需的 Linux 图形开发库，以及系统 `libgphoto2` 和 `libgphoto2_port` 的开发文件。
+从源码构建需要 Rust 1.99.1 或更高版本、Cargo、C 编译器、GPUI 所需的 Linux 图形开发库，以及系统 `libgphoto2` 和 `libgphoto2_port` 的开发文件。仓库使用包含 rustfmt 和 Clippy 的 stable 工具链；构建前请运行 `rustup update stable`。
 
 打包和基准测试命令见 [docs/build-and-benchmarks.md](docs/build-and-benchmarks.md)。
 

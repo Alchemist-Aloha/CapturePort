@@ -576,9 +576,9 @@ impl ImportEngine {
             // links (e.g. FAT/exFAT), without ever overwriting a late collision.
             #[cfg(all(target_os = "linux", target_env = "gnu"))]
             let publish = nix::fcntl::renameat2(
-                None,
+                nix::fcntl::AT_FDCWD,
                 &copy.temporary_destination,
-                None,
+                nix::fcntl::AT_FDCWD,
                 &copy.final_destination,
                 nix::fcntl::RenameFlags::RENAME_NOREPLACE,
             )

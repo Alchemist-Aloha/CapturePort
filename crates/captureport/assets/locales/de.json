@@ -1,4 +1,9 @@
 {
+  "Undo": "Rückgängig",
+  "Redo": "Wiederholen",
+  "Cut": "Ausschneiden",
+  "Copy": "Kopieren",
+  "Paste": "Einfügen",
   "Downloading from camera": "Download von der Kamera",
   "Reading source": "Quelle wird gelesen",
   "Verifying": "Überprüfung",

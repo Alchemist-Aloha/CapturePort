@@ -1,4 +1,9 @@
 {
+  "Undo": "撤销",
+  "Redo": "重做",
+  "Cut": "剪切",
+  "Copy": "复制",
+  "Paste": "粘贴",
   "Downloading from camera": "正在从相机下载",
   "Reading source": "正在读取来源",
   "Verifying": "正在验证",

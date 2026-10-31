@@ -253,6 +253,17 @@ The system uses a 4px radius for buttons, filters, navigation rows, fields, card
 - A 48px neutral bar. On the left, the wordmark lockup: the 28px app mark, then `CapturePort` in Spectral Bold 22px, then a 1px `border` rule 20px tall, then the descriptor `Photo and video ingest` in Outfit 14px `header_muted`. The theme toggle sits at the right.
 - The serif logotype is the one display element always on screen; it replaced the former 16px sans wordmark and is where the bar gets its weight. The bar keeps its 48px height, `header` surface, and 1px bottom border.
 
+### Text inputs
+
+All editable fields share one single-line editor with visible selection, caret
+scrolling, Unicode word/grapheme navigation, undo/redo and IME marked text.
+Right-click or Shift+F10 opens an anchored, unclipped edit menu on the `card`
+surface with a 1px `border`, 4px radius, 36px rows and 16px horizontal gutters.
+Menu commands pair their text with a muted keyboard shortcut; disabled commands
+use muted ink, and the active keyboard row uses `selected`. Up/Down, Enter and
+Escape work without moving text focus. Inputs are explicit Tab stops, and
+application shortcuts do not override editing shortcuts.
+
 ### Buttons
 
 - **Primary:** filled scheme primary, contrasting text, 36px minimum height, 4px radius, and 16px horizontal/4px vertical padding.

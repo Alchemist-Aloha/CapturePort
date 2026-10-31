@@ -14,7 +14,7 @@ resolver = "2"
 [workspace.package]
 edition = "2024"
 license = "MIT"
-rust-version = "1.88"
+rust-version = "1.99.1"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -23,3 +23,5 @@ unsafe_code = "forbid"
 # archived; the local copy changes only the proc_macro re-export visibility.
 [patch.crates-io]
 proc-macro-error2 = { path = "third_party/proc-macro-error2" }
+# GPUI's tar dependency pins xattr 0.2; delegate to current xattr for modern libc.
+xattr = { path = "third_party/xattr-compat" }

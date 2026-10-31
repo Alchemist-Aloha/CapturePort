@@ -1,0 +1,14 @@
+[package]
+name = "xattr"
+version = "0.2.3"
+edition = "2024"
+rust-version = "1.99.1"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+xattr-current = { package = "xattr", version = "1.7.0", default-features = false }
+
+[features]
+default = ["unsupported"]
+unsupported = ["xattr-current/unsupported"]

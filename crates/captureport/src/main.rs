@@ -11,6 +11,7 @@ mod scrollbar;
 mod spacing;
 mod tasks;
 mod template_help;
+mod text_edit;
 mod text_input;
 mod widgets;
 pub(crate) use devices::*;
@@ -491,31 +492,14 @@ fn main() {
                 tracing::warn!(%error, "Could not load bundled fonts");
             }
             cx.bind_keys([
-                KeyBinding::new("ctrl-o", OpenFolder, None),
-                KeyBinding::new("ctrl-d", OpenDemo, None),
-                KeyBinding::new("ctrl-a", SelectAll, None),
-                KeyBinding::new("ctrl-shift-a", SelectAllNew, None),
+                KeyBinding::new("ctrl-o", OpenFolder, Some("!CapturePortTextInput")),
+                KeyBinding::new("ctrl-d", OpenDemo, Some("!CapturePortTextInput")),
+                KeyBinding::new("ctrl-a", SelectAll, Some("!CapturePortTextInput")),
+                KeyBinding::new("ctrl-shift-a", SelectAllNew, Some("!CapturePortTextInput")),
                 KeyBinding::new("escape", SelectNone, None),
-                KeyBinding::new("ctrl-i", ImportSelected, None),
-                KeyBinding::new(
-                    "backspace",
-                    text_input::Backspace,
-                    Some("CapturePortTextInput"),
-                ),
-                KeyBinding::new("delete", text_input::Delete, Some("CapturePortTextInput")),
-                KeyBinding::new("left", text_input::Left, Some("CapturePortTextInput")),
-                KeyBinding::new("right", text_input::Right, Some("CapturePortTextInput")),
-                KeyBinding::new("home", text_input::Home, Some("CapturePortTextInput")),
-                KeyBinding::new("end", text_input::End, Some("CapturePortTextInput")),
-                KeyBinding::new(
-                    "ctrl-a",
-                    text_input::SelectAll,
-                    Some("CapturePortTextInput"),
-                ),
-                KeyBinding::new("ctrl-v", text_input::Paste, Some("CapturePortTextInput")),
-                KeyBinding::new("ctrl-c", text_input::Copy, Some("CapturePortTextInput")),
-                KeyBinding::new("ctrl-x", text_input::Cut, Some("CapturePortTextInput")),
+                KeyBinding::new("ctrl-i", ImportSelected, Some("!CapturePortTextInput")),
             ]);
+            text_input::init(cx);
             let bounds = Bounds::centered(None, size(px(1180.), px(760.)), cx);
             cx.open_window(
                 WindowOptions {

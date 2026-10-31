@@ -3,13 +3,13 @@ name = "captureport-catalog"
 version = "0.2.0"
 edition = "2021"
 license = "MIT"
-rust-version = "1.88"
+rust-version.workspace = true
 
 [dependencies]
-rusqlite = { version = "0.32", features = ["backup", "bundled"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-thiserror = "2"
+rusqlite = { version = "0.41.1", features = ["backup", "bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = "3.27.0"

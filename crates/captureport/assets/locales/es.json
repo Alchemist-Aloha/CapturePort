@@ -1,4 +1,9 @@
 {
+  "Undo": "Deshacer",
+  "Redo": "Rehacer",
+  "Cut": "Cortar",
+  "Copy": "Copiar",
+  "Paste": "Pegar",
   "Downloading from camera": "Descargando de la cámara",
   "Reading source": "Leyendo origen",
   "Verifying": "Verificando",

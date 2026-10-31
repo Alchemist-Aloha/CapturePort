@@ -1,42 +1,114 @@
-//! Small single-line text editor used by the settings and planning surfaces.
-//!
-//! GPUI deliberately exposes text input through `EntityInputHandler` rather
-//! than providing a ready-made widget.  Keeping that plumbing here prevents
-//! each settings field from implementing a subtly different editor.
-
-use std::ops::Range;
-
+//! Shared single-line text input for every settings field and gallery rename.
+use crate::text_edit::{Movement, TextEdit};
 use gpui::{
-    App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
-    Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId, LayoutId, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, ShapedLine,
-    SharedString, Style, TextRun, UTF16Selection, Window, actions, div, fill, point, prelude::*,
-    relative,
+    App, Bounds, ClipboardItem, Context, CursorStyle, DispatchPhase, Element, ElementId,
+    ElementInputHandler, Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId,
+    KeyBinding, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad,
+    Pixels, Point, ShapedLine, SharedString, Style, TextRun, UTF16Selection, UnderlineStyle,
+    Window, actions, anchored, deferred, div, fill, point, prelude::*, relative,
 };
+use std::ops::Range;
 
 actions!(
     captureport_text_input,
     [
-        Backspace, Delete, Left, Right, Home, End, SelectAll, Paste, Copy, Cut
+        Backspace,
+        Delete,
+        DeleteWordLeft,
+        DeleteWordRight,
+        Left,
+        Right,
+        WordLeft,
+        WordRight,
+        Home,
+        End,
+        SelectLeft,
+        SelectRight,
+        SelectWordLeft,
+        SelectWordRight,
+        SelectHome,
+        SelectEnd,
+        SelectAll,
+        Paste,
+        Copy,
+        Cut,
+        Undo,
+        Redo,
+        OpenEditMenu,
     ]
 );
 
-/// A single-line editable text value.
+pub(crate) fn init(cx: &mut App) {
+    let context = Some("CapturePortTextInput");
+    cx.bind_keys([
+        KeyBinding::new("backspace", Backspace, context),
+        KeyBinding::new("delete", Delete, context),
+        KeyBinding::new("ctrl-backspace", DeleteWordLeft, context),
+        KeyBinding::new("ctrl-delete", DeleteWordRight, context),
+        KeyBinding::new("left", Left, context),
+        KeyBinding::new("right", Right, context),
+        KeyBinding::new("ctrl-left", WordLeft, context),
+        KeyBinding::new("ctrl-right", WordRight, context),
+        KeyBinding::new("home", Home, context),
+        KeyBinding::new("end", End, context),
+        KeyBinding::new("ctrl-home", Home, context),
+        KeyBinding::new("ctrl-end", End, context),
+        KeyBinding::new("shift-left", SelectLeft, context),
+        KeyBinding::new("shift-right", SelectRight, context),
+        KeyBinding::new("ctrl-shift-left", SelectWordLeft, context),
+        KeyBinding::new("ctrl-shift-right", SelectWordRight, context),
+        KeyBinding::new("shift-home", SelectHome, context),
+        KeyBinding::new("shift-end", SelectEnd, context),
+        KeyBinding::new("ctrl-shift-home", SelectHome, context),
+        KeyBinding::new("ctrl-shift-end", SelectEnd, context),
+        KeyBinding::new("ctrl-a", SelectAll, context),
+        KeyBinding::new("ctrl-v", Paste, context),
+        KeyBinding::new("shift-insert", Paste, context),
+        KeyBinding::new("ctrl-c", Copy, context),
+        KeyBinding::new("ctrl-insert", Copy, context),
+        KeyBinding::new("ctrl-x", Cut, context),
+        KeyBinding::new("shift-delete", Cut, context),
+        KeyBinding::new("ctrl-z", Undo, context),
+        KeyBinding::new("ctrl-shift-z", Redo, context),
+        KeyBinding::new("ctrl-y", Redo, context),
+        KeyBinding::new("shift-f10", OpenEditMenu, context),
+        KeyBinding::new("menu", OpenEditMenu, context),
+    ]);
+}
+
+#[derive(Clone, Copy)]
+enum EditCommand {
+    Undo,
+    Redo,
+    Cut,
+    Copy,
+    Paste,
+    SelectAll,
+}
+const COMMANDS: [(EditCommand, &str, &str); 6] = [
+    (EditCommand::Undo, "Undo", "Ctrl+Z"),
+    (EditCommand::Redo, "Redo", "Ctrl+Shift+Z"),
+    (EditCommand::Cut, "Cut", "Ctrl+X"),
+    (EditCommand::Copy, "Copy", "Ctrl+C"),
+    (EditCommand::Paste, "Paste", "Ctrl+V"),
+    (EditCommand::SelectAll, "Select all", "Ctrl+A"),
+];
+struct EditMenu {
+    position: Point<Pixels>,
+    selected: usize,
+}
+
 pub struct TextInput {
     focus_handle: FocusHandle,
-    content: SharedString,
+    edit: TextEdit,
     placeholder: SharedString,
-    selection: Range<usize>,
-    reversed: bool,
     selecting: bool,
-    marked_range: Option<Range<usize>>,
+    drag_position: Option<Point<Pixels>>,
+    menu: Option<EditMenu>,
+    palette: crate::Palette,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
     scroll_x: Pixels,
-}
-
-fn single_line_clipboard(text: &str) -> String {
-    text.replace(['\r', '\n'], " ")
 }
 
 impl TextInput {
@@ -45,95 +117,46 @@ impl TextInput {
         placeholder: impl Into<SharedString>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let content = initial.into();
-        let end = content.len();
+        let initial = initial.into();
         Self {
-            focus_handle: cx.focus_handle(),
-            content,
+            focus_handle: cx.focus_handle().tab_stop(true),
+            edit: TextEdit::new(&initial),
             placeholder: placeholder.into(),
-            selection: end..end,
-            reversed: false,
             selecting: false,
-            marked_range: None,
+            drag_position: None,
+            menu: None,
+            palette: crate::Palette::new(crate::ColorScheme::default(), false),
             last_layout: None,
             last_bounds: None,
             scroll_x: gpui::px(0.),
         }
     }
-
     pub fn value(&self) -> String {
-        self.content.to_string()
+        self.edit.content.clone()
     }
-    /// Insert a template segment at the cursor, replacing selected text.
     pub fn insert_segment(&mut self, segment: &str, cx: &mut Context<Self>) {
-        let range = self.selection.clone();
-        self.content =
-            (self.content[..range.start].to_owned() + segment + &self.content[range.end..]).into();
-        let at = range.start + segment.len();
-        self.selection = at..at;
-        self.reversed = false;
-        self.marked_range = None;
+        self.edit.replace_selection(segment);
+        self.menu = None;
         cx.notify();
     }
     pub fn set_value(&mut self, value: impl Into<SharedString>, cx: &mut Context<Self>) {
-        self.content = value.into();
-        let end = self.content.len();
-        self.selection = end..end;
-        self.marked_range = None;
+        let value = value.into();
+        self.edit = TextEdit::new(&value);
+        self.selecting = false;
+        self.menu = None;
+        self.scroll_x = gpui::px(0.);
         cx.notify();
     }
-
-    fn cursor(&self) -> usize {
-        if self.reversed {
-            self.selection.start
-        } else {
-            self.selection.end
-        }
-    }
-    fn previous(&self, at: usize) -> usize {
-        self.content
-            .char_indices()
-            .rev()
-            .find_map(|(i, _)| (i < at).then_some(i))
-            .unwrap_or(0)
-    }
-    fn next(&self, at: usize) -> usize {
-        self.content
-            .char_indices()
-            .find_map(|(i, _)| (i > at).then_some(i))
-            .unwrap_or(self.content.len())
-    }
-    fn move_to(&mut self, at: usize, cx: &mut Context<Self>) {
-        self.selection = at..at;
-        self.reversed = false;
-        cx.notify();
-    }
-    fn replace(&mut self, text: &str, _window: &mut Window, cx: &mut Context<Self>) {
-        let range = self.selection.clone();
-        self.content =
-            (self.content[..range.start].to_owned() + text + &self.content[range.end..]).into();
-        let at = range.start + text.len();
-        self.selection = at..at;
-        self.marked_range = None;
-        cx.notify();
+    pub(crate) fn set_palette(&mut self, palette: crate::Palette) {
+        self.palette = palette;
     }
     fn index_for_mouse(&self, position: Point<Pixels>) -> usize {
         match (&self.last_bounds, &self.last_layout) {
-            (Some(bounds), Some(line)) if !self.content.is_empty() => {
-                line.closest_index_for_x(position.x - bounds.left())
+            (Some(bounds), Some(line)) if !self.edit.content.is_empty() => {
+                line.closest_index_for_x(position.x - bounds.left() + self.scroll_x)
             }
             _ => 0,
         }
-    }
-    fn select_to(&mut self, at: usize, cx: &mut Context<Self>) {
-        let anchor = if self.reversed {
-            self.selection.end
-        } else {
-            self.selection.start
-        };
-        self.selection = anchor.min(at)..anchor.max(at);
-        self.reversed = at < anchor;
-        cx.notify();
     }
     fn on_mouse_down(
         &mut self,
@@ -141,98 +164,197 @@ impl TextInput {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        window.focus(&self.focus_handle(cx));
+        window.focus(&self.focus_handle);
+        self.menu = None;
         self.selecting = true;
+        self.drag_position = Some(event.position);
         let at = self.index_for_mouse(event.position);
         if event.modifiers.shift {
-            self.select_to(at, cx);
+            self.edit.move_to(at, true);
+        } else if event.click_count >= 3 {
+            self.edit.select_all();
+        } else if event.click_count == 2 {
+            self.edit.select_word(at);
         } else {
-            self.move_to(at, cx);
+            self.edit.move_to(at, false);
         }
+        cx.stop_propagation();
+        cx.notify();
     }
     fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if self.selecting {
-            self.select_to(self.index_for_mouse(event.position), cx);
+        if event.pressed_button != Some(MouseButton::Left) {
+            self.selecting = false;
+            return;
         }
+        self.drag_position = Some(event.position);
+        self.edit
+            .move_to(self.index_for_mouse(event.position), true);
+        cx.notify();
     }
     fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
         self.selecting = false;
+        self.drag_position = None;
     }
-    fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
-            self.replace_text_in_range(None, &single_line_clipboard(&text), window, cx);
-        }
-    }
-    fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
-        if !self.selection.is_empty() {
-            cx.write_to_clipboard(ClipboardItem::new_string(
-                self.content[self.selection.clone()].to_string(),
-            ));
-        }
-    }
-    fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.selection.is_empty() {
-            self.copy(&Copy, window, cx);
-            self.replace("", window, cx);
-        }
-    }
-    fn backspace(&mut self, _: &Backspace, window: &mut Window, cx: &mut Context<Self>) {
-        if self.selection.is_empty() {
-            let at = self.cursor();
-            self.selection = self.previous(at)..at;
-        }
-        self.replace("", window, cx);
-    }
-    fn delete(&mut self, _: &Delete, window: &mut Window, cx: &mut Context<Self>) {
-        if self.selection.is_empty() {
-            let at = self.cursor();
-            self.selection = at..self.next(at);
-        }
-        self.replace("", window, cx);
-    }
-    fn left(&mut self, _: &Left, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(
-            if self.selection.is_empty() {
-                self.previous(self.cursor())
-            } else {
-                self.selection.start
-            },
-            cx,
-        );
-    }
-    fn right(&mut self, _: &Right, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(
-            if self.selection.is_empty() {
-                self.next(self.cursor())
-            } else {
-                self.selection.end
-            },
-            cx,
-        );
-    }
-    fn home(&mut self, _: &Home, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(0, cx);
-    }
-    fn end(&mut self, _: &End, _: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(self.content.len(), cx);
-    }
-    fn select_all(&mut self, _: &SelectAll, _: &mut Window, cx: &mut Context<Self>) {
-        self.selection = 0..self.content.len();
-        self.reversed = false;
+    fn move_cursor(&mut self, movement: Movement, extend: bool, cx: &mut Context<Self>) {
+        self.menu = None;
+        self.edit.move_cursor(movement, extend);
         cx.notify();
     }
-    fn utf8_to_utf16(&self, at: usize) -> usize {
-        self.content[..at].encode_utf16().count()
+    fn delete(&mut self, movement: Movement, cx: &mut Context<Self>) {
+        self.menu = None;
+        self.edit.delete(movement);
+        cx.notify();
     }
-    fn utf16_to_utf8(&self, at: usize) -> usize {
-        let mut utf16 = 0;
-        for (index, ch) in self.content.char_indices() {
-            if utf16 >= at {
-                return index;
-            }
-            utf16 += ch.len_utf16();
+    fn enabled(&self, command: EditCommand, cx: &App) -> bool {
+        match command {
+            EditCommand::Undo => self.edit.can_undo(),
+            EditCommand::Redo => self.edit.can_redo(),
+            EditCommand::Cut | EditCommand::Copy => !self.edit.selection.is_empty(),
+            EditCommand::Paste => cx
+                .read_from_clipboard()
+                .and_then(|item| item.text())
+                .is_some_and(|text| !text.is_empty()),
+            EditCommand::SelectAll => !self.edit.content.is_empty(),
         }
-        self.content.len()
+    }
+    fn command(&mut self, command: EditCommand, window: &mut Window, cx: &mut Context<Self>) {
+        self.menu = None;
+        match command {
+            EditCommand::Copy | EditCommand::Cut if !self.edit.selection.is_empty() => {
+                cx.write_to_clipboard(ClipboardItem::new_string(
+                    self.edit.selected_text().to_owned(),
+                ));
+                if matches!(command, EditCommand::Cut) {
+                    self.edit.replace_selection("");
+                }
+            }
+            EditCommand::Paste => {
+                if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text())
+                    && !text.is_empty()
+                {
+                    self.edit.replace_selection(&text);
+                }
+            }
+            EditCommand::SelectAll => self.edit.select_all(),
+            EditCommand::Undo => self.edit.undo(),
+            EditCommand::Redo => self.edit.redo(),
+            _ => {}
+        }
+        window.focus(&self.focus_handle);
+        cx.notify();
+    }
+    fn open_menu(&mut self, position: Point<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
+        self.selecting = false;
+        window.focus(&self.focus_handle);
+        let selected = COMMANDS
+            .iter()
+            .position(|(command, _, _)| self.enabled(*command, cx))
+            .unwrap_or(0);
+        self.menu = Some(EditMenu { position, selected });
+        cx.notify();
+    }
+    fn edit_menu(&self, cx: &Context<Self>) -> Option<gpui::AnyElement> {
+        let menu = self.menu.as_ref()?;
+        let p = self.palette;
+        let mut view = div()
+            .id("text-edit-menu")
+            .w(gpui::px(260.))
+            .py(gpui::px(crate::spacing::TIGHT))
+            .border_1()
+            .border_color(p.border)
+            .rounded_sm()
+            .bg(p.card)
+            .text_color(p.text)
+            .flex()
+            .flex_col()
+            .on_mouse_down_out(cx.listener(|t, _, _, cx| {
+                t.menu = None;
+                cx.notify();
+            }));
+        for (index, &(command, label, shortcut)) in COMMANDS.iter().enumerate() {
+            let enabled = self.enabled(command, cx);
+            view = view.child(
+                div()
+                    .id(index)
+                    .px(gpui::px(crate::spacing::CONTENT))
+                    .min_h(gpui::px(crate::spacing::CONTROL_HEIGHT))
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .text_sm()
+                    .text_color(if enabled { p.text } else { p.muted })
+                    .when(index == menu.selected && enabled, |v| v.bg(p.selected))
+                    .when(index == 2 || index == 5, |v| {
+                        v.border_t_1().border_color(p.border)
+                    })
+                    .when(enabled, |v| {
+                        v.cursor_pointer()
+                            .hover(move |v| v.bg(p.selected))
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |t, _, window, cx| {
+                                    cx.stop_propagation();
+                                    t.command(command, window, cx);
+                                }),
+                            )
+                    })
+                    .child(crate::i18n::tr(label))
+                    .child(div().text_xs().text_color(p.muted).child(shortcut)),
+            );
+        }
+        Some(
+            deferred(
+                anchored()
+                    .position(menu.position)
+                    .snap_to_window()
+                    .child(view),
+            )
+            .with_priority(1)
+            .into_any_element(),
+        )
+    }
+    fn menu_key(
+        &mut self,
+        event: &gpui::KeyDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(menu) = &self.menu else {
+            return;
+        };
+        let selected = menu.selected;
+        match event.keystroke.key.as_str() {
+            "escape" => {
+                self.menu = None;
+            }
+            "enter" => {
+                if self.enabled(COMMANDS[selected].0, cx) {
+                    self.command(COMMANDS[selected].0, window, cx);
+                }
+            }
+            "up" | "down" => {
+                let step = if event.keystroke.key == "up" {
+                    COMMANDS.len() - 1
+                } else {
+                    1
+                };
+                for i in 1..=COMMANDS.len() {
+                    let next = (selected + step * i) % COMMANDS.len();
+                    if self.enabled(COMMANDS[next].0, cx) {
+                        self.menu.as_mut().unwrap().selected = next;
+                        break;
+                    }
+                }
+            }
+            "tab" => {
+                self.menu = None;
+                cx.notify();
+                return;
+            }
+            _ => return,
+        }
+        cx.stop_propagation();
+        cx.notify();
     }
 }
 
@@ -244,9 +366,9 @@ impl EntityInputHandler for TextInput {
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<String> {
-        let range = self.utf16_to_utf8(range.start)..self.utf16_to_utf8(range.end);
-        *actual = Some(self.utf8_to_utf16(range.start)..self.utf8_to_utf16(range.end));
-        Some(self.content[range].to_string())
+        let range = self.edit.range_from_utf16(range);
+        *actual = Some(self.edit.utf8_to_utf16(range.start)..self.edit.utf8_to_utf16(range.end));
+        Some(self.edit.content[range].to_owned())
     }
     fn selected_text_range(
         &mut self,
@@ -255,17 +377,20 @@ impl EntityInputHandler for TextInput {
         _: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
         Some(UTF16Selection {
-            range: self.utf8_to_utf16(self.selection.start)..self.utf8_to_utf16(self.selection.end),
-            reversed: self.reversed,
+            range: self.edit.utf8_to_utf16(self.edit.selection.start)
+                ..self.edit.utf8_to_utf16(self.edit.selection.end),
+            reversed: self.edit.reversed,
         })
     }
     fn marked_text_range(&self, _: &mut Window, _: &mut Context<Self>) -> Option<Range<usize>> {
-        self.marked_range
+        self.edit
+            .marked_range
             .as_ref()
-            .map(|r| self.utf8_to_utf16(r.start)..self.utf8_to_utf16(r.end))
+            .map(|r| self.edit.utf8_to_utf16(r.start)..self.edit.utf8_to_utf16(r.end))
     }
-    fn unmark_text(&mut self, _: &mut Window, _: &mut Context<Self>) {
-        self.marked_range = None;
+    fn unmark_text(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        self.edit.marked_range = None;
+        cx.notify();
     }
     fn replace_text_in_range(
         &mut self,
@@ -274,14 +399,8 @@ impl EntityInputHandler for TextInput {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let range = range
-            .map(|r| self.utf16_to_utf8(r.start)..self.utf16_to_utf8(r.end))
-            .unwrap_or_else(|| self.selection.clone());
-        self.content =
-            (self.content[..range.start].to_owned() + text + &self.content[range.end..]).into();
-        let at = range.start + text.len();
-        self.selection = at..at;
-        self.marked_range = None;
+        self.edit.replace_utf16(range, text);
+        self.menu = None;
         cx.notify();
     }
     fn replace_and_mark_text_in_range(
@@ -289,30 +408,23 @@ impl EntityInputHandler for TextInput {
         range: Option<Range<usize>>,
         text: &str,
         selected: Option<Range<usize>>,
-        window: &mut Window,
+        _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.replace_text_in_range(range, text, window, cx);
-        if !text.is_empty() {
-            let at = self.cursor();
-            self.marked_range = Some(at - text.len()..at);
-        }
-        if let Some(selected) = selected {
-            let at = self.cursor();
-            self.selection =
-                at + self.utf16_to_utf8(selected.start)..at + self.utf16_to_utf8(selected.end);
-        }
+        self.edit.compose_utf16(range, text, selected);
+        self.menu = None;
         cx.notify();
     }
     fn bounds_for_range(
         &mut self,
         range: Range<usize>,
-        bounds: Bounds<Pixels>,
+        _: Bounds<Pixels>,
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<Bounds<Pixels>> {
+        let bounds = self.last_bounds?;
         let line = self.last_layout.as_ref()?;
-        let range = self.utf16_to_utf8(range.start)..self.utf16_to_utf8(range.end);
+        let range = self.edit.range_from_utf16(range);
         Some(Bounds::from_corners(
             point(
                 bounds.left() - self.scroll_x + line.x_for_index(range.start),
@@ -326,16 +438,15 @@ impl EntityInputHandler for TextInput {
     }
     fn character_index_for_point(
         &mut self,
-        point: Point<Pixels>,
+        position: Point<Pixels>,
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<usize> {
-        let bounds = self.last_bounds?;
-        let line = self.last_layout.as_ref()?;
-        Some(self.utf8_to_utf16(line.index_for_x(point.x - bounds.left())?))
+        self.last_layout.as_ref()?;
+        self.last_bounds?;
+        Some(self.edit.utf8_to_utf16(self.index_for_mouse(position)))
     }
 }
-
 impl Focusable for TextInput {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
@@ -388,12 +499,12 @@ impl Element for TextElement {
         cx: &mut App,
     ) -> PaintState {
         let input = self.input.read(cx);
-        let content = if input.content.is_empty() {
+        let content: SharedString = if input.edit.content.is_empty() {
             crate::i18n::tr(&input.placeholder).into()
         } else {
-            input.content.clone()
+            input.edit.content.clone().into()
         };
-        let color = if input.content.is_empty() {
+        let color = if input.edit.content.is_empty() {
             let mut color = window.text_style().color;
             color.a *= 0.65;
             color
@@ -408,13 +519,39 @@ impl Element for TextElement {
             underline: None,
             strikethrough: None,
         };
+        let runs = if let Some(marked) = &input.edit.marked_range {
+            vec![
+                TextRun {
+                    len: marked.start,
+                    ..run.clone()
+                },
+                TextRun {
+                    len: marked.len(),
+                    underline: Some(UnderlineStyle {
+                        color: Some(run.color),
+                        thickness: gpui::px(1.),
+                        wavy: false,
+                    }),
+                    ..run.clone()
+                },
+                TextRun {
+                    len: input.edit.content.len() - marked.end,
+                    ..run
+                },
+            ]
+            .into_iter()
+            .filter(|run| run.len > 0)
+            .collect::<Vec<_>>()
+        } else {
+            vec![run]
+        };
         let line = window.text_system().shape_line(
             content,
             window.text_style().font_size.to_pixels(window.rem_size()),
-            &[run],
+            &runs,
             None,
         );
-        let cursor_pos = line.x_for_index(input.cursor());
+        let cursor_pos = line.x_for_index(input.edit.cursor());
         let mut scroll_x = input.scroll_x;
         if cursor_pos < scroll_x {
             scroll_x = cursor_pos;
@@ -424,7 +561,7 @@ impl Element for TextElement {
         scroll_x = scroll_x.max(gpui::px(0.));
         let mut selection_color = window.text_style().color;
         selection_color.a *= 0.25;
-        let (selection, cursor) = if input.selection.is_empty() {
+        let (selection, cursor) = if input.edit.selection.is_empty() {
             (
                 None,
                 Some(fill(
@@ -440,11 +577,11 @@ impl Element for TextElement {
                 Some(fill(
                     Bounds::from_corners(
                         point(
-                            bounds.left() - scroll_x + line.x_for_index(input.selection.start),
+                            bounds.left() - scroll_x + line.x_for_index(input.edit.selection.start),
                             bounds.top(),
                         ),
                         point(
-                            bounds.left() - scroll_x + line.x_for_index(input.selection.end),
+                            bounds.left() - scroll_x + line.x_for_index(input.edit.selection.end),
                             bounds.bottom(),
                         ),
                     ),
@@ -492,54 +629,138 @@ impl Element for TextElement {
         {
             window.paint_quad(cursor);
         }
-        self.input.update(cx, |input, _| {
+        self.input.update(cx, |input, cx| {
             input.last_layout = Some(line);
-            input.last_bounds = Some(Bounds::new(
-                point(bounds.left() - state.scroll_x, bounds.top()),
-                bounds.size,
-            ));
+            input.last_bounds = Some(bounds);
             input.scroll_x = state.scroll_x;
+            if input.selecting
+                && let Some(position) = input.drag_position
+            {
+                let movement = if position.x < bounds.left() {
+                    Some(Movement::Left)
+                } else if position.x > bounds.right() {
+                    Some(Movement::Right)
+                } else {
+                    None
+                };
+                if let Some(movement) = movement {
+                    let before = input.edit.selection.clone();
+                    input.edit.move_cursor(movement, true);
+                    if input.edit.selection != before {
+                        cx.notify();
+                        window.request_animation_frame();
+                    }
+                }
+            }
+        });
+        let input = self.input.clone();
+        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+            if phase == DispatchPhase::Bubble && input.read(cx).selecting {
+                input.update(cx, |input, cx| input.on_mouse_move(event, window, cx));
+            }
         });
     }
 }
 
 impl Render for TextInput {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.focus_handle.is_focused(window) {
+            self.menu = None;
+        }
+        let menu = self.edit_menu(cx);
         div()
+            .id("text-input")
             .w_full()
             .min_w_0()
             .key_context("CapturePortTextInput")
-            .track_focus(&self.focus_handle(cx))
+            .track_focus(&self.focus_handle)
             .cursor(CursorStyle::IBeam)
-            .on_action(cx.listener(Self::backspace))
-            .on_action(cx.listener(Self::delete))
-            .on_action(cx.listener(Self::left))
-            .on_action(cx.listener(Self::right))
-            .on_action(cx.listener(Self::home))
-            .on_action(cx.listener(Self::end))
-            .on_action(cx.listener(Self::select_all))
-            .on_action(cx.listener(Self::paste))
-            .on_action(cx.listener(Self::copy))
-            .on_action(cx.listener(Self::cut))
+            .on_action(cx.listener(|t, _: &Backspace, _, cx| t.delete(Movement::Left, cx)))
+            .on_action(cx.listener(|t, _: &Delete, _, cx| t.delete(Movement::Right, cx)))
+            .on_action(cx.listener(|t, _: &DeleteWordLeft, _, cx| t.delete(Movement::WordLeft, cx)))
+            .on_action(
+                cx.listener(|t, _: &DeleteWordRight, _, cx| t.delete(Movement::WordRight, cx)),
+            )
+            .on_action(cx.listener(|t, _: &Left, _, cx| t.move_cursor(Movement::Left, false, cx)))
+            .on_action(cx.listener(|t, _: &Right, _, cx| t.move_cursor(Movement::Right, false, cx)))
+            .on_action(
+                cx.listener(|t, _: &WordLeft, _, cx| t.move_cursor(Movement::WordLeft, false, cx)),
+            )
+            .on_action(
+                cx.listener(|t, _: &WordRight, _, cx| {
+                    t.move_cursor(Movement::WordRight, false, cx)
+                }),
+            )
+            .on_action(cx.listener(|t, _: &Home, _, cx| t.move_cursor(Movement::Start, false, cx)))
+            .on_action(cx.listener(|t, _: &End, _, cx| t.move_cursor(Movement::End, false, cx)))
+            .on_action(
+                cx.listener(|t, _: &SelectLeft, _, cx| t.move_cursor(Movement::Left, true, cx)),
+            )
+            .on_action(
+                cx.listener(|t, _: &SelectRight, _, cx| t.move_cursor(Movement::Right, true, cx)),
+            )
+            .on_action(cx.listener(|t, _: &SelectWordLeft, _, cx| {
+                t.move_cursor(Movement::WordLeft, true, cx)
+            }))
+            .on_action(cx.listener(|t, _: &SelectWordRight, _, cx| {
+                t.move_cursor(Movement::WordRight, true, cx)
+            }))
+            .on_action(
+                cx.listener(|t, _: &SelectHome, _, cx| t.move_cursor(Movement::Start, true, cx)),
+            )
+            .on_action(
+                cx.listener(|t, _: &SelectEnd, _, cx| t.move_cursor(Movement::End, true, cx)),
+            )
+            .on_action(
+                cx.listener(|t, _: &SelectAll, w, cx| t.command(EditCommand::SelectAll, w, cx)),
+            )
+            .on_action(cx.listener(|t, _: &Paste, w, cx| t.command(EditCommand::Paste, w, cx)))
+            .on_action(cx.listener(|t, _: &Copy, w, cx| t.command(EditCommand::Copy, w, cx)))
+            .on_action(cx.listener(|t, _: &Cut, w, cx| t.command(EditCommand::Cut, w, cx)))
+            .on_action(cx.listener(|t, _: &Undo, w, cx| t.command(EditCommand::Undo, w, cx)))
+            .on_action(cx.listener(|t, _: &Redo, w, cx| t.command(EditCommand::Redo, w, cx)))
+            .on_action(cx.listener(|t, _: &OpenEditMenu, w, cx| {
+                let position = t
+                    .last_bounds
+                    .map(|bounds| point(bounds.left(), bounds.bottom()))
+                    .unwrap_or_default();
+                t.open_menu(position, w, cx);
+            }))
+            .on_key_down(cx.listener(Self::menu_key))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(|t, event: &MouseDownEvent, w, cx| {
+                    if t.edit.selection.is_empty() {
+                        t.edit.move_to(t.index_for_mouse(event.position), false);
+                    }
+                    t.open_menu(event.position, w, cx);
+                    cx.stop_propagation();
+                }),
+            )
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
-            .on_mouse_move(cx.listener(Self::on_mouse_move))
             .min_h(gpui::px(crate::spacing::CONTROL_HEIGHT - 2.))
             .px(gpui::px(crate::spacing::CONTENT))
             .py(gpui::px(crate::spacing::TIGHT))
             .flex()
             .items_center()
             .child(TextElement { input: cx.entity() })
+            .children(menu)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::single_line_clipboard;
-
     #[test]
-    fn pasted_lines_remain_in_one_field() {
-        assert_eq!(single_line_clipboard("a\r\nb\n写真"), "a  b 写真");
+    fn edit_menu_commands_have_catalog_entries() {
+        let catalog: std::collections::BTreeMap<String, String> =
+            serde_json::from_str(include_str!("../assets/locales/en.json")).unwrap();
+        for (_, label, _) in super::COMMANDS {
+            assert!(
+                catalog.contains_key(label),
+                "missing edit-menu label: {label}"
+            );
+        }
     }
 }

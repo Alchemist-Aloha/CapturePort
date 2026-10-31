@@ -3,11 +3,11 @@ name = "captureport-gphoto"
 version = "0.2.0"
 edition = "2021"
 license = "MIT"
-rust-version = "1.88"
+rust-version.workspace = true
 
 [dependencies]
 captureport-core = { path = "../captureport-core" }
-chrono = { version = "0.4", default-features = false, features = ["std"] }
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 
 [build-dependencies]
 

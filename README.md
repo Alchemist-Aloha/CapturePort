@@ -176,6 +176,13 @@ history — and the `marked manually` status survives rescans and restarts.
 | `Escape` | Clear the selection on the browser |
 | `Ctrl+I` | Open the import preview (pressing it again on the Review screen starts the copy) |
 
+In any text field, use `Ctrl+A/C/X/V` to select all/copy/cut/paste,
+`Shift+Arrow/Home/End` to extend selection, and `Ctrl+Arrow` or
+`Ctrl+Backspace/Delete` to move or delete by word. `Ctrl+Z` undoes;
+`Ctrl+Shift+Z` or `Ctrl+Y` redoes. Double-click selects a word, triple-click
+selects the field, and right-click or `Shift+F10` opens the edit menu.
+These shortcuts work in settings and gallery names without selecting media.
+
 ## Where your data lives
 
 CapturePort follows the XDG base directory layout:
@@ -211,9 +218,10 @@ rtk cargo test --workspace --offline
 rtk cargo run -p captureport --offline
 ```
 
-Builds require Rust 1.88 or newer, Cargo, a C compiler, GPUI's Linux graphics
+Builds require Rust 1.99.1 or newer, Cargo, a C compiler, GPUI's Linux graphics
 development libraries, and the system `libgphoto2` and `libgphoto2_port`
-development files. Packaging and benchmark commands are documented in
+development files. The repository selects stable Rust with rustfmt and Clippy;
+run `rustup update stable` before building. Packaging and benchmark commands are documented in
 [docs/build-and-benchmarks.md](docs/build-and-benchmarks.md).
 
 - [docs/spec.md](docs/spec.md) — the product and behavior contract.

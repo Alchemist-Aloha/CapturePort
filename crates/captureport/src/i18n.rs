@@ -223,6 +223,7 @@ mod tests {
             include_str!("model.rs"),
             include_str!("render.rs"),
             include_str!("tasks.rs"),
+            include_str!("text_input.rs"),
             include_str!("browser/detail.rs"),
             include_str!("browser/gallery.rs"),
             include_str!("browser/import.rs"),

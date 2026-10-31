@@ -10,8 +10,8 @@ captureport-catalog = { path = "../captureport-catalog" }
 captureport-core = { path = "../captureport-core" }
 captureport-ingest = { path = "../captureport-ingest" }
 captureport-metadata = { path = "../captureport-metadata" }
-chrono = "0.4"
-tempfile = "3"
+chrono = "0.4.45"
+tempfile = "3.27.0"
 
 [lints]
 workspace = true

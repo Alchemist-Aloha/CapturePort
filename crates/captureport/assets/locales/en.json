@@ -1,4 +1,9 @@
 {
+  "Undo": "Undo",
+  "Redo": "Redo",
+  "Cut": "Cut",
+  "Copy": "Copy",
+  "Paste": "Paste",
   "Downloading from camera": "Downloading from camera",
   "Reading source": "Reading source",
   "Verifying": "Verifying",

@@ -434,7 +434,7 @@ fn settings_field(
     label: &'static str,
     input: gpui::Entity<text_input::TextInput>,
     palette: Palette,
-    cx: &Context<Browser>,
+    cx: &mut Context<Browser>,
 ) -> AnyElement {
     div()
         .flex()
@@ -463,7 +463,7 @@ fn settings_template_field(
     video: bool,
     segment_target: Option<&Entity<text_input::TextInput>>,
     p: Palette,
-    cx: &Context<Browser>,
+    cx: &mut Context<Browser>,
 ) -> AnyElement {
     let expanded = segment_target.is_some_and(|target| target == &input);
     let target = input.clone();
@@ -531,8 +531,9 @@ fn settings_template_field(
 fn themed_input(
     input: gpui::Entity<text_input::TextInput>,
     palette: Palette,
-    cx: &Context<Browser>,
+    cx: &mut Context<Browser>,
 ) -> AnyElement {
+    input.update(cx, |input, _| input.set_palette(palette));
     let focus = input.read(cx).focus_handle(cx);
     div()
         .w_full()

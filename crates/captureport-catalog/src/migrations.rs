@@ -1,4 +1,4 @@
-use rusqlite::{Connection, DatabaseName};
+use rusqlite::{Connection, MAIN_DB};
 use std::path::Path;
 
 use crate::CatalogError;
@@ -99,7 +99,7 @@ pub(crate) fn migrate(
             if let Some(path) = file_path {
                 let backup_path = path.with_extension("sqlite.pre-v2.bak");
                 if !backup_path.exists() {
-                    connection.backup(DatabaseName::Main, &backup_path, None)?;
+                    connection.backup(MAIN_DB, &backup_path, rusqlite::backup::NO_PROGRESS)?;
                 }
             }
         }

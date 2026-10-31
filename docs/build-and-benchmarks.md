@@ -1,8 +1,19 @@
 # Builds, packages, and benchmarks
 
-CapturePort targets Linux. Builds require Rust 1.88 or newer, Cargo, a C
+CapturePort targets Linux. Builds require Rust 1.99.1 or newer, Cargo, a C
 compiler, GPUI's Linux graphics development libraries, and system libgphoto2
-and libgphoto2_port development files.
+and libgphoto2_port development files. `rust-toolchain.toml` selects stable Rust
+with rustfmt and Clippy. Update with `rustup update stable`; CI also uses stable
+Rust (the Arch package build uses the distribution's updated Rust package).
+
+Direct dependencies target the latest stable crates.io releases, with resolved
+versions recorded in `Cargo.lock`. Refresh compatible transitive dependencies
+with `cargo update`, then run the workspace verification ladder. GPUI's upstream
+constraints may retain older transitive major versions. The existing local
+`proc-macro-error2` 2.0.1 visibility fix remains necessary for GPUI's macro chain.
+A small `third_party/xattr-compat` shim forwards GPUI's tar dependency's legacy
+xattr requirement to current xattr 1.7.0, avoiding its removed `libc::ENOATTR`
+reference without downgrading libc.
 
 ## Packages
 

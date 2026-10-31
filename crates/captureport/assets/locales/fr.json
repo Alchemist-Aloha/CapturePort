@@ -1,4 +1,9 @@
 {
+  "Undo": "Annuler",
+  "Redo": "Rétablir",
+  "Cut": "Couper",
+  "Copy": "Copier",
+  "Paste": "Coller",
   "Downloading from camera": "Téléchargement depuis l’appareil",
   "Reading source": "Lecture de la source",
   "Verifying": "Vérification",
