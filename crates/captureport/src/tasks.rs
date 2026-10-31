@@ -260,6 +260,7 @@ pub(crate) fn run_import(
             generation,
             progress: captureport_core::ImportProgress {
                 session_id: session.id as u64,
+                phase: p.phase,
                 completed: p.files_completed as u64,
                 total: p.files_total as u64,
                 bytes_copied: p.overall_bytes,

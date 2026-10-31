@@ -330,6 +330,7 @@ mod tests {
             generation: ScanGeneration(1),
             progress: crate::ImportProgress {
                 session_id: 1,
+                phase: crate::ImportPhase::Copying,
                 completed: 0,
                 total: 3,
                 bytes_copied: 1,

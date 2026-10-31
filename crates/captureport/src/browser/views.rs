@@ -293,39 +293,38 @@ impl Browser {
             self.state.filtered_items().map(|item| item.id),
             &self.bundle_owner,
         );
-        let waiting = candidates.len().saturating_sub(visible);
+        let waiting = candidates
+            .iter()
+            .filter(|id| self.capture_readiness(**id) == PreviewReadiness::Loading)
+            .count();
         let failed = candidates
             .iter()
-            .filter(|id| {
-                let preview = self.preview_id(**id);
-                self.failed_thumbnails.contains(&preview)
-                    || self.state.item(preview).is_some_and(|item| {
-                        matches!(item.metadata, captureport_core::MetadataState::Failed(_))
-                    })
-            })
+            .filter(|id| self.capture_readiness(**id) == PreviewReadiness::Unavailable)
             .count();
-        let hidden_selected = self
+        let unavailable_selected = self
             .state
             .items()
             .filter(|item| {
                 self.state.is_selected(item.id)
-                    && (!self.thumbnail_paths.contains_key(&self.preview_id(item.id))
-                        || !matches!(item.metadata, captureport_core::MetadataState::Ready(_)))
+                    && self.capture_readiness(
+                        self.bundle_owner.get(&item.id).copied().unwrap_or(item.id),
+                    ) == PreviewReadiness::Unavailable
             })
             .count();
-        let mut readiness = vec![i18n::format("{0} ready", &[format!("{}", visible)])];
-        if waiting > failed {
-            readiness.push(i18n::format(
-                "{0} loading",
-                &[format!("{}", waiting - failed)],
-            ));
+        let mut readiness = vec![i18n::format(
+            "{0} ready",
+            &[format!("{}", visible.saturating_sub(failed))],
+        )];
+        if waiting > 0 {
+            readiness.push(i18n::format("{0} loading", &[format!("{}", waiting)]));
         }
         if failed > 0 {
             readiness.push(i18n::format("{0} unavailable", &[format!("{}", failed)]));
         }
         let (columns, image_height) = thumbnail_layout(
             f32::from(window.bounds().size.width),
-            f32::from(window.bounds().size.height),
+            // Reserve the main-window activity widgets before sizing image wells.
+            f32::from(window.bounds().size.height) - 48. - if self.importing { 148. } else { 0. },
             sidebar_width,
             self.ui.thumbnail_size,
             self.show_view_options,
@@ -369,8 +368,8 @@ impl Browser {
                         .child(div().w_full().font_family(DISPLAY_FONT).text_lg().font_weight(gpui::FontWeight::SEMIBOLD).truncate().child(source_label.primary))
                         .children(source_label.secondary.map(|secondary| div().w_full().text_xs().text_color(p.muted).truncate().child(secondary))))
                     .child(div().flex_shrink_0().text_xs().text_color(p.muted).child(readiness.join(" · "))))
-                .children((hidden_selected > 0).then(|| div().text_xs().text_color(p.muted)
-                    .child(i18n::format("{0} selected files have no preview. Review their import paths.", &[format!("{}", hidden_selected)]))))
+                .children((unavailable_selected > 0).then(|| div().text_xs().text_color(p.muted)
+                    .child(i18n::format("{0} selected files have no preview. Review their import paths.", &[format!("{}", unavailable_selected)]))))
                 .when(!self.state.is_empty(), |view| view.child(div().flex().flex_wrap().gap(px(spacing::TIGHT))
                     .child(chip(i18n::tr("All"),self.state.filter==MediaFilter::All, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::All,c))))
                     .child(chip(i18n::tr("Photos"),self.state.filter==MediaFilter::Photos, p, cx.listener(|t,_,_,c|t.filter(MediaFilter::Photos,c))))
@@ -439,9 +438,9 @@ impl Browser {
                 div().flex_1().flex().items_center().justify_center().px(px(spacing::CONTENT))
                     .child(div().flex().flex_col().items_center().gap(px(spacing::CONTENT))
                         .child(div().font_family(DISPLAY_FONT).text_lg().font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child(i18n::tr(if self.scanning { "Scanning source…" } else if waiting > failed { "Preparing previews…" } else if failed > 0 { "Previews unavailable" } else if self.state.source.is_none() { "Start with a source" } else if self.state.filter == MediaFilter::All { "No media found in this source" } else { "No media matches this filter" })))
+                            .child(i18n::tr(if self.scanning { "Scanning source…" } else if waiting > 0 { "Preparing previews…" } else if failed > 0 { "Previews unavailable" } else if self.state.source.is_none() { "Start with a source" } else if self.state.filter == MediaFilter::All { "No media found in this source" } else { "No media matches this filter" })))
                         .child(div().text_sm().text_color(p.muted)
-                            .child(i18n::tr(if self.scanning { "Media appears after metadata and its thumbnail are ready." } else if failed > 0 && waiting == failed { "Some files could not be previewed. Check the source or video decoder, then reopen it to retry." } else if waiting > 0 { "Metadata and thumbnails are loading." } else if self.state.source.is_none() { if self.discovered_sources.is_empty() && !self.unmounted_cards.is_empty() { "Mount the card in Sources to browse media." } else if self.discovered_sources.is_empty() { "Open a folder or connect a camera to browse media." } else { "Choose a discovered camera or card in Sources to browse media." } } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." })))
+                            .child(i18n::tr(if self.scanning { "Media appears as previews finish. Unavailable previews remain selectable." } else if failed > 0 && waiting == 0 { "Some files could not be previewed. Check the source or video decoder, then reopen it to retry." } else if waiting > 0 { "Metadata and thumbnails are loading." } else if self.state.source.is_none() { if self.discovered_sources.is_empty() && !self.unmounted_cards.is_empty() { "Mount the card in Sources to browse media." } else if self.discovered_sources.is_empty() { "Open a folder or connect a camera to browse media." } else { "Choose a discovered camera or card in Sources to browse media." } } else if self.state.filter == MediaFilter::All { "Try another source or check that it contains supported media." } else { "Choose All to see every capture in this source." })))
                         .child(if self.state.source.is_none() && !self.scanning {
                             div().flex().flex_wrap().justify_center().gap(px(spacing::CONTROL_GAP))
                                 .child(primary_button(Icon::Folder, "Open a folder…", p,
@@ -477,6 +476,9 @@ impl Browser {
                                             .child(img(path.clone()).h(px(image_height)).max_w_full().object_fit(ObjectFit::Contain))
                                     } else {
                                         div().w_full().h(px(image_height)).bg(p.placeholder)
+                                            .flex().flex_col().items_center().justify_center().gap(px(spacing::CONTROL_GAP))
+                                            .child(icons::icon_sized(badge.0, 24., p.muted))
+                                            .child(div().text_sm().text_color(p.muted).child(i18n::tr("Preview unavailable")))
                                     };
                                     div().id(("media-open", id.0)).relative().w_full().cursor_pointer()
                                         .on_click(cx.listener(move|t,_,_,c|t.toggle_bundle(id,c)))

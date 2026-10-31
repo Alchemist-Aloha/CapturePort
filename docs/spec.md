@@ -218,7 +218,7 @@ extract metadata incrementally
     ↓
 generate thumbnails on a bounded background queue
     ↓
-show each capture only when metadata and thumbnail are ready
+show each capture when its preview resolves, with a labeled fallback on failure
     ↓
 resolve import-history status incrementally
 ```
@@ -227,10 +227,20 @@ A card containing thousands of items should remain responsive while previews
 load. A file that disappears before metadata extraction is explicitly unavailable,
 not ready with empty metadata. Unusable thumbnail cache metadata resolves to an
 unavailable preview without blocking the rest of the bounded queue.
-Ready captures appear progressively without reordering already displayed
-tiles; loading and unavailable-preview counts remain visible. Failed metadata
-or thumbnail extraction must not produce blank media tiles. Reopening the source
-retries unavailable previews; files remain untouched.
+Resolved captures appear progressively without reordering already displayed
+tiles. Failed metadata or thumbnail extraction produces an explicit **Preview
+unavailable** tile with a media-type icon and normal selection/details/import
+actions, never a blank tile or an invisible importable file. Preview failure does
+not imply that copying will fail. Reopening the source retries unavailable
+previews; files remain untouched.
+
+A main-window thumbnail widget remains visible across pages while a source is
+open. It shows a progress bar, processed/discovered capture counts, and separate
+ready, loading, and unavailable counts. Unavailable counts as processed, not
+successful. During enumeration the total is explicitly the number discovered so
+far; after scanning ends the widget shows a percentage of that final total.
+Counts cover the whole source regardless of the active gallery filter, and
+merged captures count once.
 
 Automatic mounted-source discovery lists volumes under `/media/` and
 `/run/media/`. Mounts under `/mnt/` are not added to the Sources sidebar
@@ -472,6 +482,11 @@ filesystem modification time
 During PTP browsing, CapturePort uses the device-reported file timestamp supplied
 by libgphoto2 as the camera timestamp, when its validity flag is set and the value
 is positive and representable. Missing or invalid dates remain unavailable.
+Camera object sizes require a successful information request, the size-valid
+flag, and a positive size representable in the catalog (at most `i64::MAX`).
+An invalid or unavailable size stops the scan with the affected file named;
+it must not silently become a zero-byte import candidate. Large video sizes
+remain 64-bit. A completed fallback download must match the reported size.
 Browsing does not download full camera files solely to extract embedded metadata;
 filesystem sources continue to prefer embedded capture time.
 
@@ -2386,6 +2401,21 @@ Users can choose a local directory with **Open folder**. A **10k-item demo** but
 Filesystem scanning is recursive and read-only. Hidden entries and common system folders are skipped by default, symbolic links are not followed, and files rejected by the active media rules (see section 8) are omitted. The selected source's relative paths are preserved. Changing sources cancels the previous scan and discards its late results.
 
 Camera/PTP/MTP enumeration accepts recognized image, RAW, and video extensions regardless of folder, including media under `Pictures/`, `Movies/`, or `DCIM/`. It skips non-media files (including sidecars) before showing them in the browser. Folder traversal remains recursive so camera media outside `DCIM/` is not lost. Explicitly opened ordinary filesystem folders retain the broader unknown-file behavior above.
+Camera list allocation, listing, entry-name, and unexpected-worker-disconnect
+failures stop the scan with an explicit error; a partial scan must not be reported
+as complete. Unsafe entry names (empty, traversal, or containing separators) are
+rejected rather than followed.
+
+Camera initialization, enumeration, preview and transfer requests pass their
+cancellation token into libgphoto2's context callback. Cancellation is cooperative:
+a driver or blocked USB call may still need to return or time out. Do not claim
+that the camera stopped before its worker returns and finalizes import history.
+When range reads are unsupported, the camera worker spools one complete object
+into an owner-only (0600) OS temporary file unlinked immediately after creation.
+It caches at most one object, releases it when its transfer stream drops, and
+closes all spool descriptors on errors, cancellation, source close or process
+exit. A crashed process leaves no named spool to block a later run. Range-read
+I/O errors are reported, not disguised as unsupported-range fallback.
 
 The browser shows progressively populated media tiles in a virtualized grid. RAW+JPEG and video+sidecar pairs appear as one expandable capture with member selection in its tree panel. A tile overlays its media-type badge at the thumbnail's top-right and its file size at the bottom-left, with the source file's modification time in a compact format below the filename; camera items without a local file omit the time. The filename and metadata caption carries its own surface — the `card` tone when unselected and the `selected` tone when selected — so the text never sits directly on the page canvas. The status line below that is icon plus text (`✓ Imported`, `! Possible duplicate`, `? Unknown`, `New`, `Checking…`); for a file classified as imported or a possible duplicate it also names the prior import that matched, as a session number and date, so an uncertain classification is traceable rather than asserted. Selection is shown by the tile background, the tile border, and a `Selected` / `Part selected` label drawn on the image over the same black scrim as the media-type badge. The label never uses a themed surface: a card-coloured chip measures 1.19:1 against a bright frame and disappears over a blown-out photograph, while white ink on the 60% black scrim holds 5.7:1 against the brightest possible frame. New items are selected by default. The user can toggle a single-file tile, select all visible items, select all visible new items, or clear the visible selection. Bulk selection preserves explicit bundle-member choices, including members hidden by the current filter; unavailable previews remain counted in selection and listed in the import preview. Filters include All, Photos, Videos, New, Imported, and Possible duplicates; sorts are Capture time and Name. The footer reports discovered file count, selected file count, and selected bytes.
 An explicit sort immediately replaces the displayed order; later preview arrivals
@@ -2418,7 +2448,7 @@ without clearing the selection. Background application shortcuts are inactive
 while it is open, and switching or rescanning a source clears stale details.
 Opening details never downloads a full camera object solely for inspection.
 
-The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Until renamed, a gallery's default name is the creation date of its earliest media (`YYYY-MM-DD`), not a session number; when several galleries share a date, they are suffixed `a`, `b`, `c`, …, `z`, `aa`, `ab`, … in chronological order. Stored names that match the old auto-generated `Session N` pattern are ignored so they fall back to the date. Clicking a gallery's display name selects every visible media item in that gallery, or clears them when all are already selected (bundle members are included). Rename focuses the gallery name field immediately. Save or Enter persists the
+The browser has a time-gap slider with 5, 15, 30, 60, 120, 240, 480, and 1440 minute stops. Choosing a stop enables time-gap grouping for the import preset and persists it. Visible captures are sectioned into galleries using the same corrected timestamp and strictly-greater-than threshold rule as the import planner. Gallery sections are based on the complete scanned capture sequence, so filtering does not create artificial boundaries. Each gallery has an editable display name stored separately in `gallery_names.json` under the XDG configuration directory. Until renamed, a gallery's default name is the creation date of its earliest media (`YYYY-MM-DD`), not a session number; when several galleries share a date, they are suffixed `a`, `b`, `c`, …, `z`, `aa`, `ab`, … in chronological order. Renames are stored against every member file's source identity and path, including filtered files and bundle members, not an ordinal session number. A gallery recovers its first saved member name in capture order if its earliest file or session ordinal changes; if named galleries merge, the earliest named member wins and the other saved names remain intact. Legacy ordinal keys are retained and read lazily: exact matches take precedence, and ordinal-independent recovery is allowed only when the matching legacy names agree. Saving writes member-based keys without deleting legacy entries. Clearing a name explicitly masks legacy values. Names such as `Session 2` are valid user names. Renaming is deferred until the source scan finishes to keep the edit target stable. Clicking a gallery's display name selects every visible media item in that gallery, or clears them when all are already selected (bundle members are included). Rename focuses the gallery name field immediately. Save or Enter persists the
 name and returns focus to the browser; Cancel or Escape discards the edit without
 changing selection. Leaving the browser also discards the edit.
 A persistence failure keeps the editor open and reports an
@@ -2433,8 +2463,17 @@ and their date/time/session variables. Import previews remain authoritative for 
 While importing, a persistent panel above the footer remains visible on every
 page. It shows the active copy's source filename and final destination, current
 copy bytes and progress, overall transferred bytes and progress, verified copy
-count (including backups), transfer rate, and Cancel import. Byte progress can
-reach 100% before verification and history recording finish; the verified count
+count (including backups and already-existing files reverified in this run),
+transfer rate, and Cancel import. Cancel is available even before the first
+progress event. The active phase explicitly distinguishes camera download,
+source reading, copying, verification, atomic publication, and history recording.
+Camera driver progress is normalized to object bytes; temporary spooling and
+verification never inflate copied-byte totals. Drivers without progress callbacks
+retain the active phase and cancellation control, without inventing progress.
+Existing-file checks report source-read and destination-verification progress,
+are cancellable between reads, and increment verified counts only after history
+recording succeeds. Unrelated notices do not replace active transfer status.
+Byte progress can reach 100% before verification and history recording finish; the verified count
 advances only after both succeed. Starting another import clears old progress
 and status messages; completing or cancelling hides the active panel and reports
 the outcome in the footer. Cancellation explicitly reports a cancelled import,

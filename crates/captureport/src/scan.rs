@@ -63,7 +63,7 @@ pub(crate) fn scan_source(
         SourceRequest::Filesystem(path) => Some(path.clone()),
         SourceRequest::Demo(_) | SourceRequest::Camera(_) => None,
     };
-    let source = match open_source(request) {
+    let source = match open_source(request, scan.cancellation()) {
         Ok(source) => source,
         Err(error) => {
             let _ = sender.send(ScanMessage::Finished(Err(error)));
@@ -157,15 +157,19 @@ pub(crate) fn scan_source(
     let _ = sender.send(ScanMessage::Finished(enumerate_result));
 }
 
-fn open_source(request: SourceRequest) -> Result<Arc<dyn MediaSource>, SourceError> {
+fn open_source(
+    request: SourceRequest,
+    cancellation: &CancellationToken,
+) -> Result<Arc<dyn MediaSource>, SourceError> {
     match request {
         SourceRequest::Filesystem(path) => {
             FilesystemSource::new(path).map(|source| Arc::new(source) as Arc<dyn MediaSource>)
         }
         SourceRequest::Demo(builder) => Ok(Arc::new(builder.build())),
-        SourceRequest::Camera(camera) => captureport_gphoto::GPhotoSource::connect(camera)
+        SourceRequest::Camera(camera) => captureport_gphoto::GPhotoSource::connect_with_cancellation(camera, cancellation.clone())
             .map(|source| Arc::new(source) as Arc<dyn MediaSource>)
             .map_err(|error| {
+                if cancellation.is_cancelled() { return SourceError::Cancelled; }
                 tracing::warn!(operation=%error.operation,code=error.code,"camera connection failed");
                 SourceError::Io("Could not connect to the camera. Check its connection and close other camera applications.".into())
             }),

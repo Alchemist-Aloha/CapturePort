@@ -80,6 +80,28 @@ impl fmt::Display for SourceError {
 }
 impl std::error::Error for SourceError {}
 
+#[derive(Clone, Copy, Debug)]
+pub struct SourceReadProgress {
+    pub bytes: u64,
+    pub total: u64,
+}
+
+/// A streaming read can report camera-side work before delivering a chunk.
+pub trait MediaStream: Read + Send {
+    fn read_with_progress(
+        &mut self,
+        buffer: &mut [u8],
+        cancellation: &CancellationToken,
+        _progress: &mut dyn FnMut(SourceReadProgress),
+    ) -> std::io::Result<usize> {
+        if cancellation.is_cancelled() {
+            return Err(std::io::Error::other("Transfer cancelled"));
+        }
+        self.read(buffer)
+    }
+}
+impl MediaStream for Box<dyn Read + Send> {}
+
 /// A source may be slow, non-seekable, or disconnected at any time.
 pub trait MediaSource: Send + Sync {
     fn identity(&self) -> SourceIdentity;
@@ -89,6 +111,9 @@ pub trait MediaSource: Send + Sync {
         emit: &mut dyn FnMut(MediaItem) -> Result<(), SourceError>,
     ) -> Result<(), SourceError>;
     fn open_stream(&self, item: &MediaLocator) -> Result<Box<dyn Read + Send>, SourceError>;
+    fn open_transfer(&self, item: &MediaLocator) -> Result<Box<dyn MediaStream>, SourceError> {
+        Ok(Box::new(self.open_stream(item)?))
+    }
     fn read_range(
         &self,
         item: &MediaLocator,
@@ -103,5 +128,45 @@ pub trait MediaSource: Send + Sync {
     /// full-resolution stream.
     fn preview(&self, _item: &MediaLocator) -> Result<Option<Vec<u8>>, SourceError> {
         Ok(None)
+    }
+    fn preview_with_cancellation(
+        &self,
+        item: &MediaLocator,
+        cancellation: &CancellationToken,
+    ) -> Result<Option<Vec<u8>>, SourceError> {
+        if cancellation.is_cancelled() {
+            return Err(SourceError::Cancelled);
+        }
+        self.preview(item)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancelled_default_stream_and_preview_do_not_start_io() {
+        let mut stream: Box<dyn Read + Send> = Box::new(std::io::Cursor::new(b"abc"));
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        let mut buffer = [0; 3];
+        assert!(stream
+            .read_with_progress(&mut buffer, &cancellation, &mut |_| panic!(
+                "unexpected progress"
+            ))
+            .is_err());
+        assert_eq!(
+            stream
+                .read_with_progress(&mut buffer, &CancellationToken::new(), &mut |_| {})
+                .unwrap(),
+            3
+        );
+        assert_eq!(&buffer, b"abc");
+        let source = crate::FakeSourceBuilder::new().build();
+        assert_eq!(
+            source.preview_with_cancellation(&MediaLocator("photo.JPG".into()), &cancellation),
+            Err(SourceError::Cancelled)
+        );
     }
 }

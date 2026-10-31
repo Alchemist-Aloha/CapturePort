@@ -47,6 +47,13 @@ impl Browser {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.scanning {
+            self.message = Some(i18n::tr(
+                "Wait for the source scan to finish before renaming",
+            ));
+            cx.notify();
+            return;
+        }
         let title = self
             .gallery_groups
             .iter()
@@ -68,12 +75,25 @@ impl Browser {
         let Some(key) = self.gallery_edit_key.clone() else {
             return;
         };
+        let Some(group) = self.gallery_groups.iter().find(|group| group.key == key) else {
+            self.gallery_edit_key = None;
+            window.focus(&self.focus);
+            cx.notify();
+            return;
+        };
+        let Some(source) = &self.source else {
+            return;
+        };
+        let source_key = gallery_source_key(source.identity());
         let name = self.gallery_edit_input.read(cx).value().trim().to_string();
         let mut names = self.gallery_names.clone();
-        if name.is_empty() {
-            names.remove(&key);
-        } else {
-            names.insert(key, name);
+        for id in &group.all_ids {
+            if let Some(item) = self.state.item(*id) {
+                names.insert(
+                    gallery_name_key(&source_key, &item.source_path),
+                    name.clone(),
+                );
+            }
         }
         let result = serde_json::to_vec_pretty(&names)
             .map_err(|e| e.to_string())

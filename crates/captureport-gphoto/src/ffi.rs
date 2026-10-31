@@ -1,4 +1,4 @@
-use std::os::raw::{c_char, c_int, c_ulong};
+use std::os::raw::{c_char, c_int, c_ulong, c_void};
 
 #[repr(C)]
 pub struct Camera {
@@ -87,6 +87,8 @@ pub struct CameraFileInfo {
     pub audio: CameraFileInfoAudio,
 }
 
+pub const ERROR_NOT_SUPPORTED: c_int = -6;
+pub const FILE_INFO_SIZE: c_int = 1 << 2;
 pub const FILE_INFO_MTIME: c_int = 1 << 7;
 
 pub const FILE_PREVIEW: c_int = 0;
@@ -95,6 +97,20 @@ pub const FILE_NORMAL: c_int = 1;
 extern "C" {
     pub fn gp_context_new() -> *mut GPContext;
     pub fn gp_context_unref(context: *mut GPContext);
+    #[cfg(test)]
+    pub fn gp_context_cancel(context: *mut GPContext) -> c_int;
+    pub fn gp_context_set_cancel_func(
+        context: *mut GPContext,
+        callback: Option<unsafe extern "C" fn(*mut GPContext, *mut c_void) -> c_int>,
+        data: *mut c_void,
+    );
+    pub fn gp_context_set_progress_funcs(
+        context: *mut GPContext,
+        start: Option<unsafe extern "C" fn(*mut GPContext, f32, *const c_char, *mut c_void) -> u32>,
+        update: Option<unsafe extern "C" fn(*mut GPContext, u32, f32, *mut c_void)>,
+        stop: Option<unsafe extern "C" fn(*mut GPContext, u32, *mut c_void)>,
+        data: *mut c_void,
+    );
     pub fn gp_camera_new(camera: *mut *mut Camera) -> c_int;
     pub fn gp_camera_free(camera: *mut Camera) -> c_int;
     pub fn gp_camera_set_abilities(camera: *mut Camera, abilities: CameraAbilities) -> c_int;
@@ -149,6 +165,12 @@ extern "C" {
     ) -> c_int;
     pub fn gp_list_new(list: *mut *mut CameraList) -> c_int;
     pub fn gp_list_free(list: *mut CameraList) -> c_int;
+    #[cfg(test)]
+    pub fn gp_list_append(
+        list: *mut CameraList,
+        name: *const c_char,
+        value: *const c_char,
+    ) -> c_int;
     pub fn gp_list_count(list: *mut CameraList) -> c_int;
     pub fn gp_list_get_name(list: *mut CameraList, index: c_int, name: *mut *const c_char)
         -> c_int;

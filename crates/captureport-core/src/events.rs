@@ -1,8 +1,19 @@
 use crate::{MediaId, MediaItem, MediaMetadata, ScanGeneration, SourceId, SourceIdentity};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ImportPhase {
+    Downloading,
+    ReadingSource,
+    Copying,
+    Verifying,
+    Committing,
+    Recording,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImportProgress {
     pub session_id: u64,
+    pub phase: ImportPhase,
     pub completed: u64,
     pub total: u64,
     pub bytes_copied: u64,

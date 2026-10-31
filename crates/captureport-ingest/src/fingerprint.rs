@@ -100,15 +100,31 @@ impl CopyDigest {
     }
 }
 
-pub fn digest_reader(mut reader: impl Read) -> io::Result<CopyDigest> {
+pub fn digest_reader(reader: impl Read) -> io::Result<CopyDigest> {
+    digest_reader_with_progress(
+        reader,
+        &captureport_core::CancellationToken::new(),
+        &mut |_| {},
+    )
+}
+
+pub(crate) fn digest_reader_with_progress(
+    mut reader: impl Read,
+    cancellation: &captureport_core::CancellationToken,
+    progress: &mut dyn FnMut(u64),
+) -> io::Result<CopyDigest> {
     let mut digest = CopyDigest::new();
     let mut buffer = [0u8; 1024 * 1024];
     loop {
+        if cancellation.is_cancelled() {
+            return Err(io::Error::other("Verification cancelled"));
+        }
         let count = reader.read(&mut buffer)?;
         if count == 0 {
             break;
         }
         digest.update(&buffer[..count]);
+        progress(digest.size());
     }
     Ok(digest)
 }
@@ -176,6 +192,25 @@ pub fn verify_copy(
     source: &CopyDigest,
     destination: &Path,
 ) -> io::Result<bool> {
+    verify_copy_with_progress(
+        mode,
+        source,
+        destination,
+        &captureport_core::CancellationToken::new(),
+        &mut |_| {},
+    )
+}
+
+pub(crate) fn verify_copy_with_progress(
+    mode: VerificationMode,
+    source: &CopyDigest,
+    destination: &Path,
+    cancellation: &captureport_core::CancellationToken,
+    progress: &mut dyn FnMut(u64),
+) -> io::Result<bool> {
+    if cancellation.is_cancelled() {
+        return Err(io::Error::other("Verification cancelled"));
+    }
     let metadata = destination.metadata()?;
     if metadata.len() != source.size() {
         return Ok(false);
@@ -183,7 +218,8 @@ pub fn verify_copy(
     if mode == VerificationMode::Fast {
         return Ok(true);
     }
-    let destination = digest_reader(File::open(destination)?)?;
+    let destination =
+        digest_reader_with_progress(File::open(destination)?, cancellation, progress)?;
     Ok(match mode {
         VerificationMode::Fast => true,
         VerificationMode::Standard => source.quick() == destination.quick(),

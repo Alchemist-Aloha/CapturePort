@@ -207,7 +207,10 @@ impl Browser {
                     None
                 } else if job.cache_path.is_file() {
                     Some(job.cache_path)
-                } else if let Ok(Some(bytes)) = job.source.preview(&job.locator) {
+                } else if let Ok(Some(bytes)) = job
+                    .source
+                    .preview_with_cancellation(&job.locator, &job.cancellation)
+                {
                     let temporary = job.cache_path.with_extension("jpg.partial");
                     let saved = image::load_from_memory(&bytes)
                         .and_then(|image| {
@@ -390,6 +393,7 @@ impl Browser {
             browser.importing = true;
             browser.progress = Some(captureport_core::ImportProgress {
                 session_id: 0,
+                phase: captureport_core::ImportPhase::Copying,
                 completed: 25,
                 total: 100,
                 bytes_copied: 512_000_000,
@@ -683,6 +687,7 @@ mod integration_tests {
             title: "g".into(),
             session: 1,
             ids: vec![MediaId(1), MediaId(2)],
+            all_ids: vec![MediaId(1), MediaId(2)],
         }];
         order_gallery_members(&mut groups, &[MediaId(2), MediaId(1)]);
         assert_eq!(groups[0].ids, vec![MediaId(2), MediaId(1)]);
@@ -700,6 +705,57 @@ mod integration_tests {
         let later = item(2, "2026-01-01T08:00:00+00:00");
         let preset = ImportPreset::everyday(std::path::Path::new("/tmp"));
         assert!(capture_order_key(&earlier, &preset) < capture_order_key(&later, &preset));
+    }
+
+    #[test]
+    fn unavailable_camera_video_remains_a_selectable_capture() {
+        use captureport_core::{MediaItem, MediaMetadata, MetadataState};
+        let mut video = MediaItem::new(MediaId(1), SourceId(1), "DSCF4016.MOV", 100);
+        video.metadata = MetadataState::Ready(MediaMetadata::default());
+        assert_eq!(
+            preview_readiness(&video.metadata, &video.metadata, false, false),
+            PreviewReadiness::Loading
+        );
+        assert_eq!(
+            preview_readiness(&video.metadata, &video.metadata, false, true),
+            PreviewReadiness::Unavailable
+        );
+        assert_eq!(
+            preview_readiness(&video.metadata, &video.metadata, true, false),
+            PreviewReadiness::Ready
+        );
+        assert_eq!(
+            preview_readiness(
+                &MetadataState::Failed("decoder".into()),
+                &video.metadata,
+                false,
+                false
+            ),
+            PreviewReadiness::Unavailable
+        );
+        assert_eq!(
+            preview_readiness(&MetadataState::Pending, &video.metadata, false, false),
+            PreviewReadiness::Loading
+        );
+        assert_eq!(
+            preview_readiness(
+                &video.metadata,
+                &MetadataState::Failed("JPEG metadata".into()),
+                false,
+                false
+            ),
+            PreviewReadiness::Unavailable
+        );
+        let progress = ThumbnailProgress {
+            ready: 2,
+            unavailable: 1,
+            total: 4,
+        };
+        assert_eq!(progress.resolved(), 3);
+        assert_eq!(progress.total - progress.resolved(), 1);
+        let mut displayed = vec![MediaId(2)];
+        append_ready_ids(&mut displayed, vec![video.id, MediaId(2)]);
+        assert!(displayed.contains(&video.id));
     }
 
     #[test]
@@ -871,6 +927,7 @@ mod integration_tests {
             title: title.into(),
             session: 1,
             ids: Vec::new(),
+            all_ids: Vec::new(),
         };
         let mut groups = vec![
             group("a", "2026-09-18"),
@@ -923,13 +980,36 @@ mod integration_tests {
     }
 
     #[test]
-    fn legacy_session_names_are_treated_as_defaults() {
-        assert!(is_legacy_session_name("Session 2"));
-        assert!(is_legacy_session_name("Session 12"));
-        assert!(!is_legacy_session_name("Session"));
-        assert!(!is_legacy_session_name("Session a"));
-        assert!(!is_legacy_session_name("2026-09-18"));
-        assert!(!is_legacy_session_name("My trip"));
+    fn gallery_names_survive_ordinal_drift_and_anchor_changes() {
+        let mut names = HashMap::from([
+            ("camera|clip.MOV|4".into(), "Lake".into()),
+            ("camera|clip.MOV|11".into(), "Lake".into()),
+        ]);
+        assert_eq!(
+            saved_gallery_name(&names, "camera", &["clip.MOV"], 20),
+            Some("Lake")
+        );
+        assert_eq!(
+            saved_gallery_name(&names, "other-camera", &["clip.MOV"], 4),
+            None
+        );
+        names.insert("camera|clip.MOV|11".into(), "Mountains".into());
+        assert_eq!(
+            saved_gallery_name(&names, "camera", &["clip.MOV"], 20),
+            None
+        );
+        assert_eq!(
+            saved_gallery_name(&names, "camera", &["clip.MOV"], 4),
+            Some("Lake")
+        );
+        names.insert(gallery_name_key("camera", "clip.MOV"), "Session 2".into());
+        assert_eq!(
+            saved_gallery_name(&names, "camera", &["earlier.JPG", "clip.MOV"], 1),
+            Some("Session 2")
+        );
+        names.insert(gallery_name_key("camera", "clip.MOV"), String::new());
+        assert_eq!(saved_gallery_name(&names, "camera", &["clip.MOV"], 4), None);
+        assert_ne!(gallery_name_key("a|b", "c"), gallery_name_key("a", "b|c"));
     }
 
     #[test]

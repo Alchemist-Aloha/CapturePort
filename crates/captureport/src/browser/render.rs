@@ -9,11 +9,87 @@ fn progress_fraction(bytes: u64, total: u64) -> f32 {
 }
 
 impl Browser {
+    fn thumbnail_loading_panel(&self) -> Option<AnyElement> {
+        self.state.source.as_ref()?;
+        let progress = self.thumbnail_progress();
+        if progress.total == 0 && !self.scanning {
+            return None;
+        }
+        let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
+        let fraction = progress_fraction(progress.resolved() as u64, progress.total as u64);
+        Some(
+            div()
+                .id("thumbnail-progress")
+                .flex_shrink_0()
+                .px(px(spacing::CONTENT))
+                .py(px(spacing::CONTROL_GAP))
+                .border_b_1()
+                .border_color(p.border)
+                .bg(p.panel)
+                .flex()
+                .flex_col()
+                .gap(px(spacing::TIGHT))
+                .child(
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .justify_between()
+                        .gap(px(spacing::CONTROL_GAP))
+                        .child(
+                            div()
+                                .text_sm()
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .child(if self.scanning {
+                                    i18n::format(
+                                        "Scanning source · {0} captures found",
+                                        &[progress.total.to_string()],
+                                    )
+                                } else {
+                                    i18n::format(
+                                        "Thumbnails · {0}/{1} processed · {2}%",
+                                        &[
+                                            progress.resolved().to_string(),
+                                            progress.total.to_string(),
+                                            format!("{:.0}", fraction * 100.),
+                                        ],
+                                    )
+                                }),
+                        )
+                        .child(div().text_xs().text_color(p.muted).child(i18n::format(
+                            "{0} ready · {1} loading · {2} unavailable",
+                            &[
+                                progress.ready.to_string(),
+                                (progress.total - progress.resolved()).to_string(),
+                                progress.unavailable.to_string(),
+                            ],
+                        ))),
+                )
+                .child(
+                    div()
+                        .h(px(4.))
+                        .w_full()
+                        .bg(p.border)
+                        .child(div().h_full().w(gpui::relative(fraction)).bg(p.accent)),
+                )
+                .into_any_element(),
+        )
+    }
     fn active_import_panel(&self, cx: &Context<Self>) -> Option<AnyElement> {
         if !self.importing {
             return None;
         }
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
+        let overall = self
+            .progress
+            .as_ref()
+            .map(|progress| {
+                if progress.bytes_total == 0 {
+                    progress_fraction(progress.completed, progress.total)
+                } else {
+                    progress_fraction(progress.bytes_copied, progress.bytes_total)
+                }
+            })
+            .unwrap_or(0.);
         let mut panel = div()
             .id("active-import")
             .flex_shrink_0()
@@ -24,13 +100,55 @@ impl Browser {
             .bg(p.panel)
             .flex()
             .flex_col()
-            .gap(px(spacing::TIGHT));
+            .gap(px(spacing::TIGHT))
+            .child(
+                div()
+                    .flex()
+                    .justify_between()
+                    .items_center()
+                    .gap(px(spacing::CONTROL_GAP))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .min_w_0()
+                            .text_sm()
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child(
+                                if self
+                                    .import_cancellation
+                                    .as_ref()
+                                    .is_some_and(CancellationToken::is_cancelled)
+                                {
+                                    i18n::tr("Cancelling import…")
+                                } else {
+                                    self.progress
+                                        .as_ref()
+                                        .map(|progress| {
+                                            i18n::tr(import_phase_label(progress.phase))
+                                        })
+                                        .unwrap_or_else(|| i18n::tr("Preparing import…"))
+                                },
+                            )
+                            .children(self.progress.as_ref().map(|progress| {
+                                div().text_xs().child(i18n::format(
+                                    "Active import · {0}% · {1}/{2} copies verified",
+                                    &[
+                                        format!("{:.0}", overall * 100.),
+                                        progress.completed.to_string(),
+                                        progress.total.to_string(),
+                                    ],
+                                ))
+                            })),
+                    )
+                    .child(button(
+                        Icon::Cancel,
+                        "Cancel import",
+                        p,
+                        cx.listener(|t, _, w, c| t.cancel_import(&CancelImport, w, c)),
+                    )),
+            );
         if let Some(progress) = &self.progress {
-            let overall = if progress.bytes_total == 0 {
-                progress_fraction(progress.completed, progress.total)
-            } else {
-                progress_fraction(progress.bytes_copied, progress.bytes_total)
-            };
             let current =
                 progress_fraction(progress.current_file_bytes, progress.current_file_total);
             let name = self
@@ -46,32 +164,6 @@ impl Browser {
                         .into_owned()
                 });
             panel = panel
-                .child(
-                    div()
-                        .flex()
-                        .flex_wrap()
-                        .justify_between()
-                        .gap(px(spacing::CONTROL_GAP))
-                        .child(
-                            div()
-                                .text_sm()
-                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .child(i18n::format(
-                                    "Active import · {0}% · {1}/{2} copies verified",
-                                    &[
-                                        format!("{:.0}", overall * 100.),
-                                        format!("{}", progress.completed),
-                                        format!("{}", progress.total),
-                                    ],
-                                )),
-                        )
-                        .child(button(
-                            Icon::Cancel,
-                            "Cancel import",
-                            p,
-                            cx.listener(|t, _, w, c| t.cancel_import(&CancelImport, w, c)),
-                        )),
-                )
                 .child(
                     div()
                         .h(px(4.))
@@ -113,8 +205,6 @@ impl Browser {
                             &[format!("{}", progress.destination.display())],
                         )),
                 );
-        } else {
-            panel = panel.child(div().text_sm().child(i18n::tr("Preparing import…")));
         }
         Some(panel.into_any_element())
     }
@@ -144,29 +234,31 @@ impl Render for Browser {
             232.
         };
         let summary = self.state.selection_summary();
-        let status = self.message.clone().unwrap_or_else(|| {
-            if self.importing {
-                self.progress
-                    .as_ref()
-                    .map(|p| {
-                        i18n::format(
-                            "Importing · {0}/{1} files · {2}",
-                            &[
-                                format!("{}", p.completed),
-                                format!("{}", p.total),
-                                format_size(p.bytes_copied).to_string(),
-                            ],
-                        )
-                    })
-                    .unwrap_or_else(|| i18n::tr("Importing…"))
-            } else if self.scanning {
-                i18n::tr("Scanning…")
-            } else if self.state.source.is_none() {
-                i18n::tr("Choose a source to begin")
-            } else {
-                i18n::tr("Ready")
-            }
-        });
+        let status = if self.importing {
+            self.progress
+                .as_ref()
+                .map(|p| {
+                    i18n::format(
+                        "Importing · {0}/{1} files · {2}",
+                        &[
+                            format!("{}", p.completed),
+                            format!("{}", p.total),
+                            format_size(p.bytes_copied).to_string(),
+                        ],
+                    )
+                })
+                .unwrap_or_else(|| i18n::tr("Importing…"))
+        } else {
+            self.message.clone().unwrap_or_else(|| {
+                if self.scanning {
+                    i18n::tr("Scanning…")
+                } else if self.state.source.is_none() {
+                    i18n::tr("Choose a source to begin")
+                } else {
+                    i18n::tr("Ready")
+                }
+            })
+        };
         let content = match self.page {
             Page::Browser => self.browser_panel(window, sidebar_width, cx),
             Page::Preview => self.preview_panel(cx),
@@ -176,6 +268,7 @@ impl Render for Browser {
         };
         let detail = self.media_detail_popup(window, cx);
         let active_import = self.active_import_panel(cx);
+        let thumbnail_loading = self.thumbnail_loading_panel();
         div()
             .relative()
             .size_full()
@@ -277,6 +370,7 @@ impl Render for Browser {
                         cx.listener(|t, _, _, c| t.toggle_dark_mode(c)),
                     )),
             )
+            .children(thumbnail_loading)
             .child(
                 div()
                     .flex_1()

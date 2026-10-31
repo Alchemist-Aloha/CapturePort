@@ -1,10 +1,11 @@
 use crate::{
-    CopyDigest, ImportPlan, PlanStatus, PlannedCopy, PlannedImport, VerificationMode, verify_copy,
+    CopyDigest, ImportPlan, PlanStatus, PlannedCopy, PlannedImport, VerificationMode,
+    fingerprint::verify_copy_with_progress,
 };
-use captureport_core::{CancellationToken, MediaSource};
+use captureport_core::{CancellationToken, ImportPhase, MediaSource};
 use std::{
     fs::{self, File, OpenOptions},
-    io::{self, Read, Write},
+    io::{self, Write},
     path::Path,
     time::{Duration, Instant},
 };
@@ -82,6 +83,7 @@ impl std::error::Error for ImportError {}
 
 #[derive(Clone, Debug)]
 pub struct ImportProgress {
+    pub phase: ImportPhase,
     pub media_id: captureport_core::MediaId,
     pub destination: std::path::PathBuf,
     pub current_file_bytes: u64,
@@ -167,7 +169,7 @@ impl ImportEngine {
             .items
             .iter()
             .flat_map(|item| &item.copies)
-            .filter(|copy| copy.status == PlanStatus::Ready)
+            .filter(|copy| copy.status.can_execute())
             .count();
         let started = Instant::now();
         let mut last_progress = Instant::now() - Duration::from_secs(1);
@@ -189,16 +191,47 @@ impl ImportEngine {
                     result.cancelled = true;
                     break;
                 }
+                let mut last_phase = None;
+                let mut report = |phase, current_bytes, bytes, completed, force| {
+                    if force
+                        || last_phase != Some(phase)
+                        || last_progress.elapsed() >= Duration::from_millis(100)
+                    {
+                        let elapsed = started.elapsed().as_secs_f64().max(0.001);
+                        progress(ImportProgress {
+                            phase,
+                            media_id: item.media_id,
+                            destination: copy.final_destination.clone(),
+                            current_file_bytes: current_bytes,
+                            current_file_total: copy.expected_size,
+                            overall_bytes: bytes,
+                            overall_total,
+                            files_completed: completed,
+                            files_total,
+                            bytes_per_second: bytes as f64 / elapsed,
+                        });
+                        last_phase = Some(phase);
+                        last_progress = Instant::now();
+                    }
+                };
                 if copy.status == PlanStatus::ExistingIdentical {
+                    report(
+                        ImportPhase::ReadingSource,
+                        0,
+                        overall_bytes,
+                        files_completed,
+                        true,
+                    );
                     let check = validate_destination(copy)
                         .and_then(|()| {
-                            source.open_stream(&item.source).map_err(|_| {
-                                ImportError::SourceReadFailed(item.source_name.clone())
-                            })
-                        })
-                        .and_then(|stream| {
-                            crate::digest_reader(stream).map_err(|_| {
-                                ImportError::SourceReadFailed(item.source_name.clone())
+                            Self::source_digest(source, item, cancellation, &mut |phase, bytes| {
+                                report(
+                                    phase,
+                                    bytes,
+                                    overall_bytes,
+                                    files_completed,
+                                    bytes == copy.expected_size,
+                                );
                             })
                         })
                         .and_then(|digest| {
@@ -207,8 +240,39 @@ impl ImportEngine {
                             } else {
                                 plan.verification
                             };
-                            match verify_copy(mode, &digest, &copy.final_destination) {
+                            report(
+                                ImportPhase::Verifying,
+                                0,
+                                overall_bytes,
+                                files_completed,
+                                true,
+                            );
+                            match verify_copy_with_progress(
+                                mode,
+                                &digest,
+                                &copy.final_destination,
+                                cancellation,
+                                &mut |bytes| {
+                                    report(
+                                        ImportPhase::Verifying,
+                                        bytes,
+                                        overall_bytes,
+                                        files_completed,
+                                        bytes == copy.expected_size,
+                                    );
+                                },
+                            ) {
                                 Ok(true) => validate_destination(copy).and_then(|()| {
+                                    if cancellation.is_cancelled() {
+                                        return Err(ImportError::Cancelled);
+                                    }
+                                    report(
+                                        ImportPhase::Recording,
+                                        copy.expected_size,
+                                        overall_bytes,
+                                        files_completed,
+                                        true,
+                                    );
                                     recorder
                                         .record_success(item, copy, &digest, mode)
                                         .map_err(ImportError::DatabaseFailed)
@@ -216,20 +280,35 @@ impl ImportEngine {
                                 Ok(false) => Err(ImportError::VerificationFailed(
                                     copy.final_destination.display().to_string(),
                                 )),
-                                Err(error) => {
-                                    Err(ImportError::DestinationUnavailable(error.to_string()))
-                                }
+                                Err(error) => Err(map_transfer_io(error, cancellation)),
                             }
                         });
+                    let cancelled = check == Err(ImportError::Cancelled);
+                    if check.is_ok() {
+                        files_completed += 1;
+                        report(
+                            ImportPhase::Recording,
+                            copy.expected_size,
+                            overall_bytes,
+                            files_completed,
+                            true,
+                        );
+                    }
                     item_result.copies.push(CopyResult {
                         destination: copy.final_destination.clone(),
                         state: if check.is_ok() {
                             ImportItemState::Completed
+                        } else if cancelled {
+                            ImportItemState::Cancelled
                         } else {
                             ImportItemState::Failed
                         },
                         error: check.err(),
                     });
+                    if cancelled {
+                        result.cancelled = true;
+                        break;
+                    }
                     continue;
                 }
                 if copy.status != PlanStatus::Ready {
@@ -261,34 +340,28 @@ impl ImportEngine {
                     });
                     continue;
                 }
-                let mut report = |current_bytes, bytes, completed, force| {
-                    if force || last_progress.elapsed() >= Duration::from_millis(100) {
-                        let elapsed = started.elapsed().as_secs_f64().max(0.001);
-                        progress(ImportProgress {
-                            media_id: item.media_id,
-                            destination: copy.final_destination.clone(),
-                            current_file_bytes: current_bytes,
-                            current_file_total: copy.expected_size,
-                            overall_bytes: bytes,
-                            overall_total,
-                            files_completed: completed,
-                            files_total,
-                            bytes_per_second: bytes as f64 / elapsed,
-                        });
-                        last_progress = Instant::now();
-                    }
-                };
-                report(0, overall_bytes, files_completed, true);
+                report(
+                    ImportPhase::Copying,
+                    0,
+                    overall_bytes,
+                    files_completed,
+                    true,
+                );
+                let mut copied_bytes = 0;
                 let operation = Self::copy_one(
                     source,
                     item,
                     copy,
                     plan.verification,
                     cancellation,
-                    &mut |current_bytes| {
+                    &mut |phase, current_bytes| {
+                        if phase == ImportPhase::Copying {
+                            copied_bytes = current_bytes;
+                        }
                         report(
+                            phase,
                             current_bytes,
-                            overall_bytes.saturating_add(current_bytes),
+                            overall_bytes.saturating_add(copied_bytes),
                             files_completed,
                             current_bytes == copy.expected_size,
                         );
@@ -297,13 +370,26 @@ impl ImportEngine {
                 match operation {
                     Ok(digest) => {
                         overall_bytes = overall_bytes.saturating_add(digest.size());
+                        report(
+                            ImportPhase::Recording,
+                            digest.size(),
+                            overall_bytes,
+                            files_completed,
+                            true,
+                        );
                         let database_result = recorder
                             .record_success(item, copy, &digest, plan.verification)
                             .map_err(ImportError::DatabaseFailed);
                         if database_result.is_ok() {
                             files_completed += 1;
                         }
-                        report(digest.size(), overall_bytes, files_completed, true);
+                        report(
+                            ImportPhase::Recording,
+                            digest.size(),
+                            overall_bytes,
+                            files_completed,
+                            true,
+                        );
                         item_result.copies.push(CopyResult {
                             destination: copy.final_destination.clone(),
                             state: if database_result.is_ok() {
@@ -343,13 +429,51 @@ impl ImportEngine {
         Ok(result)
     }
 
+    fn source_digest(
+        source: &dyn MediaSource,
+        item: &PlannedImport,
+        cancellation: &CancellationToken,
+        progress: &mut dyn FnMut(ImportPhase, u64),
+    ) -> Result<CopyDigest, ImportError> {
+        let mut reader = source
+            .open_transfer(&item.source)
+            .map_err(|_| ImportError::SourceReadFailed(item.source_name.clone()))?;
+        let mut digest = CopyDigest::new();
+        let mut buffer = [0u8; 128 * 1024];
+        loop {
+            if cancellation.is_cancelled() {
+                return Err(ImportError::Cancelled);
+            }
+            let count = reader
+                .read_with_progress(&mut buffer, cancellation, &mut |p| {
+                    progress(ImportPhase::Downloading, p.bytes)
+                })
+                .map_err(|_| {
+                    if cancellation.is_cancelled() {
+                        ImportError::Cancelled
+                    } else {
+                        ImportError::SourceReadFailed(item.source_name.clone())
+                    }
+                })?;
+            if count == 0 {
+                break;
+            }
+            digest.update(&buffer[..count]);
+            progress(ImportPhase::ReadingSource, digest.size());
+        }
+        if digest.size() != item.expected_size {
+            return Err(ImportError::SourceReadFailed(item.source_name.clone()));
+        }
+        Ok(digest)
+    }
+
     fn copy_one(
         source: &dyn MediaSource,
         item: &PlannedImport,
         copy: &PlannedCopy,
         verification: VerificationMode,
         cancellation: &CancellationToken,
-        progress: &mut dyn FnMut(u64),
+        progress: &mut dyn FnMut(ImportPhase, u64),
     ) -> Result<CopyDigest, ImportError> {
         let mut state = ImportItemState::Planned.advance(ImportItemState::Queued);
         if cancellation.is_cancelled() {
@@ -383,7 +507,7 @@ impl ImportEngine {
         let operation = (|| -> Result<CopyDigest, ImportError> {
             state = state.advance(ImportItemState::Copying);
             let mut reader = source
-                .open_stream(&item.source)
+                .open_transfer(&item.source)
                 .map_err(|_| ImportError::SourceReadFailed(item.source_name.clone()))?;
             let mut digest = CopyDigest::new();
             let mut buffer = [0u8; 128 * 1024];
@@ -392,14 +516,22 @@ impl ImportEngine {
                     return Err(ImportError::Cancelled);
                 }
                 let amount = reader
-                    .read(&mut buffer)
-                    .map_err(|_| ImportError::SourceReadFailed(item.source_name.clone()))?;
+                    .read_with_progress(&mut buffer, cancellation, &mut |p| {
+                        progress(ImportPhase::Downloading, p.bytes)
+                    })
+                    .map_err(|_| {
+                        if cancellation.is_cancelled() {
+                            ImportError::Cancelled
+                        } else {
+                            ImportError::SourceReadFailed(item.source_name.clone())
+                        }
+                    })?;
                 if amount == 0 {
                     break;
                 }
                 temporary.write_all(&buffer[..amount]).map_err(map_io)?;
                 digest.update(&buffer[..amount]);
-                progress(digest.size());
+                progress(ImportPhase::Copying, digest.size());
             }
             if digest.size() != item.expected_size {
                 return Err(ImportError::SourceReadFailed(item.source_name.clone()));
@@ -408,19 +540,32 @@ impl ImportEngine {
             temporary.sync_all().map_err(map_io)?;
             drop(temporary);
             state = state.advance(ImportItemState::Verifying);
+            progress(ImportPhase::Verifying, 0);
             validate_destination(copy)?;
             if !partial_is_owned(&copy.temporary_destination, &owned_metadata) {
                 return Err(ImportError::DestinationUnavailable(
                     "Import partial file changed".into(),
                 ));
             }
-            if !verify_copy(verification, &digest, &copy.temporary_destination).map_err(map_io)? {
+            if !verify_copy_with_progress(
+                verification,
+                &digest,
+                &copy.temporary_destination,
+                cancellation,
+                &mut |bytes| progress(ImportPhase::Verifying, bytes),
+            )
+            .map_err(|error| map_transfer_io(error, cancellation))?
+            {
                 return Err(ImportError::VerificationFailed(item.source_name.clone()));
             }
             if cancellation.is_cancelled() {
                 return Err(ImportError::Cancelled);
             }
             state = state.advance(ImportItemState::Committing);
+            progress(ImportPhase::Committing, digest.size());
+            if cancellation.is_cancelled() {
+                return Err(ImportError::Cancelled);
+            }
             validate_destination(copy)?;
             if !partial_is_owned(&copy.temporary_destination, &owned_metadata) {
                 return Err(ImportError::DestinationUnavailable(
@@ -499,6 +644,14 @@ fn validate_destination(copy: &PlannedCopy) -> Result<(), ImportError> {
         ));
     }
     Ok(())
+}
+
+fn map_transfer_io(error: io::Error, cancellation: &CancellationToken) -> ImportError {
+    if cancellation.is_cancelled() {
+        ImportError::Cancelled
+    } else {
+        map_io(error)
+    }
 }
 
 fn map_io(error: io::Error) -> ImportError {
@@ -611,6 +764,15 @@ mod tests {
         assert!(last.bytes_per_second.is_finite());
         assert_eq!(result.items[0].copies[0].state, ImportItemState::Completed);
         assert_eq!(recorder.calls, 1);
+        let phases = updates.iter().map(|p| p.phase).collect::<Vec<_>>();
+        for phase in [
+            ImportPhase::Copying,
+            ImportPhase::Verifying,
+            ImportPhase::Committing,
+            ImportPhase::Recording,
+        ] {
+            assert!(phases.contains(&phase), "missing {phase:?}");
+        }
         assert_eq!(
             fs::read(&plan.items[0].copies[0].final_destination).unwrap(),
             b"original"
@@ -842,15 +1004,26 @@ mod tests {
         fs::write(destination_dir.path().join("same.JPG"), b"original").unwrap();
         let (source, plan) = prepared(source_dir.path(), destination_dir.path());
         assert_eq!(plan.items[0].status, PlanStatus::ExistingIdentical);
+        let mut updates = Vec::new();
         let result = ImportEngine::execute(
             &source,
             &plan,
             &CancellationToken::new(),
             &mut NoopRecorder,
-            |_| {},
+            |p| updates.push(p),
         )
         .unwrap();
         assert_eq!(result.items[0].copies[0].state, ImportItemState::Completed);
+        assert!(
+            updates
+                .iter()
+                .any(|p| p.phase == ImportPhase::ReadingSource)
+        );
+        assert!(updates.iter().any(|p| p.phase == ImportPhase::Verifying));
+        let last = updates.last().unwrap();
+        assert_eq!(last.files_completed, 1);
+        assert_eq!(last.files_total, 1);
+        assert_eq!(last.overall_bytes, 0);
         fs::write(source_dir.path().join("same.JPG"), b"altered!").unwrap();
         let changed = ImportEngine::execute(
             &source,
@@ -866,6 +1039,34 @@ mod tests {
             b"original"
         );
     }
+    #[test]
+    fn cancellation_during_verification_keeps_originals_and_cleans_partials() {
+        for existing in [false, true] {
+            let source_dir = tempfile::tempdir().unwrap();
+            let destination_dir = tempfile::tempdir().unwrap();
+            fs::write(source_dir.path().join("photo.JPG"), b"original").unwrap();
+            if existing {
+                fs::write(destination_dir.path().join("photo.JPG"), b"original").unwrap();
+            }
+            let (source, plan) = prepared(source_dir.path(), destination_dir.path());
+            let token = CancellationToken::new();
+            let result = ImportEngine::execute(&source, &plan, &token, &mut NoopRecorder, |p| {
+                if p.phase == ImportPhase::Verifying {
+                    token.cancel();
+                }
+            })
+            .unwrap();
+            assert!(result.cancelled);
+            assert_eq!(result.items[0].copies[0].state, ImportItemState::Cancelled);
+            assert_eq!(
+                fs::read(source_dir.path().join("photo.JPG")).unwrap(),
+                b"original"
+            );
+            assert!(!plan.items[0].copies[0].temporary_destination.exists());
+            assert_eq!(destination_dir.path().join("photo.JPG").exists(), existing);
+        }
+    }
+
     #[test]
     fn unavailable_optional_backup_keeps_primary_success_and_reports_failure() {
         let source_dir = tempfile::tempdir().unwrap();

@@ -42,12 +42,60 @@ pub(crate) struct Startup {
     pub(crate) initial_source: Option<SourceRequest>,
     pub(crate) demo_importing: bool,
 }
+pub(crate) fn import_phase_label(phase: captureport_core::ImportPhase) -> &'static str {
+    use captureport_core::ImportPhase;
+    match phase {
+        ImportPhase::Downloading => "Downloading from camera",
+        ImportPhase::ReadingSource => "Reading source",
+        ImportPhase::Copying => "Copying",
+        ImportPhase::Verifying => "Verifying",
+        ImportPhase::Committing => "Publishing verified copy",
+        ImportPhase::Recording => "Saving import history",
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PreviewReadiness {
+    Loading,
+    Ready,
+    Unavailable,
+}
+pub(crate) fn preview_readiness(
+    metadata: &captureport_core::MetadataState,
+    preview_metadata: &captureport_core::MetadataState,
+    has_thumbnail: bool,
+    thumbnail_failed: bool,
+) -> PreviewReadiness {
+    use captureport_core::MetadataState;
+    match (metadata, preview_metadata) {
+        (MetadataState::Failed(_), _) | (_, MetadataState::Failed(_)) => {
+            PreviewReadiness::Unavailable
+        }
+        (MetadataState::Pending, _) | (_, MetadataState::Pending) => PreviewReadiness::Loading,
+        _ if has_thumbnail => PreviewReadiness::Ready,
+        _ if thumbnail_failed => PreviewReadiness::Unavailable,
+        _ => PreviewReadiness::Loading,
+    }
+}
+#[derive(Default)]
+pub(crate) struct ThumbnailProgress {
+    pub(crate) ready: usize,
+    pub(crate) unavailable: usize,
+    pub(crate) total: usize,
+}
+impl ThumbnailProgress {
+    pub(crate) fn resolved(&self) -> usize {
+        self.ready + self.unavailable
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct GalleryGroup {
     pub(crate) key: String,
     pub(crate) title: String,
     pub(crate) session: u32,
     pub(crate) ids: Vec<MediaId>,
+    pub(crate) all_ids: Vec<MediaId>,
 }
 pub(crate) struct GalleryRow {
     pub(crate) header: Option<(String, String)>,
@@ -183,10 +231,54 @@ pub(crate) const TIMEZONE_CHOICES: &[(&str, i32)] = &[
     ("UTC+13:00", 46_800),
     ("UTC+14:00", 50_400),
 ];
-/// A stored name left over from the old `Session N` default, not a user rename.
-pub(crate) fn is_legacy_session_name(name: &str) -> bool {
-    name.strip_prefix("Session ")
-        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
+pub(crate) fn gallery_source_key(identity: captureport_core::SourceIdentity) -> String {
+    identity
+        .stable_id
+        .or(identity.volume_uuid)
+        .or(identity.display_name)
+        .unwrap_or_else(|| format!("{:?}", identity.source_type))
+}
+
+pub(crate) fn gallery_name_key(source: &str, path: &str) -> String {
+    format!("v2:{}", serde_json::json!([source, path]))
+}
+
+/// Empty v2 names explicitly reset a rename, masking retained legacy entries.
+pub(crate) fn saved_gallery_name<'a>(
+    names: &'a HashMap<String, String>,
+    source: &str,
+    paths: &[&str],
+    session: u32,
+) -> Option<&'a str> {
+    let saved = paths
+        .iter()
+        .filter_map(|path| names.get(&gallery_name_key(source, path)))
+        .collect::<Vec<_>>();
+    if !saved.is_empty() {
+        return saved
+            .into_iter()
+            .find(|name| !name.is_empty())
+            .map(String::as_str);
+    }
+    for path in paths {
+        if let Some(name) = names.get(&format!("{source}|{path}|{session}")) {
+            return Some(name);
+        }
+    }
+    // Recover ordinal drift only when every matching legacy entry agrees.
+    let mut matches = names
+        .iter()
+        .filter(|(key, _)| {
+            key.rsplit_once('|').is_some_and(|(prefix, number)| {
+                number.parse::<u32>().is_ok()
+                    && paths
+                        .iter()
+                        .any(|path| prefix == format!("{source}|{path}"))
+            })
+        })
+        .map(|(_, name)| name.as_str());
+    let name = matches.next()?;
+    matches.all(|other| other == name).then_some(name)
 }
 /// Append a, b, c, ... to default gallery names that share a date.
 pub(crate) fn suffix_duplicate_titles(

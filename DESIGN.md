@@ -225,6 +225,13 @@ Tab stops, Enter/Space activation, and palette-matched focus borders. In short
 windows the image well keeps a 64px minimum (when width permits) and the grid
 scrolls, rather than reducing photographs and badges to a stripe.
 
+A source-wide thumbnail activity strip sits below the header on every page,
+using the panel surface, a 4px accent progress bar, processed/discovered counts,
+and ready/loading/unavailable labels. It distinguishes ongoing discovery from a
+final-total percentage. The import panel above the footer keeps its phase,
+verified count, byte progress and Cancel visible even during preparation; its
+heading is compact enough to leave room for the gallery in short windows.
+
 The footer keeps selection totals and “Preview import” together. It remains present while status messages change, so the review action has a stable location.
 
 Every page uses 16px header/footer gutters. Settings fields use 16px group separation, with an 8px section margin plus the parent 16px rhythm for a 24px section step; headings end 4px before their content. Hidden sidebar actions are removed from layout so unavailable actions leave no phantom gap. Scrollbars reserve a 16px gutter with a 4px inset.
@@ -260,7 +267,7 @@ The system uses a 4px radius for buttons, filters, navigation rows, fields, card
 
 ### Media Tile
 
-- The tile is a flat, bordered 4px card with a contained image well and a placeholder while thumbnails load.
+- The tile is a flat, bordered 4px card with a contained image well. Pending previews appear in the activity counts; a resolved preview failure renders a centered media-type icon and **Preview unavailable** label, retaining the tile's normal filename, details, selection and import actions.
 - Type badge, file size, and explicit selection label sit over or beside the image without cropping it. The type badge and the selection label both carry the black scrim; the selection label is never a themed surface.
 - Metadata is separate: filename, time plus size, import status, then “View files” / “Hide files” for bundles. The metadata caption carries its own surface — `card` when unselected, `selected` when selected — so the title and metadata never float directly on the page canvas.
 - The filename wrapper is explicitly full width before ellipsis truncation, so long source names remain stable in the grid.

@@ -417,6 +417,30 @@ impl Browser {
             }
         }
     }
+    pub(crate) fn capture_readiness(&self, id: MediaId) -> PreviewReadiness {
+        let Some(item) = self.state.item(id) else {
+            return PreviewReadiness::Loading;
+        };
+        let preview = self.preview_id(id);
+        preview_readiness(
+            &item.metadata,
+            &self.state.item(preview).unwrap_or(item).metadata,
+            self.thumbnail_paths.contains_key(&preview),
+            self.failed_thumbnails.contains(&preview),
+        )
+    }
+    pub(crate) fn thumbnail_progress(&self) -> ThumbnailProgress {
+        let mut progress = ThumbnailProgress::default();
+        for id in visible_capture_ids(self.state.items().map(|item| item.id), &self.bundle_owner) {
+            progress.total += 1;
+            match self.capture_readiness(id) {
+                PreviewReadiness::Ready => progress.ready += 1,
+                PreviewReadiness::Unavailable => progress.unavailable += 1,
+                PreviewReadiness::Loading => {}
+            }
+        }
+        progress
+    }
     pub(crate) fn refresh(&mut self) {
         let items = match self.state.sort {
             MediaSort::Name => self.state.visible_items(),
@@ -428,12 +452,7 @@ impl Browser {
         };
         let ready = visible_capture_ids(items.into_iter().map(|item| item.id), &self.bundle_owner)
             .into_iter()
-            .filter(|id| {
-                self.thumbnail_paths.contains_key(&self.preview_id(*id))
-                    && self.state.item(*id).is_some_and(|item| {
-                        matches!(item.metadata, captureport_core::MetadataState::Ready(_))
-                    })
-            })
+            .filter(|id| self.capture_readiness(*id) != PreviewReadiness::Loading)
             .collect::<Vec<_>>();
         append_ready_ids(&mut self.visible_ids, ready);
         self.rebuild_gallery_groups();
@@ -447,12 +466,7 @@ impl Browser {
         let Some(source) = &self.source else {
             return;
         };
-        let identity = source.identity();
-        let source_key = identity
-            .stable_id
-            .or(identity.volume_uuid)
-            .or(identity.display_name)
-            .unwrap_or_else(|| format!("{:?}", identity.source_type));
+        let source_key = gallery_source_key(source.identity());
         let mut items = self
             .state
             .items()
@@ -472,28 +486,24 @@ impl Browser {
                 .last()
                 .is_none_or(|group| group.session != sessions[index])
             {
-                let key = format!("{}|{}|{}", source_key, item.source_path, sessions[index]);
-                let title = self
-                    .gallery_names
-                    .get(&key)
-                    .filter(|name| !is_legacy_session_name(name))
-                    .cloned()
-                    .unwrap_or_else(|| times[index].format("%Y-%m-%d").to_string());
                 self.gallery_groups.push(GalleryGroup {
-                    key,
-                    title,
+                    key: gallery_name_key(&source_key, &item.source_path),
+                    title: times[index].format("%Y-%m-%d").to_string(),
                     session: sessions[index],
                     ids: Vec::new(),
+                    all_ids: Vec::new(),
                 });
             }
-            item_group.push((
-                item.id,
-                self.gallery_groups
-                    .last()
-                    .expect("group exists")
-                    .key
-                    .clone(),
-            ));
+            let group = self.gallery_groups.last_mut().expect("group exists");
+            let members = self
+                .bundles
+                .get(&item.id)
+                .cloned()
+                .unwrap_or_else(|| vec![item.id]);
+            for id in members {
+                group.all_ids.push(id);
+                item_group.push((id, group.key.clone()));
+            }
             if visible.contains(&item.id) {
                 self.gallery_groups
                     .last_mut()
@@ -504,11 +514,22 @@ impl Browser {
         }
         // Name the complete capture sequence before filtering. Otherwise hidden
         // galleries change both the visible suffixes and {session_name} paths.
-        suffix_duplicate_titles(&mut self.gallery_groups, |key| {
-            self.gallery_names
-                .get(key)
-                .is_some_and(|name| !is_legacy_session_name(name))
-        });
+        let mut custom_names = HashSet::new();
+        for group in &mut self.gallery_groups {
+            let paths = group
+                .all_ids
+                .iter()
+                .filter_map(|id| self.state.item(*id))
+                .map(|item| item.source_path.as_str())
+                .collect::<Vec<_>>();
+            if let Some(name) =
+                saved_gallery_name(&self.gallery_names, &source_key, &paths, group.session)
+            {
+                group.title = name.to_owned();
+                custom_names.insert(group.key.clone());
+            }
+        }
+        suffix_duplicate_titles(&mut self.gallery_groups, |key| custom_names.contains(key));
         let titles = self
             .gallery_groups
             .iter()

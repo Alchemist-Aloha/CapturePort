@@ -67,7 +67,10 @@ Runtime requirements:
    **Sources**; or click **Open folder…** for any directory on disk. An
    unmounted card is listed with a **Mount** button.
 2. **Review what was found.** CapturePort scans the source and shows a
-   thumbnail, capture time, file size, and import status for each item. Items
+   thumbnail, capture time, file size, and import status for each item. A
+   main-window progress bar tracks ready, loading, and unavailable previews.
+   Files without a usable preview remain visible and selectable with a labeled
+   fallback tile—including camera videos. Items
    already in your history are marked and left unselected, so new media is what
    remains selected. Use the **All / Photos / Videos / New / Imported /
    Possible** filters, and **View options** to sort by capture time or name and
@@ -76,13 +79,17 @@ Runtime requirements:
    to copy its URL; a **URL copied** indicator confirms the action.
 3. **Select what to copy.** Toggle individual items, use **Select all** or
    **Select new**, and click a gallery heading to select everything in one
-   shooting session.
+   shooting session. After the scan finishes, **Rename** saves that gallery's
+   name against its member files, so changing session numbers does not lose it.
 4. **Preview the plan.** **Preview import** opens the Review screen with every
    destination path and a count of files to copy, skipped, and blocked.
 5. **Confirm.** Existing files, collisions, and unreadable media are resolved
    before the copy starts; each file is verified, then published. The active
    import panel shows the current filename and destination, per-copy and overall
    progress, verified copy count, transfer rate, and **Cancel import** on every page.
+   It distinguishes camera download, source reading, copying, verification,
+   publication, and history recording; checking existing files also reports
+   progress. Camera cancellation is cooperative and may wait for a USB timeout.
 6. **Check the result.** **History** lists the session and every destination it
    wrote.
 
