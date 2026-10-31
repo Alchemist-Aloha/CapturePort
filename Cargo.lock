@@ -761,7 +761,7 @@ dependencies = [
 
 [[package]]
 name = "captureport"
-version = "0.2.0"
+version = "0.6.0"
 dependencies = [
  "captureport-catalog",
  "captureport-core",
@@ -782,7 +782,7 @@ dependencies = [
 
 [[package]]
 name = "captureport-bench"
-version = "0.2.0"
+version = "0.6.0"
 dependencies = [
  "captureport-catalog",
  "captureport-core",
@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "captureport-catalog"
-version = "0.2.0"
+version = "0.6.0"
 dependencies = [
  "rusqlite",
  "serde",
@@ -805,11 +805,11 @@ dependencies = [
 
 [[package]]
 name = "captureport-core"
-version = "0.2.0"
+version = "0.6.0"
 
 [[package]]
 name = "captureport-gphoto"
-version = "0.2.0"
+version = "0.6.0"
 dependencies = [
  "captureport-core",
  "chrono",
@@ -817,7 +817,7 @@ dependencies = [
 
 [[package]]
 name = "captureport-ingest"
-version = "0.2.0"
+version = "0.6.0"
 dependencies = [
  "blake3",
  "captureport-core",
@@ -832,7 +832,7 @@ dependencies = [
 
 [[package]]
 name = "captureport-media"
-version = "0.2.0"
+version = "0.6.0"
 dependencies = [
  "captureport-core",
  "tempfile",
@@ -840,7 +840,7 @@ dependencies = [
 
 [[package]]
 name = "captureport-metadata"
-version = "0.2.0"
+version = "0.6.0"
 dependencies = [
  "captureport-core",
  "chrono",

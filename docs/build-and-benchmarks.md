@@ -43,7 +43,7 @@ run's **Artifacts** section:
 - `captureport-fedora-x86_64-<version>`: `.rpm`.
 
 Each artifact includes `SHA256SUMS` and is retained for 30 days. Numeric release
-tags such as `v0.2.0` use the tag version; prerelease/build separators are
+tags such as `v0.6.0` use the tag version; prerelease/build separators are
 normalized to dots for package manager compatibility. Branch builds and other
 tag names use `<crate-version>.dev.<run-number>.<short-commit>`.
 Branch builds upload artifacts only to the workflow run. Tag builds also

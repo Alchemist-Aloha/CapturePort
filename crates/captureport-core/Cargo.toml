@@ -1,6 +1,6 @@
 [package]
 name = "captureport-core"
-version = "0.2.0"
+version = "0.6.0"
 edition = "2021"
 rust-version.workspace = true
 

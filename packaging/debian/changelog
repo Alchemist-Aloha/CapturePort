@@ -1,3 +1,9 @@
+captureport (0.6.0-1) unstable; urgency=low
+
+  * Release 0.6.0.
+
+ -- CapturePort contributors <maintainers@example.invalid>  Sat, 31 Oct 2026 19:18:14 -0400
+
 captureport (0.2.0-1) unstable; urgency=low
 
   * Release 0.2.0.
