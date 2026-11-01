@@ -88,7 +88,7 @@ to the stated states. Prior-session screenshots are historical evidence only.
 | Image/video previews, unavailable fallback, progress strip | metadata/thumbnail, browser/thumbnails + render | S/T/G: generated JPEG + ffmpeg video decode; paired RAW placeholder; genuine RAW/unavailable-tile G pending |
 | Plan preview, collisions, backup paths, confirmation | ingest/planner, browser/import + panels | S/T/G: exact paths, first/re-import confirmation, late collision; backup UI pending |
 | Import phases, cancel, outcomes | ingest/importer, tasks, browser/render | S/T/G: actual filesystem import/re-import/cancel/late-error; camera phases separate |
-| History and session-detail inspection | catalog, browser/import + panels | S/T/G: list + persisted row OCR-verified; session-detail click pending |
+| History and session-detail inspection | catalog, browser/import + panels | S/T/G: list + row Enter expands details (focus ring visible) |
 | Recovery, resume, partial cleanup confirmation | ingest/recovery, browser/import + panels | S/T/G: injected interrupted session + partial, arm→Enter confirm; resume path and camera recovery pending |
 | Verified-original deletion confirmation/cancel/refusal | ingest/source_delete, tasks, browser/import | S/T; disposable fixture only; G pending |
 | Presets: create/load/rename/overwrite/delete | saved_presets, browser/settings + panels | S/T/G/db: create + restart persistence; rename/overwrite/delete pending |
@@ -97,7 +97,7 @@ to the stated states. Prior-session screenshots are historical evidence only.
 | Backup, source alias, apply settings | browser/settings + panels | S/T; failure/persistence/G pending |
 | Theme/language/thumbnail size and maintenance actions | i18n, browser/settings + panels | S/T/G: light/dark + restart persistence + compact; other actions pending |
 | All 18 text fields, edit menu, keyboard/focus/scroll | text_edit, text_input, widgets | S/T/G: preset-name typing + Ctrl+D guard; other fields/menu/IME/clipboard pending |
-| All shared controls/tooltips/disabled/hover/focus states | widgets, render, browser modules | S/T/G: theme/refresh/help retain focus; full state/removal sweep pending |
+| All shared controls/tooltips/disabled/hover/focus states | widgets, render, browser modules | S/G: theme/refresh/help/history-row/partial-confirm; settings cyclers fixed in source but **not** natively reached; remaining click-only rows pending |
 
 ## Ranked evolving backlog
 
@@ -479,6 +479,38 @@ and remaining UI surfaces are not covered. No performance gain claimed.
 Next: zero-success deletion affordance/outcome clarity, then history/recovery/
 details/preset coverage and the still-uninvestigated measured performance paths.
 
+## Reflection checkpoint (iteration 13)
+
+**Progress →** 17 commits, 179→199 tests. Data-safety: sampled-identity false
+success, unsafe leaves, mid-verification replacement, port-based camera identity,
+and a vacuous deletion policy are fixed with red-before-fix regressions. Keyboard:
+missing key context, label-based focus loss, disappearing-control focus, partial
+arm→confirm focus. Native-only findings: demo catalog contamination, misleading
+deletion state, unreadable history times/counts, duplicate recovery partials,
+hidden recovery buttons, dead resume control.
+
+**Working →** disposable fixtures plus a private FileChooser broker unlock real
+imports without touching user data; OCR assertions catch layout/text defects that
+unit tests cannot; every change ships with the full ladder and, where relevant, a
+native rerun. Rejected work (adaptive poll) is recorded instead of kept.
+
+**Weak spots →** tab-count navigation is brittle on long pages; the Settings
+cyclers were fixed but not proven natively within the bounded 26 stops, so that
+claim stays "source only". Genuine GTK selection, physical camera, real RAW decode,
+IME round-trips and power-loss recovery remain untested. Idle CPU (~3.4% of one
+core) is measured but unexplained.
+
+**Adjustment →** stop blind Tab loops; before the next UI batch, add a
+page-scroll/focus check that confirms the focused control is visible, and prefer
+short, deterministic pages (or a debug-only focus report) over counting stops.
+Keep spending most remaining effort where native evidence produced defects.
+
+**Next →** (a) focused-control visibility/scroll-into-view on long Settings pages;
+(b) preset rename/overwrite/delete and session-detail interactions natively;
+(c) remaining click-only controls (tiles, gallery headings, discovered sources);
+(d) measured catalog request cost; (e) final full ladder and release build with an
+updated limitations section.
+
 ## Iteration 13 — populated recovery: duplicate partials, hidden controls, dead resume
 
 **Fixture →** after a real import, the app is stopped and the disposable catalog
@@ -522,6 +554,35 @@ check, strict all-target Clippy and diff checks pass; release build passes.
 Committed as `692ac20` (dedupe, timestamp, reachable row) and `6607a00`
 (resume gating, focus handoff, catalogs). Camera interruption, resuming an
 actually reconnected source, and power-loss behaviour remain unverified.
+
+## Iteration 13b — keyboard-reachable history rows and settings cyclers
+
+**Issue →** auditing every `on_click` without `tab_index` found controls whose only
+interaction is a pointer: History session rows (no keyboard way to inspect a
+session) and the Settings cyclers for Verification, Bundles, Grouping, Collision
+and Backup-required (no keyboard way to change them). This contradicts the
+spec's "Tab/Shift+Tab move focus on every page, and Enter/Space activate the
+focused control".
+
+**Change →** six click targets get `tab_index(0)` plus an accent focus border,
+using the existing patterns; no behaviour, copy or layout change.
+
+**Native evidence →** `/tmp/captureport-keys-7454a153e7e641909b90637c4bcbd8eb/`:
+after Tab+Enter on a History row the row shows a focus border and expands to
+`Session 1 · 1 copy/copies` with the destination, `Verified` and
+`Verification: Standard`. The session list heading also now reads
+`1 session(s)`.
+
+**Not proven →** the Settings cyclers are fixed in source only. A bounded probe
+(Tab+Enter up to 26 stops, OCR after each) never reached the Verification cycler;
+repeated activation of **Create preset** kept producing its validation message,
+so the settings page needs a focused-control visibility/scroll check before that
+claim is upgraded. Tab-count navigation on long pages is too brittle to call a
+pass.
+
+**Validation →** workspace **199 tests / 15 suites**, formatting, locked/offline
+check, strict all-target Clippy and diff checks pass; committed as `0d494bd`.
+All native processes stopped, original focus restored, clipboard untouched.
 
 ## Iteration 12 — history/recovery/settings natively; readable session rows
 
