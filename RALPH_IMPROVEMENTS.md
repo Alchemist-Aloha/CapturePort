@@ -479,6 +479,35 @@ and remaining UI surfaces are not covered. No performance gain claimed.
 Next: zero-success deletion affordance/outcome clarity, then history/recovery/
 details/preset coverage and the still-uninvestigated measured performance paths.
 
+## Reflection checkpoint (iteration 17) — consolidation
+
+**Progress →** 22 commits since `d341ac8` (19 product/doc, 2 reverts of my own
+work, 1 revert-adjacent doc). 199 tests (from 179). Fixed with reproductions:
+false-success on sampled identity, unsafe destination leaves, mid-verification
+replacement, port-based camera identity, missing key context, demo catalog
+contamination, label-based and disappearing-control focus loss, vacuous deletion
+eligibility, misleading post-import deletion state, unreadable session history,
+duplicate recovery partials, hidden recovery buttons, dead resume control,
+pointer-only history rows/cyclers, and unpredictable preset focus. Performance:
+Standard verification now reads 512 KiB instead of the whole file (**163 ms →
+0.22 ms** on 512 MiB; bench probes at 0.27 vs 2.37 ms per 8 MiB).
+
+**Working →** evidence-first loop with disposable fixtures, a private D-Bus
+picker broker, pid-scoped windows, OCR assertions, and `RUST_LOG` instrumentation
+when a native probe disagrees with expectations. Rejected work (adaptive poll,
+PageUp/PageDown) is reverted and recorded instead of kept.
+
+**Weak spots →** GPUI scroll semantics blocked the off-screen-focus fix twice; a
+third attempt needs upstream reading, not more Tab guessing. Genuine GTK
+selection, physical camera, real RAW decode, IME round-trips and power-loss
+recovery are unverified. Idle CPU (~3.4% of one core, ~260 MiB) is measured but
+unexplained.
+
+**Adjustment →** stop expanding surface coverage; consolidate. Remaining
+candidates are now either blocked by environment (camera/IME/GTK/power-loss) or
+need upstream investigation (scroll handles). Final verification below records
+exactly what is proven and what is not.
+
 ## Reflection checkpoint (iteration 13)
 
 **Progress →** 17 commits, 179→199 tests. Data-safety: sampled-identity false
@@ -841,6 +870,35 @@ all destructive surfaces were exercised.
 
 **Decision → ACCEPT**; committed as **`74b3213`**
 (`fix: gate source deletion on the verified-copy policy`).
+
+## Final verification (iteration 17)
+
+Full ladder on the consolidated tree (`d341ac8..307a202`), freshly run:
+`cargo fmt --all -- --check`, `cargo check --workspace --locked --offline`,
+`cargo test --workspace --locked --offline` → **199 tests / 15 suites**,
+`cargo clippy --workspace --all-targets --locked --offline -- -D warnings` →
+clean, `cargo build -p captureport --release --locked --offline` → success,
+`git diff --check` → clean. Benchmark (release, 3 runs after warm-up): planner
+**62.07 ms**, `verify_standard_8mib` **0.270 ms**, `verify_strict_8mib`
+**2.366 ms**, catalog 21k requests **371.9 ms** (~17.7 µs/request).
+
+Commits, oldest first: `d671db6` sampled-identity false success · `462829e`
+unsafe destination leaves · `123f9ea` mid-verification replacement · `3abcf75`
+serial-backed camera identity · `8cef818` guarded shortcuts · `fc97839` isolated
+interactive demo · `41f0d25` dynamic-label focus · `415fa47` disappearing-control
+focus · `74b3213` verified-copy deletion policy · `6935dfa` Standard verification
+cost · `92c8ecc` idle baseline + rejected poll · `e9db3e8` human session history ·
+`692ac20`/`6607a00` recovery partials, controls, resume gating · `0d494bd`
+keyboard-reachable rows/cyclers · `0c2c742` preset focus handoff · `7403ffc` /
+`b8aba8f` / `1027c37` evidence · `53f230e` paging (reverted by `81ce1f1`) ·
+`53560a8`/`307a202` paging evidence + revert record.
+
+**Not covered (do not claim otherwise):** physical camera discovery/transfer or
+libgphoto error paths; genuine GTK folder selection (broker is a test seam);
+real RAW/HEIF decoding; native IME and clipboard round-trips; power-loss and
+mid-write crash durability; FAT/exFAT behaviour; compositor/display correctness on
+other platforms; Settings scroll-into-view and every click-only grid/gallery
+control; idle-CPU attribution.
 
 ## Stopping/remaining limits
 
