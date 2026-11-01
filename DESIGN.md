@@ -221,7 +221,9 @@ selection rather than adding a third row in compact windows. Compact source
 actions use Open folder and Refresh / Scanning… so their labels remain visible.
 
 Shared action buttons, filter/sort chips, and workspace navigation have stable
-Tab stops, Enter/Space activation, and palette-matched focus borders. In short
+Tab stops, Enter/Space activation, and palette-matched focus borders. Dynamic
+labels use semantic control IDs so theme, busy, help, and compact-label changes
+retain keyboard focus without moving it back to the page root. In short
 windows the image well keeps a 64px minimum (when width permits) and the grid
 scrolls, rather than reducing photographs and badges to a stripe.
 

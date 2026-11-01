@@ -7,8 +7,19 @@ pub(crate) fn button(
     handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> impl IntoElement {
     let label = label.into();
+    button_with_id(label.clone(), icon, label, palette, handler)
+}
+
+pub(crate) fn button_with_id(
+    id: impl Into<gpui::ElementId>,
+    icon: icons::Icon,
+    label: impl Into<gpui::SharedString>,
+    palette: Palette,
+    handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
+) -> impl IntoElement {
+    let label = label.into();
     div()
-        .id(label.clone())
+        .id(id)
         .cursor_pointer()
         .flex()
         .items_center()
@@ -110,5 +121,44 @@ pub(crate) fn chip(
         chip.text_color(palette.text)
     } else {
         chip
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn button_identity_survives_theme_label_changes() {
+        let palette = Palette::new(ColorScheme::Pine, false);
+        let light = button_with_id(
+            "theme-toggle",
+            icons::Icon::LightMode,
+            "Light mode",
+            palette,
+            |_, _, _| {},
+        )
+        .into_element();
+        let dark = button_with_id(
+            "theme-toggle",
+            icons::Icon::DarkMode,
+            "Dark mode",
+            palette,
+            |_, _, _| {},
+        )
+        .into_element();
+        assert_eq!(gpui::Element::id(&light), Some("theme-toggle".into()));
+        assert_eq!(gpui::Element::id(&light), gpui::Element::id(&dark));
+        let refresh = button_with_id(
+            "source-refresh",
+            icons::Icon::Refresh,
+            "Refresh",
+            palette,
+            |_, _, _| {},
+        )
+        .into_element();
+        assert_ne!(gpui::Element::id(&light), gpui::Element::id(&refresh));
+        let ordinary = button(icons::Icon::Confirm, "Save", palette, |_, _, _| {}).into_element();
+        assert_eq!(gpui::Element::id(&ordinary), Some("Save".into()));
     }
 }

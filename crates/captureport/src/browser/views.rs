@@ -52,7 +52,8 @@ impl Browser {
                     .flex_shrink_0()
                     .child(i18n::tr("Sources")),
             )
-            .child(button(
+            .child(button_with_id(
+                "source-open-folder",
                 Icon::Folder,
                 if sidebar_width < 232. {
                     "Open folder"
@@ -62,7 +63,8 @@ impl Browser {
                 p,
                 cx.listener(|t, _, w, c| t.open_folder(&OpenFolder, w, c)),
             ))
-            .child(button(
+            .child(button_with_id(
+                "source-refresh",
                 Icon::Refresh,
                 match (self.discovering, sidebar_width < 232.) {
                     (true, true) => "Scanning…",
@@ -83,7 +85,8 @@ impl Browser {
                         "Card · {0} · Not mounted",
                         std::slice::from_ref(&card.label),
                     )))
-                    .child(button(
+                    .child(button_with_id(
+                        gpui::ElementId::Name(format!("mount-card-{}", card.path.display()).into()),
                         Icon::Storage,
                         if self.mounting.as_ref() == Some(&card.path) {
                             "Mounting…"
@@ -390,7 +393,7 @@ impl Browser {
                             .on_click(cx.listener(|t,_,w,c|t.mark_selected_imported(&MarkSelectedImported,w,c))))
                         .child(icon(Icon::Confirm, if self.can_mark_selected_imported() { p.text } else { p.muted }))
                         .child(i18n::tr(if self.marking_imported { "Marking…" } else { "Mark as imported" })))
-                .child(button(Icon::ViewOptions, if self.show_view_options { "Hide view options" } else { "View options" }, p,
+                .child(button_with_id("view-options", Icon::ViewOptions, if self.show_view_options { "Hide view options" } else { "View options" }, p,
                     cx.listener(|t,_,_,c| { t.show_view_options = !t.show_view_options; c.notify() })))))
             .child(if self.show_view_options && !self.state.is_empty() {
                 div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).flex().flex_wrap().items_center().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border).bg(p.panel)

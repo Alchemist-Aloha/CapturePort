@@ -2591,6 +2591,11 @@ sections. Buttons, source rows, filter tabs, and text fields have a 36-pixel
 minimum height. Shared action buttons, filters and navigation controls are
 keyboard-focusable: Tab/Shift+Tab move focus on every page, and Enter/Space activate
 the focused control. Focus uses a visible palette-matched border.
+A control that remains present keeps a semantic element identity when its label,
+icon, busy state or compact wording changes, so activation/resize does not discard
+keyboard focus. This applies to theme, source actions, view options, template
+help, timezone and maintenance controls. Removed controls and dismissed popups
+still require their own appropriate focus handoff.
 Buttons and fields use 16-pixel horizontal padding; compact
 filter tabs use 8. Header, sidebar, content, and footer gutters align at 16
 pixels. A control label truncates rather than overlapping its own outline, so a

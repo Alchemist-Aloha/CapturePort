@@ -792,7 +792,8 @@ impl Browser {
                             .text_color(p.muted)
                             .child(i18n::tr("Timezone applied to capture times")),
                     )
-                    .child(button(
+                    .child(button_with_id(
+                        "timezone-picker",
                         Icon::Time,
                         i18n::format("Timezone: {0}", &[timezone_label(
                                 self.settings
@@ -912,15 +913,15 @@ impl Browser {
             .child(settings_section("Maintenance", p))
             .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
                 .child(if self.reconcile_cancellation.is_some() {
-                    button(Icon::Cancel, "Cancel library scan", p,
+                    button_with_id("maintenance-reconcile", Icon::Cancel, "Cancel library scan", p,
                         cx.listener(|t, _, w, c| t.cancel_reconcile(&CancelReconcile, w, c)))
                         .into_any_element()
                 } else {
-                    button(Icon::Catalog, "Reconcile library", p,
+                    button_with_id("maintenance-reconcile", Icon::Catalog, "Reconcile library", p,
                         cx.listener(|t, _, w, c| t.reconcile(&ReconcileLibrary, w, c)))
                         .into_any_element()
                 })
-                .child(button(Icon::Delete,
+                .child(button_with_id("clear-thumbnails", Icon::Delete,
                     if self.cache_clearing { "Clearing thumbnails…" } else { "Clear thumbnails" }, p,
                     cx.listener(|t, _, _, c| t.clear_thumbnail_cache(c)))))
             .into_any_element();

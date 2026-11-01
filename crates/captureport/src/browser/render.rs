@@ -356,7 +356,8 @@ impl Render for Browser {
                                     .child(i18n::tr("Photo and video ingest")),
                             ),
                     )
-                    .child(button(
+                    .child(button_with_id(
+                        "theme-toggle",
                         if self.ui.dark_mode {
                             Icon::LightMode
                         } else {

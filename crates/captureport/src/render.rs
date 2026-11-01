@@ -473,7 +473,8 @@ fn settings_template_field(
         .child(
             div().flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTROL_GAP))
                 .child(div().text_xs().text_color(p.muted).child(i18n::tr(label)))
-                .child(button(
+                .child(button_with_id(
+                    gpui::ElementId::Name(format!("template-help-{label}").into()),
                     Icon::TemplateSyntax,
                     segment_help_label(label, expanded),
                     p,

@@ -90,12 +90,12 @@ to the stated states. Prior-session screenshots are historical evidence only.
 | Recovery, resume, partial cleanup confirmation | ingest/recovery, browser/import + panels | S/T; crash/fault and G pending |
 | Verified-original deletion confirmation/cancel/refusal | ingest/source_delete, tasks, browser/import | S/T; disposable fixture only; G pending |
 | Presets: create/load/rename/overwrite/delete | saved_presets, browser/settings + panels | S/T; persistence/restart G pending |
-| Destinations, filename/folder templates and segment help | template_help, browser/panels, render | S/T; G pending |
+| Destinations, filename/folder templates and segment help | template_help, browser/panels, render | S/T/G: photo help expands/collapses by keyboard; token insertion/full form pending |
 | Media rules/folder exclusions, clock/timezone/session gap | browser/settings + panels, ingest/preset | S/T; DST/edge/G pending |
 | Backup, source alias, apply settings | browser/settings + panels | S/T; failure/persistence/G pending |
 | Theme/language/thumbnail size and maintenance actions | i18n, browser/settings + panels | S/T/G: light/dark + restart persistence + compact; other actions pending |
-| All 18 text fields, edit menu, keyboard/focus/scroll | text_edit, text_input, widgets | S/T; G pending; native IME/clipboard limits explicit |
-| All shared controls/tooltips/disabled/hover/focus states | widgets, render, browser modules | S/G: Tab/Enter Settings navigation; theme focus-loss confirmed; full sweep pending |
+| All 18 text fields, edit menu, keyboard/focus/scroll | text_edit, text_input, widgets | S/T/G: preset-name typing + Ctrl+D guard; other fields/menu/IME/clipboard pending |
+| All shared controls/tooltips/disabled/hover/focus states | widgets, render, browser modules | S/T/G: theme/refresh/help retain focus; full state/removal sweep pending |
 
 ## Ranked evolving backlog
 
@@ -127,10 +127,10 @@ to the stated states. Prior-session screenshots are historical evidence only.
 9. **High / fixed in iteration 6:** interactive demo now opens the isolated CLI
    entry point in a separate window. Native normal-catalog counts stay zero
    while the demo is populated. Pre-existing synthetic rows are not purged.
-10. **High / native confirmed:** keyboard navigation stops after activating the
-   theme button. Fresh Tab×7/Enter opens Settings; after Tab/Enter theme toggle,
-   the same sequence and shortcuts stop responding, even with the root-context
-   fix. Investigate the label-dependent control ID / removed focus target.
+10. **High / fixed in iteration 7:** theme/dynamic-label control IDs no longer
+    discard focus. Native theme/refresh/template-help and input shortcut guard
+    pass. Remaining audit: focus handoff when a control is actually removed,
+    and keyboard reachability of inline template token controls.
 11. **Measurement gap:** correct quick-hash byte accounting, add realistic
    filesystem/decode/import/duplicate-heavy/fault baselines without claiming
    synthetic placeholder or 1 TB metadata tests cover those workloads.
@@ -382,8 +382,43 @@ No existing records are removed. Separate GUI process overhead is intentional,
 not a performance improvement. Preserving a populated real source/selection was
 reviewed in the no-mutation handler, not runtime-tested against user media.
 
-**Decision → ACCEPT**; code commit SHA will be recorded immediately after commit.
+**Decision → ACCEPT**; committed as **`fc97839`**
+(`fix: launch interactive demos with isolated catalog history`).
 Next: the independently reproduced theme/focus blocker, then native workflows.
+
+## Iteration 7 — retain focus when control labels change
+
+**Issue/root cause →** theme activation replaced element ID `Dark mode` with
+`Light mode`, dropping the focused target. Native Tab/shortcuts then stopped.
+The shared button helper derived identity from display copy; discovery/busy,
+compact, view-options and help controls repeated the same pattern.
+
+**Change →** add explicit-ID support to the existing button helper, preserving
+all existing styling and the static-label API. Give dynamic-label controls stable
+semantic IDs; mount IDs use device paths, template help IDs use their field key.
+Reconcile/cancel share a stable action slot. No focus-to-root workaround, visual
+restyle, new dependency or change to destructive confirmation focus. Spec/design
+record the distinction between retained and actually removed controls.
+
+**Before/after →** unit regression failed with `Some(Name("Light mode"))` versus
+`Some(Name("Dark mode"))`; now IDs match and remain nonempty/distinct from other
+controls, while static-button compatibility is pinned. Native Enter→Space→Enter
+on theme toggled true→false→true without losing focus; Tab then reached Settings.
+Typed `n` in preset name and pressed Ctrl+D: Settings/input remained, no demo
+child appeared. Refresh→Tab navigation and template-help Enter/Space
+expand/collapse also retain visible focus. Other migrated controls have shared
+helper/source coverage, not claimed native hardware/workflow coverage.
+
+**Validation →** **193 tests / 15 suites**, full locked/offline check ladder and
+release build pass. Two bounded native confirmation batches; artifacts
+`17-stable-theme-settings.png` through `20-help-collapsed.png` and
+`theme-focus.json` under `/tmp/captureport-native-c0f0be1e76dc44ca85d5971e6d4730df/`.
+All processes stopped, focus restored, clipboard untouched. No performance claim.
+
+**Decision → ACCEPT**; code commit SHA will be recorded immediately after commit.
+Next: resume downstream native filesystem workflow coverage. If real GTK picker
+keyboard automation remains blocked, use a private mocked picker broker seam,
+explicitly separating that mock from real native scan/preview/import behavior.
 
 ## Stopping/remaining limits
 
