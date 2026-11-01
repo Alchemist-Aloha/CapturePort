@@ -124,10 +124,9 @@ to the stated states. Prior-session screenshots are historical evidence only.
 8. **Medium / investigate:** startup/idle CPU and the 16 ms drain, UI blocking I/O,
    keyboard/grid navigation, resize, settings feedback and unsafe re-entrancy.
    `docs/todo.md` contains an older critique: verify, do not assume still current.
-9. **High / native confirmed:** Ctrl+D in a normal run writes demo media into
-   the ordinary disk catalog (isolated test observed 7,500 media / one Fake source).
-   CLI `--demo` isolation does not cover this action. Fix before more demo-driven
-   workflows; no production catalog was used in the reproduction.
+9. **High / fixed in iteration 6:** interactive demo now opens the isolated CLI
+   entry point in a separate window. Native normal-catalog counts stay zero
+   while the demo is populated. Pre-existing synthetic rows are not purged.
 10. **High / native confirmed:** keyboard navigation stops after activating the
    theme button. Fresh Tab×7/Enter opens Settings; after Tab/Enter theme toggle,
    the same sequence and shortcuts stop responding, even with the root-context
@@ -343,9 +342,48 @@ a before/after integrity comparison.
 
 **Validation / decision → ACCEPT** guarded-shortcut fix: new predicate regression,
 full workspace **191 tests / 15 suites**, format/check/strict Clippy/diff checks,
-and fresh release build pass; native shortcut positive path verified. Commit SHA
-will be recorded immediately after commit. The native coverage checklist remains
+and fresh release build pass; native shortcut positive path verified.
+Committed as **`8cef818`** (`fix: enable guarded app shortcuts in the browser context`). The native coverage checklist remains
 open; finding blockers is not the same as completing its workflows.
+
+## Reflection checkpoint / iteration 6 — isolate interactive demo history
+
+**Reflection →** five verified fixes, 179→191 tests, and fresh native coverage
+exposed failures beyond unit coverage. Disposable regressions/scoped commits
+work well; keyboard-only picker troubleshooting was too long. Keep attempts
+bounded, reject invalid screenshots, prioritize the demonstrated catalog/focus
+blockers, then return to workflow and measured performance work.
+
+**Issue/root cause →** normal Ctrl+D scanned Fake media through the live catalog;
+CLI `--demo` already used memory. Baseline native fixture retained one Fake source
+and 7,500 synthetic media rows in its ordinary persistent database.
+
+**Change →** reuse `current_exe --demo 10000` in a separate window instead of
+swapping the normal source or introducing multiple catalog namespaces in one
+Browser. Reap its process off the UI thread; localized launch failure preserves
+the normal window and offers restart/retry. Spec and both READMEs document the
+boundary; all ten translation catalogs include the error.
+
+**Before/after/validation →** a fresh isolated normal run opened a populated,
+visible demo (5,000 capture previews / 7,500 accepted files) in another PID.
+Persistent counts remained **0 sources / 0 media / 0 sessions**, normal window
+remained source-empty, destination remained empty. Child disappearance while
+parent stayed alive confirms reaping. Native artifacts and assertions:
+`/tmp/captureport-native-c0f0be1e76dc44ca85d5971e6d4730df/`, including
+`demo-isolation.json`. One off-workspace capture was rejected/deleted; accepted
+capture required the target visible and active. Harness now checks that before
+capturing. All test processes stopped; original focus restored; clipboard unused.
+The new command-contract unit test, **192 tests / 15 suites**, full locked/offline
+check ladder and fresh release build pass.
+
+**Limits →** catalog isolation does not sandbox appearance/settings or confirmed
+destination writes; tests must still isolate XDG and use disposable destinations.
+No existing records are removed. Separate GUI process overhead is intentional,
+not a performance improvement. Preserving a populated real source/selection was
+reviewed in the no-mutation handler, not runtime-tested against user media.
+
+**Decision → ACCEPT**; code commit SHA will be recorded immediately after commit.
+Next: the independently reproduced theme/focus blocker, then native workflows.
 
 ## Stopping/remaining limits
 

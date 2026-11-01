@@ -1,5 +1,11 @@
 use crate::*;
 
+fn demo_command() -> std::io::Result<Command> {
+    let mut command = Command::new(std::env::current_exe()?);
+    command.args(["--demo", "10000"]);
+    Ok(command)
+}
+
 impl Browser {
     pub(crate) fn scan(&mut self, request: SourceRequest, cx: &mut Context<Self>) {
         if self.importing {
@@ -137,10 +143,23 @@ impl Browser {
         .detach();
     }
     pub(crate) fn open_demo(&mut self, _: &OpenDemo, _: &mut Window, cx: &mut Context<Self>) {
-        self.scan(
-            SourceRequest::Demo(FakeSourceBuilder::new().scenario(FakeSourceScenario::LargeCard)),
-            cx,
-        )
+        // Reuse CLI isolation instead of replacing the live source/catalog.
+        match demo_command().and_then(|mut command| command.spawn()) {
+            Ok(mut child) => {
+                thread::spawn(move || {
+                    if let Err(error) = child.wait() {
+                        tracing::warn!(%error, "Could not reap demo window");
+                    }
+                });
+            }
+            Err(error) => {
+                self.message = Some(i18n::format(
+                    "Could not open demo window: {0}. Restart CapturePort and try again.",
+                    &[error.to_string()],
+                ));
+                cx.notify();
+            }
+        }
     }
     pub(crate) fn select_all(&mut self, _: &SelectAll, _: &mut Window, cx: &mut Context<Self>) {
         if self.page != Page::Browser {
@@ -331,5 +350,17 @@ impl Browser {
                 self.scan(SourceRequest::Filesystem(path), cx)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn interactive_demo_uses_the_isolated_cli_entry_point() {
+        let command = demo_command().unwrap();
+        assert_eq!(command.get_program(), std::env::current_exe().unwrap());
+        assert_eq!(command.get_args().collect::<Vec<_>>(), ["--demo", "10000"]);
     }
 }

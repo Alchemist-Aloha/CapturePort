@@ -1,4 +1,5 @@
 {
+  "Could not open demo window: {0}. Restart CapturePort and try again.": "Impossible d’ouvrir la fenêtre de démonstration : {0}. Redémarrez CapturePort et réessayez.",
   "Undo": "Annuler",
   "Redo": "Rétablir",
   "Cut": "Couper",

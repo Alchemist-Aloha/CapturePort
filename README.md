@@ -205,7 +205,10 @@ the scheme in Settings.
 Deterministic demo sources are available for trying the interface or reporting
 a bug: `--demo empty`, `--demo camera`, `--demo importing`, `--demo errors`, and
 `--demo 10000`. A demo run uses an in-memory catalog, so it cannot write
-synthetic rows into your real history.
+synthetic rows into your real history. Ctrl+D (or the debug demo button) opens
+that isolated demo in a separate window, preserving the normal window's source
+and selection. For automated tests, still isolate XDG paths and destinations:
+demo catalog isolation does not sandbox settings changes or confirmed copies.
 
 ```sh
 captureport --demo camera

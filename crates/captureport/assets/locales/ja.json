@@ -1,4 +1,5 @@
 {
+  "Could not open demo window: {0}. Restart CapturePort and try again.": "デモウィンドウを開けませんでした：{0}。CapturePort を再起動して、もう一度お試しください。",
   "Undo": "元に戻す",
   "Redo": "やり直す",
   "Cut": "切り取り",
