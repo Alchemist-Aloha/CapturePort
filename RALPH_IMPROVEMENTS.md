@@ -124,7 +124,12 @@ to the stated states. Prior-session screenshots are historical evidence only.
 7. **Medium / investigate:** progressive gallery rebuilding/name lookup and frame
    allocations, thumbnail cache/queue invalidation, obsolete work and decoder
    subprocess lifecycle. Measure real mixed-media cases.
-8. **Medium / investigate:** startup/idle CPU and the 16 ms drain, UI blocking I/O,
+8. **Measured, not the poll timer:** idle CPU is **3.4% of one core** (median of 15×10 s
+   windows) and did not change when the drain poll was slowed from 16 ms to 1 s,
+   so the drain is not the cost. An adaptive-poll patch was **reverted** as
+   unsupported. Open question: GPUI/compositor frame scheduling for a visible idle
+   window (an inconclusive hide-to-special-workspace probe raised CPU instead).
+   Also unchanged: UI blocking I/O,
    keyboard/grid navigation, resize, settings feedback and unsafe re-entrancy.
    `docs/todo.md` contains an older critique: verify, do not assume still current.
 9. **High / fixed in iteration 6:** interactive demo now opens the isolated CLI
@@ -474,6 +479,46 @@ and remaining UI surfaces are not covered. No performance gain claimed.
 Next: zero-success deletion affordance/outcome clarity, then history/recovery/
 details/preset coverage and the still-uninvestigated measured performance paths.
 
+## Iteration 11 — idle-CPU hypothesis tested and rejected
+
+**Question →** the window polls worker channels every 16 ms (62.5 Hz). The
+earlier single sample said 3.67% of one core, which looked like polling overhead.
+
+**Method →** release binary, isolated XDG, empty window focused on a 1180×760
+floating window, three seconds of settle time, then 15 samples of 10 s each
+(three separate launches). CPU from `/proc/<pid>/stat` ticks, RSS/threads and
+voluntary+nonvoluntary context switches from `/proc/<pid>/status`.
+
+**Results →**
+
+| Variant | CPU, % of one core (median, range) | Context switches/s |
+|---|---:|---:|
+| 16 ms poll (baseline, n=5) | 3.4 (3.3–3.7) | 233 |
+| adaptive 16/100 ms (n=5) | 3.5 (1.9–4.1) | 208 |
+| 16/1000 ms (n=15) | 3.4 (2.8–4.6) | 152 |
+
+RSS stayed at **258–270 MiB** with **35 threads** in every variant. Slowing the
+poll 60× removed the expected wakeups (233→152/s) but **not** the CPU, so the
+drain loop is not the dominant idle cost. A hide-to-special-workspace probe was
+inconclusive (3.87% visible vs 6.37% hidden) and was not used as evidence.
+
+**Decision → REJECT** the adaptive-poll change: it added a method and two
+constants for no measured CPU benefit. The patch was reverted; the working tree
+contains only this evidence. The honest remaining hypothesis is GPUI/Wayland
+frame scheduling for a visible idle window, which needs a paint/frame-callback
+instrument before any code change.
+
+**Baseline now recorded →** steady-state idle is ~3.4% of one core and ~260 MiB
+RSS for an empty window on this host. This is descriptive, not a regression
+claim: no earlier comparable repeated measurement exists. Raw probes:
+`/tmp/idle-after.txt`, `/tmp/idle-1000.txt`, `/tmp/captureport-idle-9a28e45d552c4245be98243524527752/idle.json`,
+helper `/tmp/captureport-idle-probe.py`. Each launch was stopped after verifying
+its isolated `XDG_CONFIG_HOME`; original focus restored.
+
+**Validation →** after revert: formatting, locked/offline check, **197 tests / 15
+suites**, strict all-target Clippy, diff checks and a release rebuild all pass.
+No behaviour changed, so the native workflow suite was not rerun for this entry.
+
 ## Iteration 10 — Standard verification stops hashing what it never compares
 
 **Issue →** `verify_copy(Standard)` streamed and BLAKE3-hashed the entire
@@ -520,7 +565,8 @@ now sends them without inter-key delays — a fixture-tuning note, not a product
 fix. Camera transfers, real RAW decode, genuine GTK selection and physical
 disks remain unverified.
 
-**Decision → ACCEPT**; code commit SHA recorded after commit.
+**Decision → ACCEPT**; committed as **`6935dfa`**
+(`perf: verify Standard copies from their edge samples only`).
 
 ## Iteration 9 — deletion entry mirrors the true verified-copy policy
 
