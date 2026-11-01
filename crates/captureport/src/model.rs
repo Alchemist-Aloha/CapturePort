@@ -336,6 +336,10 @@ pub(crate) fn format_file_time(seconds: u64, offset: Option<i32>) -> String {
     };
     time.format("%Y-%m-%d %H:%M").to_string()
 }
+/// PageUp/PageDown target offset, clamped to the scrollable range.
+pub(crate) fn page_scroll_target(current: f32, step: f32, limit: f32) -> f32 {
+    (current + step).clamp(-limit.max(0.), 0.)
+}
 /// Format a stored RFC 3339 session timestamp for display, matching the media
 /// cards' local `YYYY-MM-DD HH:MM` shape. Unparseable values are shown as stored
 /// rather than hidden.
