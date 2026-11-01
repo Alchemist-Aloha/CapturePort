@@ -14,6 +14,7 @@ use std::{
         raw::{c_char, c_ulong, c_void},
         unix::fs::OpenOptionsExt,
     },
+    path::Path,
     sync::mpsc,
     thread,
     time::{Duration, Instant},
@@ -45,6 +46,7 @@ pub struct CameraDescriptor {
     pub model: String,
     pub port: String,
     pub stable_id: String,
+    pub serial: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -124,15 +126,12 @@ impl GPhotoSource {
                 {
                     let model = ffi::text(model);
                     let port = ffi::text(port);
-                    result.push(CameraDescriptor {
-                        stable_id: stable_key(&model, &port),
-                        model,
-                        port,
-                    });
+                    result.push(camera_descriptor(model, port, Path::new("/sys")));
                 }
             }
             ffi::gp_list_free(list);
             ffi::gp_context_unref(context);
+            disambiguate_camera_ids(&mut result);
             Ok(result)
         }
     }
@@ -147,6 +146,17 @@ impl GPhotoSource {
     ) -> Result<Self, GPhotoError> {
         if cancellation.is_cancelled() {
             return Err(err(-2, "connection cancelled"));
+        }
+        if descriptor.serial.is_some()
+            && camera_descriptor(
+                descriptor.model.clone(),
+                descriptor.port.clone(),
+                Path::new("/sys"),
+            )
+            .stable_id
+                != descriptor.stable_id
+        {
+            return Err(err(-1, "camera identity changed; refresh sources"));
         }
         let worker_descriptor = descriptor.clone();
         let (tx, rx) = mpsc::channel();
@@ -181,7 +191,7 @@ impl GPhotoSource {
             id: source_id,
             source_type: SourceType::Camera,
             stable_id: Some(descriptor.stable_id),
-            serial: None,
+            serial: descriptor.serial,
             manufacturer: None,
             model: Some(descriptor.model.clone()),
             volume_uuid: None,
@@ -772,7 +782,7 @@ impl CameraWorker {
             camera,
             context,
             requests: 0,
-            source_id: SourceId(hash64(&stable_key(&desc.model, &desc.port))),
+            source_id: SourceId(hash64(&desc.stable_id)),
             next_id: 0,
             spooled: HashMap::new(),
             sizes: HashMap::new(),
@@ -1134,6 +1144,33 @@ fn join_path(folder: &str, name: &str) -> String {
         format!("{folder}/{name}")
     }
 }
+fn camera_descriptor(model: String, port: String, sysfs_root: &Path) -> CameraDescriptor {
+    let (key, serial) = match crate::discovery::usb_serial_key_from_sysfs(&port, sysfs_root) {
+        Some((key, serial)) => (key, Some(serial)),
+        None => (port.clone(), None),
+    };
+    CameraDescriptor {
+        stable_id: stable_key(&model, &key),
+        model,
+        port,
+        serial,
+    }
+}
+
+fn disambiguate_camera_ids(cameras: &mut [CameraDescriptor]) {
+    let mut counts = HashMap::new();
+    for camera in cameras.iter() {
+        *counts.entry(camera.stable_id.clone()).or_insert(0) += 1;
+    }
+    for camera in cameras {
+        if counts[&camera.stable_id] > 1 {
+            // Duplicate device-provided serials must not hide a connected camera.
+            camera.stable_id = stable_key(&camera.model, &camera.port);
+            camera.serial = None;
+        }
+    }
+}
+
 fn stable_key(model: &str, port: &str) -> String {
     format!("gphoto:{:016x}", hash64(&format!("{model}\0{port}")))
 }
@@ -1257,6 +1294,7 @@ mod tests {
                 model: "test".into(),
                 port: "test".into(),
                 stable_id: "test".into(),
+                serial: None,
             },
             cancellation,
         );
@@ -1444,6 +1482,92 @@ mod tests {
             info.mtime = invalid;
             assert_eq!(camera_metadata(&info), MediaMetadata::default());
         }
+    }
+
+    #[test]
+    fn usb_serial_identity_survives_a_device_address_change() {
+        let root = std::env::temp_dir().join(format!(
+            "captureport-camera-identity-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let usb = root.join("bus/usb/devices/1-2");
+        std::fs::create_dir_all(&usb).unwrap();
+        for (name, value) in [
+            ("busnum", "1\n"),
+            ("devnum", "2\n"),
+            ("idVendor", "04cb\n"),
+            ("idProduct", "02dd\n"),
+            ("serial", "TEST-CAMERA-A\n"),
+        ] {
+            std::fs::write(usb.join(name), value).unwrap();
+        }
+        let first = camera_descriptor("Camera".into(), "usb:001,002".into(), &root);
+        std::fs::write(usb.join("devnum"), "48\n").unwrap();
+        let reconnected = camera_descriptor("Camera".into(), "usb:001,048".into(), &root);
+        std::fs::write(usb.join("serial"), "TEST-CAMERA-B\n").unwrap();
+        let other = camera_descriptor("Camera".into(), "usb:001,048".into(), &root);
+        std::fs::write(usb.join("serial"), "TEST-CAMERA-A\n").unwrap();
+        std::fs::write(usb.join("idVendor"), "1234\n").unwrap();
+        let different_vendor = camera_descriptor("Camera".into(), "usb:001,048".into(), &root);
+        std::fs::write(usb.join("idVendor"), "not-hex\n").unwrap();
+        let malformed = camera_descriptor("Camera".into(), "usb:001,048".into(), &root);
+        std::fs::write(usb.join("idVendor"), "04cb\n").unwrap();
+        std::fs::write(usb.join("serial"), " \n").unwrap();
+        let empty = camera_descriptor("Camera".into(), "usb:001,048".into(), &root);
+        std::fs::remove_file(usb.join("serial")).unwrap();
+        let unidentified = camera_descriptor("Camera".into(), "usb:001,048".into(), &root);
+        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(first.stable_id, reconnected.stable_id);
+        assert_eq!(first.serial.as_deref(), Some("TEST-CAMERA-A"));
+        assert_ne!(reconnected.stable_id, other.stable_id);
+        assert_ne!(reconnected.stable_id, different_vendor.stable_id);
+        for fallback in [unidentified, malformed, empty] {
+            assert_eq!(fallback.stable_id, stable_key("Camera", "usb:001,048"));
+            assert_eq!(fallback.serial, None);
+        }
+    }
+
+    #[test]
+    fn repeated_serials_do_not_merge_connected_cameras() {
+        let first = CameraDescriptor {
+            model: "Camera".into(),
+            port: "usb:001,002".into(),
+            stable_id: "serial-key".into(),
+            serial: Some("REPEATED".into()),
+        };
+        let second = CameraDescriptor {
+            port: "usb:001,048".into(),
+            ..first.clone()
+        };
+        let unique = CameraDescriptor {
+            stable_id: "unique-key".into(),
+            serial: Some("UNIQUE".into()),
+            ..first.clone()
+        };
+        let mut cameras = vec![first, second, unique.clone()];
+        disambiguate_camera_ids(&mut cameras);
+        assert_eq!(cameras[0].stable_id, stable_key("Camera", "usb:001,002"));
+        assert_eq!(cameras[1].stable_id, stable_key("Camera", "usb:001,048"));
+        assert_ne!(cameras[0].stable_id, cameras[1].stable_id);
+        assert!(cameras[..2].iter().all(|camera| camera.serial.is_none()));
+        assert_eq!(cameras[2], unique);
+    }
+
+    #[test]
+    fn stale_serial_identity_is_refused_before_hardware_open() {
+        let result = GPhotoSource::connect(CameraDescriptor {
+            model: "synthetic".into(),
+            port: "not-a-usb-port".into(),
+            stable_id: "stale".into(),
+            serial: Some("TEST".into()),
+        });
+        assert!(
+            matches!(result, Err(GPhotoError { code: -1, operation }) if operation.contains("identity changed"))
+        );
     }
 
     #[test]

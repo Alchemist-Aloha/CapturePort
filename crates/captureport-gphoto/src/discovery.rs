@@ -150,6 +150,44 @@ fn parse_usb_port(port: &str) -> Option<(u32, u32)> {
     Some((bus.parse().ok()?, device.parse().ok()?))
 }
 
+/// Vendor/product/serial identity key and serial, without opening the camera.
+pub(crate) fn usb_serial_key_from_sysfs(port: &str, sysfs_root: &Path) -> Option<(String, String)> {
+    let (bus, device) = parse_usb_port(port)?;
+    for entry in fs::read_dir(sysfs_root.join("bus/usb/devices"))
+        .ok()?
+        .flatten()
+    {
+        let path = entry.path();
+        let number = |name: &str| {
+            fs::read_to_string(path.join(name))
+                .ok()?
+                .trim()
+                .parse::<u32>()
+                .ok()
+        };
+        if (number("busnum"), number("devnum")) != (Some(bus), Some(device)) {
+            continue;
+        }
+        let hex = |name: &str| {
+            u16::from_str_radix(fs::read_to_string(path.join(name)).ok()?.trim(), 16).ok()
+        };
+        let vendor = hex("idVendor")?;
+        let product = hex("idProduct")?;
+        let serial = fs::read_to_string(path.join("serial"))
+            .ok()?
+            .trim()
+            .to_owned();
+        if serial.is_empty() {
+            return None;
+        }
+        return Some((
+            format!("usb-serial:{vendor:04x}:{product:04x}:{serial}"),
+            serial,
+        ));
+    }
+    None
+}
+
 fn mount_usb_address(device: &Path) -> Option<(u32, u32)> {
     mount_usb_address_from_sysfs(device, Path::new("/sys"))
 }
@@ -193,11 +231,13 @@ mod tests {
                 model: "Mass Storage Camera".into(),
                 port: "disk:/run/media/user/Disk".into(),
                 stable_id: "camera:mass-storage".into(),
+                serial: None,
             },
             CameraDescriptor {
                 model: "Sony A7C II".into(),
                 port: "usb:001,002".into(),
                 stable_id: "camera:sony".into(),
+                serial: None,
             },
         ];
         let mount = parse_mount_line("/dev/captureport-test-card /run/media/user/Disk vfat rw 0 0")
@@ -218,11 +258,13 @@ mod tests {
                 model: "Other disk camera".into(),
                 port: "disk:/media/Card".into(),
                 stable_id: "camera:disk".into(),
+                serial: None,
             },
             CameraDescriptor {
                 model: "Mass Storage Camera".into(),
                 port: "usb:001,002".into(),
                 stable_id: "camera:generic".into(),
+                serial: None,
             },
         ];
         assert!(combine_sources(cameras, vec![]).is_empty());

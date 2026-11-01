@@ -106,9 +106,10 @@ Prior-session synthetic screenshots are historical evidence only.
    3) are fixed. Remaining: source/destination overlap, recovery/history
    durability, and filesystem snapshot limitations. Native/coarse-timestamp
    filesystem behavior is not claimed covered by btrfs fixtures.
-3. **High / observed candidate:** camera identity includes transient USB port;
-   prior reconnect created a different catalog source and can orphan aliases or
-   gallery names. Reproduce with synthetic descriptors/sysfs; do not edit real DB.
+3. **High / partly fixed:** serial-capable PTP cameras now retain their key across
+   USB address changes (iteration 4). Missing/non-unique serials still require
+   the conservative port fallback; stable association is blocked without reliable
+   identity evidence. Existing port-based history is retained, not auto-merged.
 4. **High / investigate:** concurrent camera reopen/source switching and
    generation-scoped completion/cancellation; blocked drivers and worker shutdown.
 5. **Medium / measured opportunity:** Standard verification reads/hashes the whole
@@ -241,7 +242,49 @@ swaps or edits after the last check are not locked out. Stronger guarantees need
 filesystem snapshot/writer coordination, not a promise from these path checks.
 No FAT/exFAT runtime, actual GUI or camera behavior was validated this iteration.
 
+**Decision → ACCEPT**; committed as **`123f9ea`**
+(`fix: reject destination changes observed during verification`).
+
+## Iteration 4 — stable identity for serial-capable PTP cameras
+
+**Issue →** the camera key hashed model + transient `usb:BUS,DEVICE`, so ordinary
+USB re-enumeration created a new source. Alias/gallery/history association could
+break every reconnect. Discovery never populated the available USB serial.
+
+**Baseline →** a synthetic sysfs descriptor with unchanged model/vendor/product/
+serial and device number changing 2 → 48 failed the reconnect assertion before
+implementation: `gphoto:ba646b945cce97a1` versus `gphoto:ba71e9945cd9f817`.
+The fixture is removed before assertions; no real catalog or camera is used.
+
+**Change →** read USB vendor/product/serial through sysfs for the matching bus/
+device, prefer that serial-backed key, expose the serial in source metadata,
+and use the chosen descriptor key consistently for enumerated media IDs.
+Connection rejects a stale serial-backed selection before opening hardware.
+Duplicate keys in one discovery snapshot fall back to individual port keys, so
+repeated device-provided serials cannot hide/merge connected cameras. Missing,
+blank or malformed attributes retain the old port-key behavior. No dependencies,
+catalog migrations, or changes to existing source/history/settings rows.
+
+**Validation →** three new tests: reconnect/serial/vendor distinction plus
+missing/empty/malformed fallbacks using fake sysfs; repeated-serial separation;
+and stale selection rejection without hardware open. Gphoto tests 25 passed;
+full workspace **190 tests / 15 suites**, formatting, locked/offline check,
+strict all-target Clippy and diff checks pass. No speedup claim; added sysfs
+polling cost and physical-camera compatibility are not measured by these tests.
+
+**Migration/limits →** an old port-based source can get one new serial-backed
+record. Its old aliases/gallery names/history remain intact but are not guessed
+onto the new source; reassignment may be needed. Devices lacking a usable unique
+serial cannot promise reconnect identity. Repeated-serial setups may change keys
+as peers appear/disappear; preserving separation takes precedence over merging.
+Physical-camera discovery/transfer and UI continuity remain runtime checks.
+
 **Decision → ACCEPT**; code commit SHA will be recorded immediately after commit.
+
+**Broad-review checkpoint →** four logical iterations covered different identity
+and filesystem safety failures, but no fresh native `G` coverage exists. Next
+iteration must move to an isolated native workflow/UI sweep and collect actual
+startup/idle/workflow evidence rather than continuing only backend fixes.
 
 ## Stopping/remaining limits
 

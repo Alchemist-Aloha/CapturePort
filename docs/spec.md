@@ -173,6 +173,24 @@ user-assigned alias
 
 No single identifier should be assumed universally available.
 
+On Linux, PTP discovery prefers a readable nonempty USB serial together with
+vendor/product IDs and the detected camera model. Locate these through sysfs
+using the current bus/device address, but do not include that transient address
+in a serial-backed identity. Reconnecting at a different address then preserves
+the source key. Carry the serial into source metadata, and use the selected key
+for both the source handle and its enumerated media. Before opening a serial-backed
+selection, recheck its identity and require refresh if it changed.
+
+Missing, empty or malformed USB identity attributes retain the previous
+model/port fallback. If connected descriptors claim the same serial-backed key,
+use their individual port keys rather than hiding or merging cameras. Such
+ambiguous devices cannot promise stable identities as peers appear/disappear.
+Do not infer ownership of old port-based catalog rows: retain their history,
+aliases and settings unchanged. A previously port-identified camera can receive
+one new serial-backed source record on upgrade; aliases or gallery names tied
+to the old identity may need reassignment. No automatic historical-source merge
+is permitted without evidence that distinguishes same-model devices.
+
 Example:
 
 ```rust
