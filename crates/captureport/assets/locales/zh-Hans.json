@@ -26,7 +26,7 @@
   "Additional photo extensions (comma separated)": "附加照片扩展名（逗号分隔）",
   "Additional video extensions (comma separated)": "附加视频扩展名（逗号分隔）",
   "All": "全部",
-  "Already present (identical)": "已经存在（相同）",
+  "Existing file · verify first": "已有文件 · 须先验证",
   "An unfinished import needs review": "未完成的导入需要审核",
   "Appearance": "外观",
   "Appearance: {0}": "外观：{0}",

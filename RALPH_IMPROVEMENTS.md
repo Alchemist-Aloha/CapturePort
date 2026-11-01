@@ -1,0 +1,167 @@
+# CapturePort improvement ledger
+
+## Scope and acceptance
+
+Baseline: `d341ac8` (v0.6.0), initially clean working tree. Repeat
+**discover → baseline → prioritize → implement → test → compare → commit/reject**.
+Only demonstrated improvements are accepted; no speculative speed claims.
+Real photos, removable-media contents, user settings and production history are
+out of bounds for destructive tests. GUI tests use isolated XDG directories.
+The large Ralph iteration allowance is a harness guard, not a stopping criterion.
+
+## Architecture / intended semantics
+
+- Eight workspace crates: `core` (source contract, media/events, generation-aware
+  app state and fake sources); `media` (read-only filesystem adapter); `gphoto`
+  (serialized camera worker and discovery); `metadata` (EXIF/ffprobe extraction,
+  bounded thumbnail workers/cache); `ingest` (bundles, templates, one deterministic
+  planner, fingerprints, transactional import, recovery/reconciliation/deletion);
+  `catalog` (SQLite worker); GPUI app; standalone synthetic benchmark.
+- The GPUI `Browser` owns navigation, selection, bundles, settings and async work
+  receivers. Five pages: Browser, Preview, History, Recovery, Settings. Scan
+  metadata has two workers / 64 queued jobs; source previews use a 32-job queue;
+  filesystem thumbnails use two workers / 128 jobs. UI work drains every 16 ms;
+  device discovery polls every 3 s. These are implementation facts, not proven
+  optimal settings.
+- SQLite schema v3: sources, media, import sessions/results, presets and manual
+  import declarations. One catalog worker serializes commands; clients wait for
+  replies. Old-schema migration uses an online backup. The filesystem remains
+  authoritative; observation/quick matches are not proof of a completed import.
+- Import: plan final paths → create owned partial → stream/hash → verify →
+  atomically publish without replacement → record history. Cancellation keeps
+  durable completed results, removes only owned partials, and must not report
+  incomplete copies as successful. Source deletion is separately confirmed and
+  revalidates source and destination content/identity.
+- Rust/Cargo 1.99.1; GPUI 0.2.2; stable toolchain selected by repository. CI checks
+  formatting/check/tests. Debian/Arch/Fedora/portable packaging uses locked Cargo.
+  Existing macro/xattr compatibility patches are documented, not new findings.
+
+## Baseline measurements
+
+Host: Linux 7.3.0-4-cachyos x86_64, i5-13600K (20 logical CPUs), btrfs.
+Command: `rtk cargo build -p captureport-bench --release --locked --offline`,
+then run `target/release/captureport-bench` sequentially six times; discard the
+first warm-up and report median and min–max of the other five. Per-process CPU
+and peak RSS are collected using Linux `wait4` rusage. Conditions are warm-cache,
+normal desktop activity; these are not hardware camera/storage benchmarks.
+Raw local evidence: `/tmp/captureport-baseline-z3e1z8bn/{run-0..5.tsv,raw.json}`.
+
+| Probe | Median ms | Min–max ms |
+|---|---:|---:|
+| Fake enumeration, 10,000 photos + 500 videos | 2.032 | 1.953–3.358 |
+| Catalog upsert + lookup, 21,000 synchronous requests | 394.337 | 388.661–430.951 |
+| Browser name sort, 100 × 10,500 items | 91.664 | 91.055–111.334 |
+| Template generation, 10,500 items | 5.566 | 5.438–5.606 |
+| Planner, 10,500 items | 65.307 | 64.032–66.051 |
+| Thumbnail queue, **placeholder jobs only** | 20.888 | 19.690–23.083 |
+| Quick hash of an 8 MiB file | 0.196 | 0.191–0.207 |
+| Full hash of an 8 MiB file | 2.689 | 2.554–3.281 |
+
+Whole probe median: wall **0.598 s** (0.594–0.657), CPU **0.636 s**
+(0.636–0.690), peak RSS **40,340 KiB** (39,168–40,900).
+The 1 TB card is represented metadata, not copied payload. The quick-hash probe
+currently labels logical file bytes as bytes hashed: actual samples are 512 KiB,
+not 8 MiB. Its printed byte throughput is **not** an accepted measurement.
+Real RAW/video decode, filesystem traversal, copy throughput, startup/idle usage,
+frame latency and large duplicate-heavy collections still need separate probes.
+
+Coverage baseline: **179 existing tests**. The earlier combined baseline tool
+output was truncated; it is not independent pass evidence here. Fresh post-change
+verification below reruns the complete ladder and includes those existing tests.
+
+## UI/workflow inventory and coverage
+
+This is an inventory of implemented surfaces, **not** a claim of exhaustive
+runtime coverage. `S` = initial source/spec inventory; `T` = existing related
+logic tests; `G` = actual GUI exercised in this loop. No `G` coverage yet.
+Prior-session synthetic screenshots are historical evidence only.
+
+| Surface / workflow | Principal implementation | Coverage / next check |
+|---|---|---|
+| Fresh launch, source-empty/loading/error states | main, browser/render + views | S/T; G pending |
+| Sources, refresh, mount, disconnect/reconnect | devices, browser/sources, gphoto/discovery | S/T; G pending; physical camera separate |
+| Grid/filter/sort/selection and gallery grouping/rename | browser/views + gallery + session | S/T; G and large-source latency pending |
+| RAW+JPEG bundles and member selection | ingest/bundle, browser/bundles + views | S/T; G pending |
+| Details popup, original URL copy, dismissal/focus | browser/detail | S/T; G pending |
+| Image/video previews, unavailable fallback, progress strip | metadata/thumbnail, browser/thumbnails + render | S/T; real decode + G pending |
+| Plan preview, collisions, backup paths, confirmation | ingest/planner, browser/import + panels | S/T; G pending |
+| Import phases, cancel, outcomes | ingest/importer, tasks, browser/render | S/T; real isolated normal/re-import/cancel/error G pending |
+| History and session-detail inspection | catalog, browser/import + panels | S/T; G pending |
+| Recovery, resume, partial cleanup confirmation | ingest/recovery, browser/import + panels | S/T; crash/fault and G pending |
+| Verified-original deletion confirmation/cancel/refusal | ingest/source_delete, tasks, browser/import | S/T; disposable fixture only; G pending |
+| Presets: create/load/rename/overwrite/delete | saved_presets, browser/settings + panels | S/T; persistence/restart G pending |
+| Destinations, filename/folder templates and segment help | template_help, browser/panels, render | S/T; G pending |
+| Media rules/folder exclusions, clock/timezone/session gap | browser/settings + panels, ingest/preset | S/T; DST/edge/G pending |
+| Backup, source alias, apply settings | browser/settings + panels | S/T; failure/persistence/G pending |
+| Theme/language/thumbnail size and maintenance actions | i18n, browser/settings + panels | S/T; light/dark/compact/G pending |
+| All 18 text fields, edit menu, keyboard/focus/scroll | text_edit, text_input, widgets | S/T; G pending; native IME/clipboard limits explicit |
+| All shared controls/tooltips/disabled/hover/focus states | widgets, render, browser modules | S; systematic G pending |
+
+## Ranked evolving backlog
+
+1. **Critical / confirmed:** edge-only collision verification can record distinct
+   media as imported. Iteration 1 below fixes this before performance work.
+2. **High / investigate:** pre-existing destination symlinks/non-regular files,
+   source/destination overlap, late replacement races, failure/recovery/history
+   durability. Reproduce before deciding whether existing defenses suffice.
+3. **High / observed candidate:** camera identity includes transient USB port;
+   prior reconnect created a different catalog source and can orphan aliases or
+   gallery names. Reproduce with synthetic descriptors/sysfs; do not edit real DB.
+4. **High / investigate:** concurrent camera reopen/source switching and
+   generation-scoped completion/cancellation; blocked drivers and worker shutdown.
+5. **Medium / measured opportunity:** Standard verification reads/hashes the whole
+   destination although its contract compares edge samples. Benchmark identical
+   fixtures, preserve Strict and full existing-file verification, then decide.
+6. **Medium / measured opportunity:** catalog request sequence dominates the
+   synthetic probe (~394 ms). Profile actual scan/import callers before batching
+   or changing transaction semantics; memory DB is not durable import throughput.
+7. **Medium / investigate:** progressive gallery rebuilding/name lookup and frame
+   allocations, thumbnail cache/queue invalidation, obsolete work and decoder
+   subprocess lifecycle. Measure real mixed-media cases.
+8. **Medium / investigate:** startup/idle CPU and the 16 ms drain, UI blocking I/O,
+   keyboard/grid navigation, resize, settings feedback and unsafe re-entrancy.
+   `docs/todo.md` contains an older critique: verify, do not assume still current.
+9. **Measurement gap:** correct quick-hash byte accounting, add realistic
+   filesystem/decode/import/duplicate-heavy/fault baselines without claiming
+   synthetic placeholder or 1 TB metadata tests cover those workloads.
+
+## Iteration 1 — prevent false successful existing-file imports
+
+**Issue →** A 1 MiB source/destination pair with equal sizes and identical first
+and last 256 KiB, but one changed middle byte, was planned as an existing-file
+candidate and recorded successfully in Fast and Standard modes.
+
+**Root cause →** execution upgraded Fast only to Standard; Standard compared quick
+fingerprints even though both full digests had already been read. Edge samples
+cannot establish content identity for a file CapturePort did not just copy.
+
+**Change →** pre-existing candidates always require Strict/full BLAKE3 before
+recording success, independent of the mode for new copies. History receives the
+actual Strict mode. Preview says “Existing file · verify first” instead of
+asserting identity before checking; all ten catalogs and spec are synchronized.
+The planner still uses cheap size/edge screening, not full enumeration hashing.
+
+**Before/after →** deterministic failing regression before fix:
+`[(Fast, Completed, 1 record), (Standard, Completed, 1), (Strict, Failed, 0)]`.
+After fix all three produce `Failed, 0 records`; both source and destination
+bytes remain unchanged. Positive re-imports in all modes still complete and
+record Strict verification. No performance gain is claimed for this safety fix.
+
+**Validation →** two importer regressions cover different-middle rejection and
+positive existing-file recording across all three modes. Focused existing-file
+suite: 4 passed; application/localization suite: 63 passed. Fresh full ladder:
+formatting, locked/offline workspace check, **181 tests / 15 suites**, all-target
+Clippy `-D warnings`, and diff whitespace checks pass. Existing-file cancellation
+and no-overwrite regressions remain green. This reproduces false success, not an
+actual source deletion: the separate deletion path already revalidates content.
+The preview wording has source/translation tests, not native visual verification.
+
+**Decision → ACCEPT**; code commit SHA will be recorded immediately after commit.
+
+## Stopping/remaining limits
+
+Not close to the stopping criteria: major native workflows, real-data-shape
+performance probes and high-risk candidates above remain. No physical camera
+transfers, compositor correctness or native IME/clipboard round-trips have been
+validated by the automated baseline. Each future iteration must refresh this
+ledger, record its own evidence/decision/commit, and continue with justified work.

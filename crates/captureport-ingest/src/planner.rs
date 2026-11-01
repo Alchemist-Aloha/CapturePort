@@ -24,6 +24,7 @@ pub struct PlanInput {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PlanStatus {
     Ready,
+    /// Size/edge-fingerprint candidate; execution must prove full content identity.
     ExistingIdentical,
     Skipped,
     DestinationCollision,

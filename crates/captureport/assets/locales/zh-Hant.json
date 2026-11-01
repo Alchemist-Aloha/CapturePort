@@ -26,7 +26,7 @@
   "Additional photo extensions (comma separated)": "附加照片副檔名（逗號分隔）",
   "Additional video extensions (comma separated)": "附加視訊副檔名（逗號分隔）",
   "All": "全部",
-  "Already present (identical)": "已經存在（相同）",
+  "Existing file · verify first": "已有檔案 · 須先驗證",
   "An unfinished import needs review": "未完成的匯入需要審核",
   "Appearance": "外觀",
   "Appearance: {0}": "外觀：{0}",

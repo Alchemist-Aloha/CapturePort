@@ -26,7 +26,7 @@
   "Additional photo extensions (comma separated)": "Zusätzliche Fotoerweiterungen (durch Kommas getrennt)",
   "Additional video extensions (comma separated)": "Zusätzliche Videoerweiterungen (durch Kommas getrennt)",
   "All": "Alle",
-  "Already present (identical)": "Bereits vorhanden (identisch)",
+  "Existing file · verify first": "Datei vorhanden · zuerst prüfen",
   "An unfinished import needs review": "Ein unvollendeter Import muss überprüft werden",
   "Appearance": "Darstellung",
   "Appearance: {0}": "Aussehen: {0}",

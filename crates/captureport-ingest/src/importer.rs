@@ -235,11 +235,8 @@ impl ImportEngine {
                             })
                         })
                         .and_then(|digest| {
-                            let mode = if plan.verification == VerificationMode::Fast {
-                                VerificationMode::Standard
-                            } else {
-                                plan.verification
-                            };
+                            // An edge sample cannot prove that pre-existing middle bytes match.
+                            let mode = VerificationMode::Strict;
                             report(
                                 ImportPhase::Verifying,
                                 0,
@@ -997,6 +994,70 @@ mod tests {
         );
     }
     #[test]
+    fn existing_quick_match_with_different_middle_is_never_recorded() {
+        struct CountingRecorder(usize);
+        impl ImportRecorder for CountingRecorder {
+            fn record_success(
+                &mut self,
+                _: &PlannedImport,
+                _: &PlannedCopy,
+                _: &CopyDigest,
+                _: VerificationMode,
+            ) -> Result<(), String> {
+                self.0 += 1;
+                Ok(())
+            }
+        }
+        let mut observed = Vec::new();
+        for mode in [
+            VerificationMode::Fast,
+            VerificationMode::Standard,
+            VerificationMode::Strict,
+        ] {
+            let source_dir = tempfile::tempdir().unwrap();
+            let destination_dir = tempfile::tempdir().unwrap();
+            let source_bytes = vec![0x5a; 1024 * 1024];
+            let mut destination_bytes = source_bytes.clone();
+            destination_bytes[512 * 1024] ^= 1;
+            fs::write(source_dir.path().join("same.JPG"), &source_bytes).unwrap();
+            fs::write(destination_dir.path().join("same.JPG"), &destination_bytes).unwrap();
+            assert_eq!(
+                crate::quick_path(&source_dir.path().join("same.JPG")).unwrap(),
+                crate::quick_path(&destination_dir.path().join("same.JPG")).unwrap()
+            );
+            let (source, mut plan) = prepared(source_dir.path(), destination_dir.path());
+            assert_eq!(plan.items[0].status, PlanStatus::ExistingIdentical);
+            plan.verification = mode;
+            let mut recorder = CountingRecorder(0);
+            let result = ImportEngine::execute(
+                &source,
+                &plan,
+                &CancellationToken::new(),
+                &mut recorder,
+                |_| {},
+            )
+            .unwrap();
+            observed.push((mode, result.items[0].copies[0].state, recorder.0));
+            assert_eq!(
+                fs::read(source_dir.path().join("same.JPG")).unwrap(),
+                source_bytes
+            );
+            assert_eq!(
+                fs::read(destination_dir.path().join("same.JPG")).unwrap(),
+                destination_bytes
+            );
+        }
+        assert_eq!(
+            observed,
+            [
+                (VerificationMode::Fast, ImportItemState::Failed, 0),
+                (VerificationMode::Standard, ImportItemState::Failed, 0),
+                (VerificationMode::Strict, ImportItemState::Failed, 0),
+            ]
+        );
+    }
+
+    #[test]
     fn existing_identical_is_reverified_and_recorded_without_overwrite() {
         let source_dir = tempfile::tempdir().unwrap();
         let destination_dir = tempfile::tempdir().unwrap();
@@ -1039,6 +1100,46 @@ mod tests {
             b"original"
         );
     }
+    #[test]
+    fn existing_identical_records_full_verification_in_every_copy_mode() {
+        struct Recorder(Vec<VerificationMode>);
+        impl ImportRecorder for Recorder {
+            fn record_success(
+                &mut self,
+                _: &PlannedImport,
+                _: &PlannedCopy,
+                _: &CopyDigest,
+                verification: VerificationMode,
+            ) -> Result<(), String> {
+                self.0.push(verification);
+                Ok(())
+            }
+        }
+        let source_dir = tempfile::tempdir().unwrap();
+        let destination_dir = tempfile::tempdir().unwrap();
+        fs::write(source_dir.path().join("same.JPG"), b"original").unwrap();
+        fs::write(destination_dir.path().join("same.JPG"), b"original").unwrap();
+        let (source, mut plan) = prepared(source_dir.path(), destination_dir.path());
+        let mut recorder = Recorder(Vec::new());
+        for mode in [
+            VerificationMode::Fast,
+            VerificationMode::Standard,
+            VerificationMode::Strict,
+        ] {
+            plan.verification = mode;
+            let result = ImportEngine::execute(
+                &source,
+                &plan,
+                &CancellationToken::new(),
+                &mut recorder,
+                |_| {},
+            )
+            .unwrap();
+            assert_eq!(result.items[0].copies[0].state, ImportItemState::Completed);
+        }
+        assert_eq!(recorder.0, vec![VerificationMode::Strict; 3]);
+    }
+
     #[test]
     fn cancellation_during_verification_keeps_originals_and_cleans_partials() {
         for existing in [false, true] {

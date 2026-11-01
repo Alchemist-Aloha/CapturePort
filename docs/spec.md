@@ -1186,6 +1186,15 @@ if different:
     raise collision
 ```
 
+A size/quick-fingerprint match at an existing destination is only a candidate.
+The preview labels it **Existing file · verify first**, not proven identical.
+Before recording it as successfully imported, execution must compare full
+source/destination BLAKE3 hashes, regardless of the selected copy-verification
+mode. Matching edge samples with different middle bytes must fail without
+recording success or modifying either file. Existing-file history records the
+actual Strict verification used. This exception does not change the Fast or
+Standard verification policy for newly copied files.
+
 Automatic destructive replacement should not be part of the default importer workflow.
 
 ---

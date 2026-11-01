@@ -26,7 +26,7 @@
   "Additional photo extensions (comma separated)": "추가 사진 확장(쉼표로 구분)",
   "Additional video extensions (comma separated)": "추가 동영상 확장자(쉼표로 구분)",
   "All": "모두",
-  "Already present (identical)": "이미 존재함(동일함)",
+  "Existing file · verify first": "기존 파일 · 먼저 검증 필요",
   "An unfinished import needs review": "완료되지 않은 가져오기에 검토가 필요함",
   "Appearance": "모양",
   "Appearance: {0}": "외관: {0}",

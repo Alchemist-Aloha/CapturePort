@@ -26,7 +26,7 @@
   "Additional photo extensions (comma separated)": "追加の写真拡張子 (カンマ区切り)",
   "Additional video extensions (comma separated)": "追加のビデオ拡張子 (カンマ区切り)",
   "All": "全て",
-  "Already present (identical)": "すでに存在します (同一)",
+  "Existing file · verify first": "既存ファイル · 先に検証",
   "An unfinished import needs review": "未完了のインポートはレビューが必要です",
   "Appearance": "外観",
   "Appearance: {0}": "外観：{0}",

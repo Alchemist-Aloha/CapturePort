@@ -180,7 +180,7 @@ fn plan_status_label(status: captureport_ingest::PlanStatus) -> &'static str {
     use captureport_ingest::PlanStatus;
     match status {
         PlanStatus::Ready => "Ready",
-        PlanStatus::ExistingIdentical => "Already present (identical)",
+        PlanStatus::ExistingIdentical => "Existing file · verify first",
         PlanStatus::Skipped => "Skipped",
         PlanStatus::DestinationCollision => "Destination collision",
         PlanStatus::InvalidPath => "Invalid path",
