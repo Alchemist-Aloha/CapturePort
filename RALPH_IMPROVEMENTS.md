@@ -91,7 +91,7 @@ to the stated states. Prior-session screenshots are historical evidence only.
 | History and session-detail inspection | catalog, browser/import + panels | S/T/G: list + row Enter expands details (focus ring visible) |
 | Recovery, resume, partial cleanup confirmation | ingest/recovery, browser/import + panels | S/T/G: injected interrupted session + partial, arm→Enter confirm; resume path and camera recovery pending |
 | Verified-original deletion confirmation/cancel/refusal | ingest/source_delete, tasks, browser/import | S/T; disposable fixture only; G pending |
-| Presets: create/load/rename/overwrite/delete | saved_presets, browser/settings + panels | S/T/G/db: create + restart persistence; rename/overwrite/delete pending |
+| Presets: create/load/rename/overwrite/delete | saved_presets, browser/settings + panels | S/T/G/db: create + rename by keyboard, restart persistence; overwrite/delete unproven |
 | Destinations, filename/folder templates and segment help | template_help, browser/panels, render | S/T/G: photo help expands/collapses by keyboard; token insertion/full form pending |
 | Media rules/folder exclusions, clock/timezone/session gap | browser/settings + panels, ingest/preset | S/T; DST/edge/G pending |
 | Backup, source alias, apply settings | browser/settings + panels | S/T; failure/persistence/G pending |
@@ -554,6 +554,35 @@ check, strict all-target Clippy and diff checks pass; release build passes.
 Committed as `692ac20` (dedupe, timestamp, reachable row) and `6607a00`
 (resume gating, focus handoff, catalogs). Camera interruption, resuming an
 actually reconnected source, and power-loss behaviour remain unverified.
+
+## Iteration 14 — preset actions return keyboard focus to the name field
+
+**Issue →** after **Create preset** succeeded, focus stayed on the button, so a
+second keyboard action was unpredictable: Shift+Tab landed on the photo-root
+field, not the preset-name field, and the rename attempt silently did nothing.
+The same applied to Rename, Overwrite and Delete, whose inline confirmations
+change the controls around the focused button.
+
+**Change →** `manage_preset` takes the window and focuses the preset-name field
+before dispatching any preset action. Five listeners updated. Focus now returns
+to a known place after every preset action, so the next Tab is deterministic.
+No behaviour, copy, persisted data or layout changed.
+
+**Native loop →** `/tmp/captureport-presets-e22de434409b42daad10012726b9c934/`
+(`results.json`, screenshots): 7 Tabs → Settings; 3 Tabs → name field; typed
+`alpha`; one Tab + Enter created it (DB `presets=alpha`, message `Created alpha.`).
+The field regained focus, so Ctrl+A + `beta` replaced the text; Tab,Tab + Enter
+renamed it (DB `presets=beta`, message `Renamed preset to beta.`).
+
+**Not proven →** Overwrite and Delete. After renaming, a bounded probe (Tab×4,
+Enter, Enter) never produced the inline confirmation, so neither is claimed
+keyboard-usable. Either the tab order past the field differs from the visual
+order or arming needs a different stop; that needs a focused-control readout
+rather than more guessed Tab counts.
+
+**Validation →** workspace **199 tests / 15 suites**, formatting, locked/offline
+check, strict all-target Clippy and diff checks pass; committed as `0c2c742`.
+Pressed keys only affected the isolated fixture; app stopped, focus restored.
 
 ## Iteration 13b — keyboard-reachable history rows and settings cyclers
 
