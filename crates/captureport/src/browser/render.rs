@@ -279,6 +279,7 @@ impl Render for Browser {
             .text_size(px(14.))
             .text_color(p.text)
             .track_focus(&self.focus_handle(cx))
+            .key_context(BROWSER_KEY_CONTEXT)
             .on_key_down(cx.listener(|t, event: &gpui::KeyDownEvent, window, cx| {
                 if t.gallery_edit_key.is_some()
                     && t.gallery_edit_input

@@ -430,6 +430,19 @@ impl Focusable for Browser {
 }
 include!("render.rs");
 
+const BROWSER_KEY_CONTEXT: &str = "CapturePort";
+
+fn app_key_bindings() -> [KeyBinding; 6] {
+    [
+        KeyBinding::new("ctrl-o", OpenFolder, Some("!CapturePortTextInput")),
+        KeyBinding::new("ctrl-d", OpenDemo, Some("!CapturePortTextInput")),
+        KeyBinding::new("ctrl-a", SelectAll, Some("!CapturePortTextInput")),
+        KeyBinding::new("ctrl-shift-a", SelectAllNew, Some("!CapturePortTextInput")),
+        KeyBinding::new("escape", SelectNone, None),
+        KeyBinding::new("ctrl-i", ImportSelected, Some("!CapturePortTextInput")),
+    ]
+}
+
 fn main() {
     logging::initialize().expect("could not initialize logging");
     let p = paths::AppPaths::resolve().expect("could not resolve XDG paths");
@@ -491,14 +504,7 @@ fn main() {
             ]) {
                 tracing::warn!(%error, "Could not load bundled fonts");
             }
-            cx.bind_keys([
-                KeyBinding::new("ctrl-o", OpenFolder, Some("!CapturePortTextInput")),
-                KeyBinding::new("ctrl-d", OpenDemo, Some("!CapturePortTextInput")),
-                KeyBinding::new("ctrl-a", SelectAll, Some("!CapturePortTextInput")),
-                KeyBinding::new("ctrl-shift-a", SelectAllNew, Some("!CapturePortTextInput")),
-                KeyBinding::new("escape", SelectNone, None),
-                KeyBinding::new("ctrl-i", ImportSelected, Some("!CapturePortTextInput")),
-            ]);
+            cx.bind_keys(app_key_bindings());
             text_input::init(cx);
             let bounds = Bounds::centered(None, size(px(1180.), px(760.)), cx);
             cx.open_window(
@@ -627,6 +633,19 @@ mod integration_tests {
         assert!(!index.has_pair(MediaId(1)));
         assert!(index.has_pair(MediaId(7)));
     }
+    #[test]
+    fn guarded_shortcuts_need_browser_context_and_exclude_nested_text_fields() {
+        let browser = gpui::KeyContext::parse(BROWSER_KEY_CONTEXT).unwrap();
+        let input = gpui::KeyContext::parse("CapturePortTextInput").unwrap();
+        for binding in app_key_bindings() {
+            if let Some(predicate) = binding.predicate() {
+                assert_eq!(predicate.depth_of(&[]), None);
+                assert_eq!(predicate.depth_of(std::slice::from_ref(&browser)), Some(1));
+                assert_eq!(predicate.depth_of(&[browser.clone(), input.clone()]), None);
+            }
+        }
+    }
+
     /// Guards the demo fixtures' whole purpose: they must be able to fill the
     /// browser grid. A fixture whose preview cannot be decoded makes every demo
     /// state render as an empty grid, which is how this test came to exist.

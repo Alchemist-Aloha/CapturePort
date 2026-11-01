@@ -72,18 +72,18 @@ verification below reruns the complete ladder and includes those existing tests.
 ## UI/workflow inventory and coverage
 
 This is an inventory of implemented surfaces, **not** a claim of exhaustive
-runtime coverage. `S` = initial source/spec inventory; `T` = existing related
-logic tests; `G` = actual GUI exercised in this loop. No `G` coverage yet.
-Prior-session synthetic screenshots are historical evidence only.
+runtime coverage. `S` = source/spec inventory; `T` = related logic tests;
+`G` = actual GUI exercised in this loop. Partial `G` coverage below is limited
+to the stated states. Prior-session screenshots are historical evidence only.
 
 | Surface / workflow | Principal implementation | Coverage / next check |
 |---|---|---|
-| Fresh launch, source-empty/loading/error states | main, browser/render + views | S/T; G pending |
-| Sources, refresh, mount, disconnect/reconnect | devices, browser/sources, gphoto/discovery | S/T; G pending; physical camera separate |
-| Grid/filter/sort/selection and gallery grouping/rename | browser/views + gallery + session | S/T; G and large-source latency pending |
+| Fresh launch, source-empty/loading/error states | main, browser/render + views | S/T/G: fresh empty light/dark; demo loading/ready; errors pending |
+| Sources, refresh, mount, disconnect/reconnect | devices, browser/sources, gphoto/discovery | S/T/G: folder picker opens/cancels; selection automation blocked; camera separate |
+| Grid/filter/sort/selection and gallery grouping/rename | browser/views + gallery + session | S/T/G: populated demo grid at 1180×900 / 720×640; interactions/latency pending |
 | RAW+JPEG bundles and member selection | ingest/bundle, browser/bundles + views | S/T; G pending |
 | Details popup, original URL copy, dismissal/focus | browser/detail | S/T; G pending |
-| Image/video previews, unavailable fallback, progress strip | metadata/thumbnail, browser/thumbnails + render | S/T; real decode + G pending |
+| Image/video previews, unavailable fallback, progress strip | metadata/thumbnail, browser/thumbnails + render | S/T/G: synthetic preview decode + progress; real mixed decode/fallback G pending |
 | Plan preview, collisions, backup paths, confirmation | ingest/planner, browser/import + panels | S/T; G pending |
 | Import phases, cancel, outcomes | ingest/importer, tasks, browser/render | S/T; real isolated normal/re-import/cancel/error G pending |
 | History and session-detail inspection | catalog, browser/import + panels | S/T; G pending |
@@ -93,9 +93,9 @@ Prior-session synthetic screenshots are historical evidence only.
 | Destinations, filename/folder templates and segment help | template_help, browser/panels, render | S/T; G pending |
 | Media rules/folder exclusions, clock/timezone/session gap | browser/settings + panels, ingest/preset | S/T; DST/edge/G pending |
 | Backup, source alias, apply settings | browser/settings + panels | S/T; failure/persistence/G pending |
-| Theme/language/thumbnail size and maintenance actions | i18n, browser/settings + panels | S/T; light/dark/compact/G pending |
+| Theme/language/thumbnail size and maintenance actions | i18n, browser/settings + panels | S/T/G: light/dark + restart persistence + compact; other actions pending |
 | All 18 text fields, edit menu, keyboard/focus/scroll | text_edit, text_input, widgets | S/T; G pending; native IME/clipboard limits explicit |
-| All shared controls/tooltips/disabled/hover/focus states | widgets, render, browser modules | S; systematic G pending |
+| All shared controls/tooltips/disabled/hover/focus states | widgets, render, browser modules | S/G: Tab/Enter Settings navigation; theme focus-loss confirmed; full sweep pending |
 
 ## Ranked evolving backlog
 
@@ -124,7 +124,15 @@ Prior-session synthetic screenshots are historical evidence only.
 8. **Medium / investigate:** startup/idle CPU and the 16 ms drain, UI blocking I/O,
    keyboard/grid navigation, resize, settings feedback and unsafe re-entrancy.
    `docs/todo.md` contains an older critique: verify, do not assume still current.
-9. **Measurement gap:** correct quick-hash byte accounting, add realistic
+9. **High / native confirmed:** Ctrl+D in a normal run writes demo media into
+   the ordinary disk catalog (isolated test observed 7,500 media / one Fake source).
+   CLI `--demo` isolation does not cover this action. Fix before more demo-driven
+   workflows; no production catalog was used in the reproduction.
+10. **High / native confirmed:** keyboard navigation stops after activating the
+   theme button. Fresh Tab×7/Enter opens Settings; after Tab/Enter theme toggle,
+   the same sequence and shortcuts stop responding, even with the root-context
+   fix. Investigate the label-dependent control ID / removed focus target.
+11. **Measurement gap:** correct quick-hash byte accounting, add realistic
    filesystem/decode/import/duplicate-heavy/fault baselines without claiming
    synthetic placeholder or 1 TB metadata tests cover those workloads.
 
@@ -279,12 +287,65 @@ serial cannot promise reconnect identity. Repeated-serial setups may change keys
 as peers appear/disappear; preserving separation takes precedence over merging.
 Physical-camera discovery/transfer and UI continuity remain runtime checks.
 
-**Decision → ACCEPT**; code commit SHA will be recorded immediately after commit.
+**Decision → ACCEPT**; committed as **`3abcf75`**
+(`fix: preserve serial-backed camera identity across reconnects`).
 
 **Broad-review checkpoint →** four logical iterations covered different identity
 and filesystem safety failures, but no fresh native `G` coverage exists. Next
 iteration must move to an isolated native workflow/UI sweep and collect actual
 startup/idle/workflow evidence rather than continuing only backend fixes.
+
+## Iteration 5 — first native sweep; restore guarded app shortcuts
+
+**Native setup →** rebuilt release binary; normal (not CLI demo) app with isolated
+HOME/config/data/cache and generated JPEG/RAW-placeholder/video under
+`/tmp/captureport-native-b8153740229241a69d738f54ba190f13`. Helper:
+`/tmp/captureport-native-check.py`. Hyprland-targeted keys; no clipboard use.
+All test processes/dialogs were stopped and original window focus restored.
+Portal recents belong to the desktop service, not the isolated app; those local
+screenshots are not committed or treated as isolated application data.
+
+**Issue / before →** Ctrl+D and Ctrl+O do nothing in a fresh window, while
+Tab×7/Enter reaches Settings. GPUI 0.2.2 evaluates guarded keybindings only when a
+key context exists; the root had none, so `!CapturePortTextInput` matched nothing.
+
+**Change / after →** give the Browser root a stable key context; extract the
+existing shortcut table so a unit test checks the actual five guarded bindings
+against empty, browser and nested text-input contexts. Native confirmation:
+Ctrl+D now loads the large demo; Ctrl+O opens the folder picker, and Escape
+cancels it. Text-field exclusion is unit-verified, **not** native field coverage.
+No layout, palette, copy or shortcut semantics were redesigned.
+
+**Actual visual/workflow coverage →** fresh empty light/dark, Settings navigation,
+theme restart persistence, synthetic loading/progress/ready grid and compact
+720×640 reflow. Photographs remain contained and selection/status labels remain
+legible. Native folder selection could not be completed with bounded targeted
+keyboard attempts; it was canceled, not counted as a successful filesystem
+import. History/recovery/detail/preset/real-import/cancel/IME workflows remain.
+No whole-app health score or screen-reader conformance is inferred from this
+partial Linux check; mobile guideline scores do not apply to this desktop app.
+
+**Measurements →** first compositor-window registration **0.529 s**, warm restart
+before change **0.220 s**, after **0.283 / 0.288 s**. These include control IPC and
+are **not first-frame timings or a supported performance comparison**. One 3 s
+fresh empty idle sample: **3.67% of one CPU**, RSS 258,036→264,284 KiB, peak
+269,240 KiB, 35 threads; exploratory n=1, no variance or optimization claim.
+Raw measurements: `native-metrics.json` in the fixture directory.
+
+**New ranked findings →** normal Ctrl+D left 7,500 synthetic media rows in the
+isolated persistent catalog, unlike CLI `--demo`; this must not affect production.
+Separately, theme activation loses keyboard focus (reproduced before and after
+the context fix). The attempted native text-field guard check never reached an
+input because of that focus loss; it is not a pass. Both are next high-priority
+fixes. No source fixture was imported; destination stayed empty, with zero import
+sessions. Source fixture hashes were recorded for identification, not claimed as
+a before/after integrity comparison.
+
+**Validation / decision → ACCEPT** guarded-shortcut fix: new predicate regression,
+full workspace **191 tests / 15 suites**, format/check/strict Clippy/diff checks,
+and fresh release build pass; native shortcut positive path verified. Commit SHA
+will be recorded immediately after commit. The native coverage checklist remains
+open; finding blockers is not the same as completing its workflows.
 
 ## Stopping/remaining limits
 
