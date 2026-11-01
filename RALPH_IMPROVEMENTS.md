@@ -89,7 +89,7 @@ to the stated states. Prior-session screenshots are historical evidence only.
 | Plan preview, collisions, backup paths, confirmation | ingest/planner, browser/import + panels | S/T/G: exact paths, first/re-import confirmation, late collision; backup UI pending |
 | Import phases, cancel, outcomes | ingest/importer, tasks, browser/render | S/T/G: actual filesystem import/re-import/cancel/late-error; camera phases separate |
 | History and session-detail inspection | catalog, browser/import + panels | S/T/G: list + persisted row OCR-verified; session-detail click pending |
-| Recovery, resume, partial cleanup confirmation | ingest/recovery, browser/import + panels | S/T/G: empty state only; populated/injected faults pending |
+| Recovery, resume, partial cleanup confirmation | ingest/recovery, browser/import + panels | S/T/G: injected interrupted session + partial, arm→Enter confirm; resume path and camera recovery pending |
 | Verified-original deletion confirmation/cancel/refusal | ingest/source_delete, tasks, browser/import | S/T; disposable fixture only; G pending |
 | Presets: create/load/rename/overwrite/delete | saved_presets, browser/settings + panels | S/T/G/db: create + restart persistence; rename/overwrite/delete pending |
 | Destinations, filename/folder templates and segment help | template_help, browser/panels, render | S/T/G: photo help expands/collapses by keyboard; token insertion/full form pending |
@@ -479,6 +479,50 @@ and remaining UI surfaces are not covered. No performance gain claimed.
 Next: zero-success deletion affordance/outcome clarity, then history/recovery/
 details/preset coverage and the still-uninvestigated measured performance paths.
 
+## Iteration 13 — populated recovery: duplicate partials, hidden controls, dead resume
+
+**Fixture →** after a real import, the app is stopped and the disposable catalog
+receives an `in_progress` session; one owned
+`.captureport-a.JPG.<uuid>.partial` is planted in the destination. Nothing outside
+that fixture directory is touched. Photo and video roots are the same folder on
+purpose — a common single-library setup.
+
+**Defects found natively →**
+1. The same partial was listed **twice** with `2 incomplete file(s)` for one file:
+   `inspect_partials` walked the photo root and the identical video root.
+2. The interrupted-session row still printed `2026-11-01T10:00:00+00:00`.
+3. With a long path, the row's path text took the whole width and pushed
+   **Keep file / Confirm delete** out of the window — the destructive confirmation
+   was invisible, while the status bar asked the user to confirm it.
+4. `Review remaining files` was offered with no source connected; pressing it
+   could only produce “Reconnect the source…”.
+
+**Change →** `inspect_partials` canonicalises and remembers visited directories so
+overlapping or repeated roots cannot duplicate entries (unit test with repeated
+and nested roots); the recovery row reuses `format_session_time`; the path cell
+is a truncating `flex_1 min_w_0` column so the buttons keep their space; the resume
+button appears only when the interrupted session belongs to the connected,
+scanned source, otherwise the row explains why. Requesting recovery without that
+precondition now uses a translated message. Ten catalogs updated.
+
+**Keyboard →** arming a partial now moves focus to **Confirm delete**
+(`danger_button_with_focus`), so a second Enter confirms instead of losing the
+position when the arming button is replaced; confirming returns focus to the
+browser root. No engine or catalog-schema change.
+
+**Native result →** `/tmp/captureport-recovery-4a17d3f3ea34a2690b2188686276043/`:
+OCR asserts `1 unfinished session(s) · 1 incomplete file(s)`, the session started
+`2026-11-01 05:00`, the partial listed once, the explanation instead of a dead
+button, and visible Keep/Confirm. A single Enter removed the partial; afterwards
+`0 incomplete file(s)`, the removal message is shown, the imported `a.JPG` is
+byte-identical, no partial remains and both sessions are still recorded.
+
+**Validation →** workspace **199 tests / 15 suites**, formatting, locked/offline
+check, strict all-target Clippy and diff checks pass; release build passes.
+Committed as `692ac20` (dedupe, timestamp, reachable row) and `6607a00`
+(resume gating, focus handoff, catalogs). Camera interruption, resuming an
+actually reconnected source, and power-loss behaviour remain unverified.
+
 ## Iteration 12 — history/recovery/settings natively; readable session rows
 
 **Scope →** extend the private-broker native harness to the pages that had no
@@ -522,7 +566,8 @@ populated recovery (needs injected incomplete session/partial fixture), the medi
 details popup, and inline template-token keyboard access. Physical camera, real
 RAW decode, genuine GTK selection and power-loss recovery remain limits.
 
-**Decision → ACCEPT**; code commit SHA recorded after commit.
+**Decision → ACCEPT**; committed as **`e9db3e8`**
+(`fix: show session history times, counts and status in human form`).
 
 ## Iteration 11 — idle-CPU hypothesis tested and rejected
 
