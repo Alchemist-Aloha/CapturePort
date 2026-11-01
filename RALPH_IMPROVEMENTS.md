@@ -97,7 +97,7 @@ to the stated states. Prior-session screenshots are historical evidence only.
 | Backup, source alias, apply settings | browser/settings + panels | S/T; failure/persistence/G pending |
 | Theme/language/thumbnail size and maintenance actions | i18n, browser/settings + panels | S/T/G: light/dark + restart persistence + compact; other actions pending |
 | All 18 text fields, edit menu, keyboard/focus/scroll | text_edit, text_input, widgets | S/T/G: preset-name typing + Ctrl+D guard; other fields/menu/IME/clipboard pending |
-| All shared controls/tooltips/disabled/hover/focus states | widgets, render, browser modules | S/G: theme/refresh/help/history-row/partial-confirm; settings cyclers fixed in source but **not** natively reached; remaining click-only rows pending |
+| All shared controls/tooltips/disabled/hover/focus states | widgets, render, browser modules | S/T/G: theme/refresh/help/history-row/partial-confirm; PageUp/PageDown unit-tested only (native key injection blocked); settings cyclers not natively reached; remaining click-only rows pending |
 
 ## Ranked evolving backlog
 
@@ -554,6 +554,34 @@ check, strict all-target Clippy and diff checks pass; release build passes.
 Committed as `692ac20` (dedupe, timestamp, reachable row) and `6607a00`
 (resume gating, focus handoff, catalogs). Camera interruption, resuming an
 actually reconnected source, and power-loss behaviour remain unverified.
+
+## Iteration 15 — keyboard paging for long pages
+
+**Gap →** Settings is a single tall column; tabbing to a control below the fold
+leaves the focus ring off-screen, and GPUI 0.2 only scrolls when the app calls
+`ScrollHandle::scroll_to_item`, so nothing brought it back. Keyboard users had no
+way to scroll at all: the compositor wheel and pointer are the only scrollers.
+
+**Change →** PageUp/PageDown actions (guarded by `!CapturePortTextInput`) move the
+current long page — Settings, History, Recovery — by 80% of the viewport, clamped
+to the scrollable range by a small tested helper. Browser/Preview grids keep
+their own scrolling. Spec updated. No layout or color change.
+
+**Validation →** unit test covers down/up, clamping at both ends, a zero maximum
+offset and a zero step: **200 tests / 15 suites**, formatting, locked/offline
+check, strict all-target Clippy, release build.
+
+**Not proven natively →** injecting Page Down through the compositor did not
+reach the app. `hl.dsp.send_shortcut` accepted `Page_Down`/`PageDown`/`Next`
+without error but the page did not move, and my probe captured the wrong window
+(grim region from a stale client lookup), so no native claim is made. This
+continues the earlier finding that guessed key names/stops are unreliable; a
+honest native check needs the app to expose focus/scroll state or a corrected
+key-injection path.
+
+**Decision → ACCEPT** the unit-tested paging behaviour; **REJECT** any claim that
+it resolves the off-screen-focus problem until it is verified in a real window.
+Committed as `53f230e`.
 
 ## Iteration 14 — preset actions return keyboard focus to the name field
 
