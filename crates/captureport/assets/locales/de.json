@@ -1,4 +1,7 @@
 {
+  "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification": "Import abgebrochen · {0} verifiziert · {1} fehlgeschlagen · Preset {2} · Prüfung {3}",
+  "Review the verified copies below.": "Prüfen Sie die verifizierten Kopien unten.",
+  "Import finished · {0} verified · {1} failed · {2} preset · {3} verification": "Import abgeschlossen · {0} verifiziert · {1} fehlgeschlagen · Preset {2} · Prüfung {3}",
   "Could not open demo window: {0}. Restart CapturePort and try again.": "Das Demofenster konnte nicht geöffnet werden: {0}. Starten Sie CapturePort neu und versuchen Sie es erneut.",
   "Undo": "Rückgängig",
   "Redo": "Wiederholen",

@@ -1,4 +1,7 @@
 {
+  "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification": "インポート中止 · 検証済み {0} · 失敗 {1} · プリセット {2} · 検証 {3}",
+  "Review the verified copies below.": "以下で検証済みのコピーを確認してください。",
+  "Import finished · {0} verified · {1} failed · {2} preset · {3} verification": "インポート完了 · 検証済み {0} · 失敗 {1} · プリセット {2} · 検証 {3}",
   "Could not open demo window: {0}. Restart CapturePort and try again.": "デモウィンドウを開けませんでした：{0}。CapturePort を再起動して、もう一度お試しください。",
   "Undo": "元に戻す",
   "Redo": "やり直す",

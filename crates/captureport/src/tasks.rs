@@ -558,26 +558,17 @@ pub(crate) fn deletable_sources<'a>(
     result: &captureport_ingest::ImportResult,
     all_destinations: bool,
 ) -> Vec<&'a PlannedImport> {
+    let mut observed = HashMap::with_capacity(result.items.len());
+    for item in &result.items {
+        observed.entry(item.media_id).or_insert(item);
+    }
     plan.items
         .iter()
         .filter(|planned| {
-            result
-                .items
-                .iter()
-                .find(|item| item.media_id == planned.media_id)
-                .is_some_and(|item| {
-                    planned
-                        .copies
-                        .iter()
-                        .filter(|copy| all_destinations || copy.required)
-                        .all(|planned_copy| {
-                            item.copies.iter().any(|actual| {
-                                actual.destination == planned_copy.final_destination
-                                    && actual.state
-                                        == captureport_ingest::ImportItemState::Completed
-                            })
-                        })
-                })
+            observed.get(&planned.media_id).is_some_and(|actual| {
+                captureport_ingest::verified_copy_requirements(planned, actual, all_destinations)
+                    .is_ok()
+            })
         })
         .collect()
 }

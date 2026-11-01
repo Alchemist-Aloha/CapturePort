@@ -1344,6 +1344,13 @@ Deleting media from a camera/card is a high-risk operation and should not be par
 It should be a separate optional operation.
 
 Deletion should only be offered for media whose required copies have been successfully verified.
+When no source item meets that policy, omit both deletion entry and confirmation
+controls and reject attempts to arm deletion. Once an import returns, the preview
+header reports verified/failed copy counts instead of describing planned copies
+as still waiting to copy; per-row text continues to describe the immutable plan. Preview, confirmation scope, import
+status and backend deletion share the exact planned-destination completion check.
+A plan without a required destination is never verification evidence; empty or
+optional-only requirements must not qualify through a vacuous all-copies check.
 
 Possible requirement:
 

@@ -42,6 +42,6 @@ pub use reconcile::{
 pub use recovery::{PartialFile, RecoveryReport, cleanup_partial, inspect_partials};
 pub use source_delete::{
     DeletionFailure, DeletionOptions, DeletionRefusal, DeletionReport, SourceRemover,
-    delete_verified_sources, deletion_refusal,
+    delete_verified_sources, deletion_refusal, verified_copy_requirements,
 };
 pub use template::{TEMPLATE_TOKENS, Template, TemplateContext, TemplateError, TemplateTokenHelp};

@@ -1,4 +1,7 @@
 {
+  "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification": "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification",
+  "Review the verified copies below.": "Review the verified copies below.",
+  "Import finished · {0} verified · {1} failed · {2} preset · {3} verification": "Import finished · {0} verified · {1} failed · {2} preset · {3} verification",
   "Could not open demo window: {0}. Restart CapturePort and try again.": "Could not open demo window: {0}. Restart CapturePort and try again.",
   "Undo": "Undo",
   "Redo": "Redo",

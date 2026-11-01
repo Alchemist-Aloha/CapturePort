@@ -1432,6 +1432,8 @@ mod integration_tests {
                 planned(1, vec![copy(1, 0, true)]),
                 planned(2, vec![copy(2, 0, true), copy(2, 1, false)]),
                 planned(3, vec![copy(3, 0, true)]),
+                planned(4, vec![]),
+                planned(5, vec![copy(5, 0, false)]),
             ],
         };
         let result = ImportResult {
@@ -1442,6 +1444,8 @@ mod integration_tests {
                 observed(2, ImportItemState::Completed, ImportItemState::Failed),
                 // A failed required copy must block it.
                 observed(3, ImportItemState::Failed, ImportItemState::Completed),
+                observed(4, ImportItemState::Completed, ImportItemState::Completed),
+                observed(5, ImportItemState::Completed, ImportItemState::Completed),
             ],
         };
 
@@ -1452,5 +1456,57 @@ mod integration_tests {
             deletable.iter().map(|item| item.expected_size).sum::<u64>(),
             2048
         );
+        assert_eq!(
+            deletable_sources(&plan, &result, true)
+                .iter()
+                .map(|item| item.media_id)
+                .collect::<Vec<_>>(),
+            vec![MediaId(1)]
+        );
+        for state in [ImportItemState::Failed, ImportItemState::Cancelled] {
+            let mut unavailable = result.clone();
+            for item in &mut unavailable.items {
+                for copy in &mut item.copies {
+                    copy.state = state;
+                }
+            }
+            assert!(deletable_sources(&plan, &unavailable, true).is_empty());
+        }
+        assert!(deletable_sources(&plan, &ImportResult::default(), true).is_empty());
+        let mut duplicate = result.clone();
+        duplicate.items.insert(
+            0,
+            observed(1, ImportItemState::Failed, ImportItemState::Completed),
+        );
+        assert!(
+            !deletable_sources(&plan, &duplicate, true)
+                .iter()
+                .any(|item| item.media_id == MediaId(1))
+        );
+        let large = ImportPlan {
+            items: (1..=1000)
+                .map(|id| planned(id, vec![copy(id, 0, true)]))
+                .collect(),
+            ..plan.clone()
+        };
+        let large_result = ImportResult {
+            items: (1..=1000)
+                .rev()
+                .map(|id| observed(id, ImportItemState::Completed, ImportItemState::Completed))
+                .collect(),
+            cancelled: false,
+        };
+        assert_eq!(
+            std::hint::black_box(deletable_sources(&large, &large_result, true)).len(),
+            1000
+        );
+        let mut samples = Vec::new();
+        for _ in 0..5 {
+            let start = std::time::Instant::now();
+            let eligible = std::hint::black_box(deletable_sources(&large, &large_result, true));
+            samples.push(start.elapsed().as_micros());
+            assert_eq!(eligible.len(), 1000);
+        }
+        eprintln!("deletion scope / 1000 files / five samples (us): {samples:?}");
     }
 }

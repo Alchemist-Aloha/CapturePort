@@ -5,7 +5,7 @@
 //! implement [`SourceRemover`] itself.  This keeps the common import path
 //! read-only with respect to cameras and removable media.
 
-use crate::{ImportItemState, ImportResult, PlannedImport};
+use crate::{ImportItemState, ImportResult, ItemResult, PlannedImport};
 use captureport_core::{MediaId, MediaLocator};
 use std::fmt;
 
@@ -91,7 +91,22 @@ pub fn deletion_refusal(
         .iter()
         .find(|candidate| candidate.media_id == item.media_id)
         .ok_or(DeletionRefusal::MissingImportResult)?;
+    verified_copy_requirements(item, item_result, options.require_all_destinations)
+}
 
+/// Shared completion policy for import status and source-deletion eligibility.
+/// A verified required destination must exist; an empty requirement is not proof.
+pub fn verified_copy_requirements(
+    item: &PlannedImport,
+    item_result: &ItemResult,
+    all_destinations: bool,
+) -> Result<(), DeletionRefusal> {
+    if item.media_id != item_result.media_id {
+        return Err(DeletionRefusal::MissingImportResult);
+    }
+    if !item.copies.iter().any(|copy| copy.required) {
+        return Err(DeletionRefusal::RequiredCopyNotVerified);
+    }
     for planned in &item.copies {
         let Some(copy) = item_result
             .copies
@@ -101,7 +116,7 @@ pub fn deletion_refusal(
             if planned.required {
                 return Err(DeletionRefusal::RequiredCopyNotVerified);
             }
-            if options.require_all_destinations {
+            if all_destinations {
                 return Err(DeletionRefusal::BackupCopyNotVerified);
             }
             continue;
@@ -111,7 +126,7 @@ pub fn deletion_refusal(
             if planned.required {
                 return Err(DeletionRefusal::RequiredCopyNotVerified);
             }
-            if options.require_all_destinations {
+            if all_destinations {
                 return Err(DeletionRefusal::BackupCopyNotVerified);
             }
         }
@@ -242,6 +257,29 @@ mod tests {
         assert_eq!(report.deleted, vec![MediaId(1)]);
         assert!(report.refused.is_empty());
         assert_eq!(remover.removed.len(), 1);
+    }
+
+    #[test]
+    fn a_plan_without_a_required_copy_never_allows_source_deletion() {
+        for copies in [vec![], vec![(false, "/backup/one.jpg")]] {
+            let selected = item(1, copies);
+            let imported = result(1, &[("/backup/one.jpg", ImportItemState::Completed)]);
+            let mut remover = FakeRemover::default();
+            let report = delete_verified_sources(&mut remover, &[selected], &imported, options());
+            assert!(report.deleted.is_empty());
+            assert!(remover.removed.is_empty());
+            assert_eq!(report.refused.len(), 1);
+        }
+    }
+
+    #[test]
+    fn verified_copy_requirements_reject_mismatched_media() {
+        let selected = item(1, vec![(true, "/library/one.jpg")]);
+        let unrelated = result(2, &[("/library/one.jpg", ImportItemState::Completed)]);
+        assert_eq!(
+            verified_copy_requirements(&selected, &unrelated.items[0], true),
+            Err(DeletionRefusal::MissingImportResult)
+        );
     }
 
     #[test]

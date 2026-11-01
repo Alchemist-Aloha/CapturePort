@@ -1,4 +1,7 @@
 {
+  "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification": "가져오기 취소됨 · 검증됨 {0} · 실패 {1} · 프리셋 {2} · 검증 {3}",
+  "Review the verified copies below.": "아래에서 검증된 사본을 확인하세요.",
+  "Import finished · {0} verified · {1} failed · {2} preset · {3} verification": "가져오기 완료 · 검증됨 {0} · 실패 {1} · 프리셋 {2} · 검증 {3}",
   "Could not open demo window: {0}. Restart CapturePort and try again.": "데모 창을 열 수 없습니다: {0}. CapturePort를 다시 시작한 후 다시 시도하세요.",
   "Undo": "실행 취소",
   "Redo": "다시 실행",

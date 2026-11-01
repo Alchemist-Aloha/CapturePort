@@ -10,6 +10,10 @@ impl Browser {
                 .child(i18n::tr("No preview yet"))
                 .into_any_element();
         };
+        let deletion_scope = self
+            .filesystem_root
+            .as_ref()
+            .and_then(|_| self.deletion_scope());
         let count = plan.items.len();
         let groups = group_plan_items(&plan.items);
         let blocked = plan
@@ -33,9 +37,28 @@ impl Browser {
                         .child(i18n::format("Review import · {0} files", &[format!("{}", count)])))
                     .child(button(Icon::Back, "Back to media", p,  cx.listener(|t, _, _, c| { t.page = Page::Browser; c.notify() }))))
                 .child(div().text_sm().text_color(p.muted)
-                    .child(if blocked > 0 { i18n::format("{0} blocked · Review the affected paths below", &[format!("{}", blocked)]) } else { i18n::tr("Check each final destination before copying.") })))
+                    .child(match (&self.last_import_result, blocked) {
+                        (Some(_), _) => i18n::tr("Review the verified copies below."),
+                        (None, 0) => i18n::tr("Check each final destination before copying."),
+                        (None, _) => i18n::format("{0} blocked · Review the affected paths below", &[format!("{}", blocked)]),
+                    })))
             .child(div().px(px(spacing::CONTENT)).py(px(spacing::CONTENT)).flex().flex_wrap().items_center().justify_between().gap(px(spacing::CONTENT)).border_b_1().border_color(p.border).bg(p.panel)
-                .child(div().text_sm().child(i18n::format("{0} to copy · {1} skipped · {2} blocked · {3} preset · {4} verification", &[format!("{}", count.saturating_sub(blocked + skipped)), format!("{}", skipped), format!("{}", blocked), plan.preset_name.to_string(), i18n::tr(&format!("{:?}", plan.verification))])))
+                .child(div().text_sm().child(match &self.last_import_result {
+                    // After an import, counting planned copies as "to copy" misstates the outcome.
+                    Some(result) => {
+                        let copies = result.items.iter().flat_map(|item| &item.copies);
+                        let verified = copies.clone().filter(|copy| copy.state == captureport_ingest::ImportItemState::Completed).count();
+                        let failed = copies.filter(|copy| copy.state == captureport_ingest::ImportItemState::Failed).count();
+                        let counts = [format!("{}", verified), format!("{}", failed), plan.preset_name.to_string(), i18n::tr(&format!("{:?}", plan.verification))];
+                        // A cancellation has its own footer wording; do not report it as a failure.
+                        i18n::format(if result.cancelled {
+                            "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification"
+                        } else {
+                            "Import finished · {0} verified · {1} failed · {2} preset · {3} verification"
+                        }, &counts)
+                    }
+                    None => i18n::format("{0} to copy · {1} skipped · {2} blocked · {3} preset · {4} verification", &[format!("{}", count.saturating_sub(blocked + skipped)), format!("{}", skipped), format!("{}", blocked), plan.preset_name.to_string(), i18n::tr(&format!("{:?}", plan.verification))]),
+                }))
                 .child(if blocked == 0 && count > 0 && !self.importing && self.last_import_result.is_none() {
                     primary_button(Icon::Import, "Confirm import", p,
                         cx.listener(|t, _, w, c| t.import_selected(&ImportSelected, w, c)))
@@ -47,7 +70,7 @@ impl Browser {
                         .into_any_element()
                 } else { div().hidden().into_any_element() }))
             .child(
-                if self.last_import_result.is_some() && self.filesystem_root.is_some() {
+                if let Some(scope) = &deletion_scope {
                     if self.deletion_armed {
                         // State the scope before acting: this is the only
                         // irreversible action in the product.
@@ -71,9 +94,7 @@ impl Browser {
                                         div()
                                             .text_sm()
                                             .font_weight(gpui::FontWeight::SEMIBOLD)
-                                            .child(self.deletion_scope().unwrap_or_else(|| {
-                                                i18n::tr("Delete verified originals from this source")
-                                            })),
+                                            .child(scope.clone()),
                                     )
                                     .child(div().text_xs().text_color(p.muted).child(i18n::tr("This cannot be undone. Only files whose required copies verified are removed."))),
                             )

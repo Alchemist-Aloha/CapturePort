@@ -1,4 +1,7 @@
 {
+  "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification": "导入已取消 · 已验证 {0} 个 · 失败 {1} 个 · {2} 预设 · {3} 校验",
+  "Review the verified copies below.": "请查看下方已验证的副本。",
+  "Import finished · {0} verified · {1} failed · {2} preset · {3} verification": "导入完成 · 已验证 {0} 个 · 失败 {1} 个 · {2} 预设 · {3} 校验",
   "Could not open demo window: {0}. Restart CapturePort and try again.": "无法打开演示窗口：{0}。请重启 CapturePort 后重试。",
   "Undo": "撤销",
   "Redo": "重做",

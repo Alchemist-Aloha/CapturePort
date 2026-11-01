@@ -199,15 +199,12 @@ impl Browser {
     /// The sources a confirmed deletion would actually remove: every required
     /// copy reached its exact planned destination. Shared by the confirmation
     /// text and the importer so the stated scope cannot drift from the scope.
-    pub(crate) fn arm_delete_sources(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn arm_delete_sources(&mut self, scope: String, cx: &mut Context<Self>) {
         self.deletion_armed = true;
-        self.message = Some(match self.deletion_scope() {
-            Some(scope) => i18n::format(
-                "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed",
-                std::slice::from_ref(&scope),
-            ),
-            None => i18n::tr("Review the verified copies, then confirm source deletion separately"),
-        });
+        self.message = Some(i18n::format(
+            "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed",
+            &[scope],
+        ));
         cx.notify();
     }
     pub(crate) fn cancel_delete_sources(&mut self, cx: &mut Context<Self>) {
@@ -245,8 +242,20 @@ impl Browser {
         ))
     }
     pub(crate) fn delete_sources(&mut self, cx: &mut Context<Self>) {
+        let Some(scope) = self
+            .filesystem_root
+            .as_ref()
+            .and_then(|_| self.deletion_scope())
+        else {
+            self.deletion_armed = false;
+            self.message = Some(i18n::tr(
+                "A verified filesystem import is required before deleting originals",
+            ));
+            cx.notify();
+            return;
+        };
         if !self.deletion_armed {
-            self.arm_delete_sources(cx);
+            self.arm_delete_sources(scope, cx);
             return;
         }
         let (Some(root), Some(plan), Some(result)) = (

@@ -133,10 +133,10 @@ to the stated states. Prior-session screenshots are historical evidence only.
     discard focus. Native theme/refresh/template-help and input shortcut guard
     pass. Remaining audit: focus handoff when a control is actually removed,
     and keyboard reachability of inline template token controls.
-11. **Native confirmed UI follow-up:** post-import preview still says Ready / to
-    copy, and offers Delete verified originals after zero-success cancellation
-    or collision. Backend refusal guards remain; fix the misleading eligibility
-    and outcome display before calling destructive-control coverage complete.
+11. **Fixed in iteration 9:** deletion entry/arming now share the exact verified
+    copy policy, and the post-import header reports verified/failed (or cancelled)
+    instead of planned copies "to copy". Per-row text still describes the plan;
+    a completed import leaves rows labelled by their original plan status.
 12. **Measurement gap:** correct quick-hash byte accounting, add realistic
    filesystem/decode/import/duplicate-heavy/fault baselines without claiming
    synthetic placeholder or 1 TB metadata tests cover those workloads.
@@ -468,9 +468,50 @@ pass; no new Rust test count is claimed for these native assertions. Actual GTK
 folder selection, genuine RAW decoding, physical cameras, power-loss durability
 and remaining UI surfaces are not covered. No performance gain claimed.
 
-**Decision → ACCEPT** focus handoff fix; code commit SHA recorded after commit.
+**Decision → ACCEPT**; committed as **`415fa47`**
+(`fix: hand off focus before import controls disappear`).
 Next: zero-success deletion affordance/outcome clarity, then history/recovery/
 details/preset coverage and the still-uninvestigated measured performance paths.
+
+## Iteration 9 — deletion entry mirrors the true verified-copy policy
+
+**Issue →** the native run offered **Delete verified originals…** after a
+cancelled 1 GiB import and after a zero-success collision, while the footer said
+0 verified. The entry was gated on `last_import_result.is_some()` while the scan
+itself used a stricter predicate. Separately, a plan with no required copy (or
+only optional copies) passed the "all required copies completed" test vacuously.
+
+**Change →** one exported policy (`verified_copy_requirements`) now decides the
+preview entry, confirmation scope, `delete_sources` arming and backend refusal;
+it rejects a missing/other-media result and plans without a required destination,
+and indexes results by media ID instead of rescanning per item. The preview header
+switches to verified/failed counts after an import, and to a distinct cancelled
+wording so a cancellation is not misreported as failure. Spec, ten catalogs and
+the deletion regression matrix are updated. No engine, planner or CLI changes.
+
+**Before/after →** new regressions fail before the change (empty/optional-only
+plans were deletable) and pass now; the shared-policy test also rejects a result
+belonging to another media ID, and 1000-file unfavourable ordering is exercised.
+Native run `/tmp/captureport-files-e7a254c0c95e4e509d84c530af5e2812/`: after a
+3-file import the header reads **Import finished · 3 verified · 0 failed** with the
+deletion action present; after cancellation and after the late collision it reads
+**0 verified** and the deletion action is absent; all originals unchanged and the
+source/destination/verification/collision assertions still pass.
+
+**Measured (narrow) →** release-mode test binary, 1000 planned items against a
+reversed result, five samples after a discarded warm-up: indexed shared policy
+**47–48 µs** versus the previous per-item scan **113–118 µs**. This is a microbench
+of scope computation only (which now runs on the preview render path), not import
+throughput, and it is not comparable with the earlier synthetic suite.
+
+**Validation →** workspace **195 tests / 15 suites**, locked/offline check, strict
+all-target Clippy, formatting, diff checks and release build pass. Native picker
+remains the private broker mock; app/filesystem/importer/SQLite remain real.
+Cancellation-as-completion, camera deletion, genuine GTK selection and power-loss
+recovery are still unverified. No claim that every dynamic control's focus or
+all destructive surfaces were exercised.
+
+**Decision → ACCEPT**; code commit SHA recorded after commit.
 
 ## Stopping/remaining limits
 
