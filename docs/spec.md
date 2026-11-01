@@ -1243,6 +1243,13 @@ Path-based fingerprinting, copy verification and full library reconciliation
 open without following leaf links and reject non-regular file handles; opening a
 FIFO must not block before its type can be checked. Verification obtains size
 and content from the same opened handle rather than separately resolving a path.
+Before accepting verification, the path must still name that same regular file
+with unchanged device/inode, size, modification time and change time (including
+subsecond timestamps). Keep the verified handle open during this revalidation.
+Replacement, removal, a new symlink or a timestamp-observable in-place rewrite
+during hashing must not be recorded as a successful import, even if the bytes
+already read matched. Timestamp granularity limits in-place change detection;
+this is not a filesystem snapshot or a lock against later edits.
 These checks do not promise protection from hostile concurrent parent-directory
 replacement; the existing parent/root checks remain path-based.
 On Linux GNU builds, publication uses an atomic no-replace rename rather than

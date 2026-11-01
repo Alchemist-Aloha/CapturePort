@@ -668,6 +668,20 @@ mod tests {
     use chrono::{FixedOffset, TimeZone};
     use std::path::Path;
 
+    struct CountingRecorder(usize);
+    impl ImportRecorder for CountingRecorder {
+        fn record_success(
+            &mut self,
+            _: &PlannedImport,
+            _: &PlannedCopy,
+            _: &CopyDigest,
+            _: VerificationMode,
+        ) -> Result<(), String> {
+            self.0 += 1;
+            Ok(())
+        }
+    }
+
     fn prepared(source_root: &Path, destination_root: &Path) -> (FilesystemSource, ImportPlan) {
         prepared_with_folder(source_root, destination_root, "")
     }
@@ -1031,20 +1045,47 @@ mod tests {
         );
     }
     #[test]
+    fn destination_replacement_during_verification_is_not_recorded() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let destination = tempfile::tempdir().unwrap();
+        let path = destination.path().join("photo.JPG");
+        let previous = destination.path().join("previous.JPG");
+        let bytes = vec![0x5a; 3 * 1024 * 1024];
+        let mut changed_bytes = bytes.clone();
+        changed_bytes[0] ^= 1;
+        fs::write(source_dir.path().join("photo.JPG"), &bytes).unwrap();
+        fs::write(&path, &bytes).unwrap();
+        let (source, plan) = prepared(source_dir.path(), destination.path());
+        assert_eq!(plan.items[0].status, PlanStatus::ExistingIdentical);
+        let mut changed = false;
+        let mut recorder = CountingRecorder(0);
+        let result = ImportEngine::execute(
+            &source,
+            &plan,
+            &CancellationToken::new(),
+            &mut recorder,
+            |p| {
+                if !changed && p.phase == ImportPhase::Verifying && p.current_file_bytes > 0 {
+                    fs::rename(&path, &previous).unwrap();
+                    fs::write(&path, &changed_bytes).unwrap();
+                    changed = true;
+                }
+            },
+        )
+        .unwrap();
+        assert!(changed);
+        assert_eq!(result.items[0].copies[0].state, ImportItemState::Failed);
+        assert_eq!(recorder.0, 0);
+        assert_eq!(fs::read(&path).unwrap(), changed_bytes);
+        assert_eq!(fs::read(&previous).unwrap(), bytes);
+        assert_eq!(
+            fs::read(source_dir.path().join("photo.JPG")).unwrap(),
+            bytes
+        );
+    }
+
+    #[test]
     fn existing_quick_match_with_different_middle_is_never_recorded() {
-        struct CountingRecorder(usize);
-        impl ImportRecorder for CountingRecorder {
-            fn record_success(
-                &mut self,
-                _: &PlannedImport,
-                _: &PlannedCopy,
-                _: &CopyDigest,
-                _: VerificationMode,
-            ) -> Result<(), String> {
-                self.0 += 1;
-                Ok(())
-            }
-        }
         let mut observed = Vec::new();
         for mode in [
             VerificationMode::Fast,

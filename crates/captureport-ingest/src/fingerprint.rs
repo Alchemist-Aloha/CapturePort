@@ -3,7 +3,7 @@ use captureport_core::{MediaLocator, MediaSource, SourceError};
 use std::{
     fs::File,
     io::{self, Read, Seek, SeekFrom},
-    os::unix::fs::OpenOptionsExt,
+    os::unix::fs::{MetadataExt, OpenOptionsExt},
     path::Path,
 };
 
@@ -228,23 +228,99 @@ pub(crate) fn verify_copy_with_progress(
         return Err(io::Error::other("Verification cancelled"));
     }
     let file = open_regular_file(destination)?;
-    if file.metadata()?.len() != source.size() {
+    let before = file.metadata()?;
+    if before.len() != source.size() {
         return Ok(false);
     }
-    if mode == VerificationMode::Fast {
-        return Ok(true);
-    }
-    let destination = digest_reader_with_progress(file, cancellation, progress)?;
-    Ok(match mode {
-        VerificationMode::Fast => true,
-        VerificationMode::Standard => source.quick() == destination.quick(),
-        VerificationMode::Strict => source.full() == destination.full(),
-    })
+    let content_matches = if mode == VerificationMode::Fast {
+        true
+    } else {
+        let digest = digest_reader_with_progress(&file, cancellation, progress)?;
+        match mode {
+            VerificationMode::Fast => true,
+            VerificationMode::Standard => source.quick() == digest.quick(),
+            VerificationMode::Strict => source.full() == digest.full(),
+        }
+    };
+    // The path must still name the unchanged file we read, not a replacement.
+    let after = destination.symlink_metadata()?;
+    Ok(content_matches
+        && after.is_file()
+        && (
+            before.dev(),
+            before.ino(),
+            before.len(),
+            before.mtime(),
+            before.mtime_nsec(),
+            before.ctime(),
+            before.ctime_nsec(),
+        ) == (
+            after.dev(),
+            after.ino(),
+            after.len(),
+            after.mtime(),
+            after.mtime_nsec(),
+            after.ctime(),
+            after.ctime_nsec(),
+        ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn changes_during_verification_are_rejected() {
+        let bytes = vec![0x5a; 3 * 1024 * 1024];
+        let digest = digest_reader(bytes.as_slice()).unwrap();
+        let mut observed = Vec::new();
+        for mode in [VerificationMode::Standard, VerificationMode::Strict] {
+            for change in ["replace", "rewrite", "remove", "symlink"] {
+                let dir = tempfile::tempdir().unwrap();
+                let path = dir.path().join("destination");
+                let old = dir.path().join("previous");
+                std::fs::write(&path, &bytes).unwrap();
+                File::open(&path)
+                    .unwrap()
+                    .set_modified(std::time::SystemTime::UNIX_EPOCH)
+                    .unwrap();
+                let mut changed_bytes = bytes.clone();
+                changed_bytes[0] ^= 1;
+                let mut changed = false;
+                let result = verify_copy_with_progress(
+                    mode,
+                    &digest,
+                    &path,
+                    &captureport_core::CancellationToken::new(),
+                    &mut |_| {
+                        if changed {
+                            return;
+                        }
+                        changed = true;
+                        match change {
+                            "rewrite" => std::fs::write(&path, &changed_bytes).unwrap(),
+                            "remove" => std::fs::remove_file(&path).unwrap(),
+                            "replace" | "symlink" => {
+                                std::fs::rename(&path, &old).unwrap();
+                                if change == "replace" {
+                                    std::fs::write(&path, &changed_bytes).unwrap();
+                                } else {
+                                    std::os::unix::fs::symlink(&old, &path).unwrap();
+                                }
+                            }
+                            _ => unreachable!(),
+                        }
+                    },
+                );
+                assert!(changed);
+                observed.push((mode, change, result.unwrap_or(false)));
+            }
+        }
+        assert!(
+            observed.iter().all(|(_, _, accepted)| !accepted),
+            "{observed:?}"
+        );
+    }
 
     #[test]
     fn leaf_symlink_is_rejected_by_path_fingerprinting_and_every_verification_mode() {

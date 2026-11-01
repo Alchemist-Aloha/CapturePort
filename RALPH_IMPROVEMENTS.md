@@ -101,10 +101,11 @@ Prior-session synthetic screenshots are historical evidence only.
 
 1. **Critical / confirmed:** edge-only collision verification can record distinct
    media as imported. Iteration 1 below fixes this before performance work.
-2. **High / partly fixed:** destination leaf symlinks/non-regular files and
-   dangling-link suffix collisions are fixed in iteration 2. Next reproduce
-   replacement during verification, source/destination overlap and
-   failure/recovery/history durability before changing further defenses.
+2. **High / partly fixed:** unsafe leaves/dangling suffixes (iteration 2) and
+   destination replacement or observable rewrite during verification (iteration
+   3) are fixed. Remaining: source/destination overlap, recovery/history
+   durability, and filesystem snapshot limitations. Native/coarse-timestamp
+   filesystem behavior is not claimed covered by btrfs fixtures.
 3. **High / observed candidate:** camera identity includes transient USB port;
    prior reconnect created a different catalog source and can orphan aliases or
    gallery names. Reproduce with synthetic descriptors/sysfs; do not edit real DB.
@@ -200,6 +201,45 @@ planner median **63.513 ms** (62.697–64.886), versus baseline **65.307 ms**
 Unmodified sort/catalog probes also moved, so **no speedup is claimed**. This
 acceptance rests on safety regressions, not the small timing difference.
 Raw evidence: `/tmp/captureport-leaf-after-xu3_nvra/{run-0..5.tsv,raw.json}`.
+
+**Decision → ACCEPT**; committed as **`462829e`**
+(`fix: reject unsafe file types during destination verification`).
+
+## Iteration 3 — bind verification success to the file still at the path
+
+**Issue →** holding an open descriptor was insufficient: replacement, removal,
+symlinking and rewriting already-read bytes during hashing all returned true,
+including Strict mode. An unchanged descriptor can name an unlinked old version
+while the planned destination names different media.
+
+**Root cause →** verification compared the bytes read but did not revalidate the
+path or file version after reading. This also allowed an in-place change behind
+the reader to escape its digest.
+
+**Change →** keep the opened descriptor alive, snapshot its device/inode, size,
+mtime and ctime (with subsecond components), and require the final non-following
+path metadata to name that unchanged regular file. Fast still checks only size,
+but also revalidates path identity/version; Standard/Strict retain their content
+policies. No additional data pass, dependencies or public APIs. Reuse the
+existing counting recorder fixture for an end-to-end no-history regression.
+
+**Before/after →** deterministic progress callbacks on disposable 3 MiB files:
+all eight `(Standard/Strict × replace/rewrite/remove/symlink)` cases returned true
+before the fix; all now return false/error. Rewrite changes an already-read byte;
+the fixture starts with epoch mtime to avoid timestamp-resolution flakiness.
+Engine-level late replacement now produces Failed with **zero success records**;
+source, retained old destination and replacement contents all remain intact.
+
+**Validation →** ingest 58 passed; full workspace **187 tests / 15 suites**,
+format/check/strict all-target Clippy/diff checks pass (locked/offline). Existing
+sample-boundary, positive re-import, cancellation and partial ownership tests
+stay green. This is a safety change; no speedup is claimed or inferred from tests.
+
+**Limits →** metadata-based change detection is not a stable filesystem snapshot.
+Coarse timestamps can conceal same-inode, same-size rewrites; hostile directory
+swaps or edits after the last check are not locked out. Stronger guarantees need
+filesystem snapshot/writer coordination, not a promise from these path checks.
+No FAT/exFAT runtime, actual GUI or camera behavior was validated this iteration.
 
 **Decision → ACCEPT**; code commit SHA will be recorded immediately after commit.
 
