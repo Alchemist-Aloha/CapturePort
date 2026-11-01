@@ -564,7 +564,7 @@ impl Browser {
                     Icon::AddToList,
                     "Create preset",
                     p,
-                    cx.listener(|t, _, _, c| t.manage_preset(PresetAction::Create, c)),
+                    cx.listener(|t, _, w, c| t.manage_preset(PresetAction::Create, w, c)),
                 ));
             if selected.is_some() {
                 actions = actions
@@ -572,19 +572,19 @@ impl Browser {
                         Icon::Rename,
                         "Rename",
                         p,
-                        cx.listener(|t, _, _, c| t.manage_preset(PresetAction::Rename, c)),
+                        cx.listener(|t, _, w, c| t.manage_preset(PresetAction::Rename, w, c)),
                     ))
                     .child(button(
                         Icon::Confirm,
                         "Overwrite",
                         p,
-                        cx.listener(|t, _, _, c| t.manage_preset(PresetAction::Overwrite, c)),
+                        cx.listener(|t, _, w, c| t.manage_preset(PresetAction::Overwrite, w, c)),
                     ))
                     .child(button(
                         Icon::Delete,
                         "Delete preset",
                         p,
-                        cx.listener(|t, _, _, c| t.manage_preset(PresetAction::Delete, c)),
+                        cx.listener(|t, _, w, c| t.manage_preset(PresetAction::Delete, w, c)),
                     ));
             }
             controls = controls.child(actions);
@@ -600,7 +600,7 @@ impl Browser {
                 .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
                     .child(danger_button(if deleting { Icon::Delete } else { Icon::Confirm },
                         if deleting { "Confirm delete" } else { "Confirm overwrite" }, p,
-                        cx.listener(move |t, _, _, c| t.manage_preset(action, c))))
+                        cx.listener(move |t, _, w, c| t.manage_preset(action, w, c))))
                     .child(button(Icon::Cancel, "Cancel", p, cx.listener(|t, _, _, c| {
                         t.preset_confirmation = None;
                         c.notify();

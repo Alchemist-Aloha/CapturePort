@@ -101,8 +101,12 @@ impl Browser {
     pub(crate) fn manage_preset(
         &mut self,
         action: saved_presets::PresetAction,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Preset buttons sit next to an editable name field; returning there
+        // makes the next keyboard step predictable after any action.
+        window.focus(&self.settings.preset_name.read(cx).focus_handle(cx));
         use saved_presets::{PresetAction, SavedSettings};
         if self.preset_busy {
             return;
