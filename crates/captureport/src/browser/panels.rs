@@ -238,7 +238,7 @@ impl Browser {
                     .text_lg()
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child(i18n::format(
-                        "Import history · {0} sessions",
+                        "Import history · {0} session(s)",
                         &[format!("{}", self.history.len())],
                     )),
             );
@@ -287,8 +287,10 @@ impl Browser {
                             .text_sm()
                             .font_weight(gpui::FontWeight::SEMIBOLD)
                             .child(format!(
-                                "{} · {} · {:?}",
-                                session.started_at, entry.source_name, session.status
+                                "{} · {} · {}",
+                                format_session_time(&session.started_at),
+                                entry.source_name,
+                                i18n::tr(&format!("{:?}", session.status))
                             )),
                     )
                     .child(div().text_xs().child(i18n::format(
@@ -312,7 +314,7 @@ impl Browser {
                     .py(px(spacing::CONTENT))
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .child(i18n::format(
-                        "Session {0} · {1} copies",
+                        "Session {0} · {1} copy/copies",
                         &[
                             format!("{}", detail.session.id),
                             format!("{}", detail.imports.len()),
@@ -354,11 +356,10 @@ impl Browser {
                         .py(px(spacing::CONTROL_GAP))
                         .border_b_1()
                         .border_color(p.border)
-                        .child(
-                            div()
-                                .text_sm()
-                                .child(format!("{destinations} · {:?}", first.status)),
-                        )
+                        .child(div().text_sm().child(format!(
+                            "{destinations} · {}",
+                            i18n::tr(&format!("{:?}", first.status))
+                        )))
                         .child(div().text_xs().child(i18n::format(
                             "Modified {0} · Verification: {1} · {2}",
                             &[
@@ -417,7 +418,7 @@ impl Browser {
         for session in &self.incomplete_sessions {
             panel = panel.child(div().p(px(spacing::CONTENT)).bg(p.card).rounded_sm().child(
                 i18n::format(
-                    "Session {0} · started {1} · {2} recorded copies",
+                    "Session {0} · started {1} · {2} recorded copy/copies",
                     &[
                         format!("{}", session.session.id),
                         session.session.started_at.to_string(),

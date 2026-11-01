@@ -88,10 +88,10 @@ to the stated states. Prior-session screenshots are historical evidence only.
 | Image/video previews, unavailable fallback, progress strip | metadata/thumbnail, browser/thumbnails + render | S/T/G: generated JPEG + ffmpeg video decode; paired RAW placeholder; genuine RAW/unavailable-tile G pending |
 | Plan preview, collisions, backup paths, confirmation | ingest/planner, browser/import + panels | S/T/G: exact paths, first/re-import confirmation, late collision; backup UI pending |
 | Import phases, cancel, outcomes | ingest/importer, tasks, browser/render | S/T/G: actual filesystem import/re-import/cancel/late-error; camera phases separate |
-| History and session-detail inspection | catalog, browser/import + panels | S/T; G pending |
-| Recovery, resume, partial cleanup confirmation | ingest/recovery, browser/import + panels | S/T; crash/fault and G pending |
+| History and session-detail inspection | catalog, browser/import + panels | S/T/G: list + persisted row OCR-verified; session-detail click pending |
+| Recovery, resume, partial cleanup confirmation | ingest/recovery, browser/import + panels | S/T/G: empty state only; populated/injected faults pending |
 | Verified-original deletion confirmation/cancel/refusal | ingest/source_delete, tasks, browser/import | S/T; disposable fixture only; G pending |
-| Presets: create/load/rename/overwrite/delete | saved_presets, browser/settings + panels | S/T; persistence/restart G pending |
+| Presets: create/load/rename/overwrite/delete | saved_presets, browser/settings + panels | S/T/G/db: create + restart persistence; rename/overwrite/delete pending |
 | Destinations, filename/folder templates and segment help | template_help, browser/panels, render | S/T/G: photo help expands/collapses by keyboard; token insertion/full form pending |
 | Media rules/folder exclusions, clock/timezone/session gap | browser/settings + panels, ingest/preset | S/T; DST/edge/G pending |
 | Backup, source alias, apply settings | browser/settings + panels | S/T; failure/persistence/G pending |
@@ -478,6 +478,51 @@ and remaining UI surfaces are not covered. No performance gain claimed.
 (`fix: hand off focus before import controls disappear`).
 Next: zero-success deletion affordance/outcome clarity, then history/recovery/
 details/preset coverage and the still-uninvestigated measured performance paths.
+
+## Iteration 12 — history/recovery/settings natively; readable session rows
+
+**Scope →** extend the private-broker native harness to the pages that had no
+runtime coverage: Import history, Import recovery, and Settings presets.
+Navigation is keyboard-driven after a restart (no transient "Review import" row),
+which makes the sidebar order stable, and pages are asserted with `tesseract`
+OCR of the captured window, not by eyeballing.
+
+**Covered natively →** a real two-file import; **Import history · 1 session(s)**
+with the persisted row (`2026-11-01 12:25 · Source 1 · Completed · 2 imported ·
+3.5 KB`); **Import recovery** empty state (`0 unfinished session(s) · 0 incomplete
+file(s)`); Settings shows the new `loop preset` chip after creation; after a full
+app restart the catalog still lists it (`presets_after_restart`) and History still
+shows the completed session. Destination files remain exactly the two imported
+items. The picker is still the only mocked seam.
+
+**Defects found by looking at the result →**
+1. History printed the stored RFC 3339 stamp with nanoseconds
+   (`2026-11-01T17:24:06.125473218+00:00`), unlike every other time in the app.
+2. Counts were ungrammatical for one item: `1 sessions`, `1 copies`.
+3. Session status was rendered with Rust `{:?}` even though the catalogs already
+   translate `Completed`/`Partial`/`Cancelled`/`Failed`.
+
+**Change →** `format_session_time` parses the stored timestamp to local
+`YYYY-MM-DD HH:MM` and falls back to the stored string rather than hiding it;
+session status goes through the translation catalog; the three affected strings
+use the app's existing `(s)`/`copy/copies` convention in all ten catalogs. Only
+presentation changed — no stored value, query or schema touched.
+
+**Validation →** new unit test pins the displayed shape (length, separators, no
+`T`/offset/nanos) and the unparsable passthrough; full ladder **198 tests / 15
+suites** plus formatting, locked/offline check, strict Clippy, diff checks and
+release build. Native rerun artifacts
+`/tmp/captureport-pages-7d1a07c12e0d4a79a1135a5af39851e1/` (`results.json`,
+screenshots, OCR-asserted headings); helper `/tmp/captureport-pages-workflow.py`.
+All app/broker/bus processes were stopped, original focus restored, clipboard
+untouched.
+
+**Not covered →** session-detail expansion, rename/overwrite/delete presets,
+populated recovery (needs injected incomplete session/partial fixture), the media
+details popup, and inline template-token keyboard access. Physical camera, real
+RAW decode, genuine GTK selection and power-loss recovery remain limits.
+
+**Decision → ACCEPT**; code commit SHA recorded after commit.
 
 ## Iteration 11 — idle-CPU hypothesis tested and rejected
 

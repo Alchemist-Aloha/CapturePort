@@ -336,6 +336,18 @@ pub(crate) fn format_file_time(seconds: u64, offset: Option<i32>) -> String {
     };
     time.format("%Y-%m-%d %H:%M").to_string()
 }
+/// Format a stored RFC 3339 session timestamp for display, matching the media
+/// cards' local `YYYY-MM-DD HH:MM` shape. Unparseable values are shown as stored
+/// rather than hidden.
+pub(crate) fn format_session_time(started_at: &str) -> String {
+    DateTime::parse_from_rfc3339(started_at)
+        .map(|time| {
+            time.with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M")
+                .to_string()
+        })
+        .unwrap_or_else(|_| started_at.to_owned())
+}
 /// Compact modification time for media cards.
 pub(crate) fn format_file_time_compact(seconds: u64, offset: Option<i32>) -> String {
     let Some(utc) = Utc.timestamp_opt(seconds as i64, 0).single() else {

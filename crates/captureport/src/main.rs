@@ -543,6 +543,25 @@ fn main() {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
+
+    #[test]
+    fn session_timestamps_are_shown_like_media_times_not_raw_rfc3339() {
+        let stored = "2026-11-01T17:24:06.125473218+00:00";
+        let shown = format_session_time(stored);
+        assert_eq!(shown.len(), 16, "{shown}");
+        assert!(
+            !shown.contains('T') && !shown.contains('+') && !shown.contains('.'),
+            "{shown}"
+        );
+        assert_eq!(shown.as_bytes()[4], b'-');
+        assert_eq!(shown.as_bytes()[7], b'-');
+        assert_eq!(shown.as_bytes()[10], b' ');
+        assert_eq!(shown.as_bytes()[13], b':');
+        // A stored value that cannot be parsed is displayed unchanged, not hidden.
+        assert_eq!(format_session_time("not-a-time"), "not-a-time");
+        assert_eq!(format_session_time(""), "");
+    }
+
     #[test]
     fn separate_mode_does_not_merge_raw_jpeg_pairs() {
         let pair = captureport_ingest::MediaBundle {
