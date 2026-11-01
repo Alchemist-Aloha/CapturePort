@@ -101,9 +101,10 @@ Prior-session synthetic screenshots are historical evidence only.
 
 1. **Critical / confirmed:** edge-only collision verification can record distinct
    media as imported. Iteration 1 below fixes this before performance work.
-2. **High / investigate:** pre-existing destination symlinks/non-regular files,
-   source/destination overlap, late replacement races, failure/recovery/history
-   durability. Reproduce before deciding whether existing defenses suffice.
+2. **High / partly fixed:** destination leaf symlinks/non-regular files and
+   dangling-link suffix collisions are fixed in iteration 2. Next reproduce
+   replacement during verification, source/destination overlap and
+   failure/recovery/history durability before changing further defenses.
 3. **High / observed candidate:** camera identity includes transient USB port;
    prior reconnect created a different catalog source and can orphan aliases or
    gallery names. Reproduce with synthetic descriptors/sysfs; do not edit real DB.
@@ -155,6 +156,50 @@ Clippy `-D warnings`, and diff whitespace checks pass. Existing-file cancellatio
 and no-overwrite regressions remain green. This reproduces false success, not an
 actual source deletion: the separate deletion path already revalidates content.
 The preview wording has source/translation tests, not native visual verification.
+
+**Decision → ACCEPT**; committed as **`d671db6`**
+(`fix: require full identity before accepting existing imports`).
+
+## Iteration 2 — reject unsafe destination leaves without blocking
+
+**Issue →** a destination file replaced by an external symlink after preview was
+still recorded `Completed` when its target matched. Path fingerprinting also
+followed leaf links. Parent/root validation did not validate the leaf. Separate
+inspection found FIFO opens could block before cancellation/type checks, and
+`exists()` treated dangling symlinks as free suffix candidates.
+
+**Root cause →** following path metadata, ordinary blocking `File::open`, and
+separate size/open resolution. This is a different failure from sampled identity.
+
+**Change →** planning uses non-following metadata, blocks non-regular leaves,
+and counts every directory entry as occupied during unique-suffix resolution.
+Shared descriptor opening uses `O_NOFOLLOW | O_NONBLOCK`, rejects non-regular
+handles, and is used by quick fingerprints, every verification mode and full
+library reconciliation. Size and digest now use the same opened handle. No new
+dependencies. Unique-suffix still works for links/directories/FIFOs; Stop, Skip
+and Verify do not treat those unsafe leaves as verified media.
+
+**Before/after →** two regressions failed before implementation: a link was
+fingerprinted successfully, and late-link execution returned `Completed` rather
+than `Failed`. Both now reject it; source, target and link remain unchanged.
+Additional tests cover directories and FIFOs with a bounded two-second test
+completion deadline, all three verification modes, four collision policies and
+an occupied dangling-link suffix. The old FIFO implementation was not deliberately
+left blocking: the bounded regression was added with the nonblocking fix.
+
+**Validation →** ingest suite 56 passed; full workspace **185 tests / 15 suites**,
+formatting, locked/offline check, strict all-target Clippy and diff checks pass.
+No GUI/hardware behavior claimed. Remaining race limits are explicit in the spec:
+parent checks are not directory-FD capabilities, and final-path replacement during
+verification still needs a separate deterministic investigation.
+
+**Performance comparison →** same release benchmark, one warm-up + five runs:
+planner median **63.513 ms** (62.697–64.886), versus baseline **65.307 ms**
+(64.032–66.051). Whole-probe wall median **0.615 s** (0.603–0.653), CPU
+**0.646 s** (0.645–0.689), peak RSS **39,396 KiB** (39,196–39,448).
+Unmodified sort/catalog probes also moved, so **no speedup is claimed**. This
+acceptance rests on safety regressions, not the small timing difference.
+Raw evidence: `/tmp/captureport-leaf-after-xu3_nvra/{run-0..5.tsv,raw.json}`.
 
 **Decision → ACCEPT**; code commit SHA will be recorded immediately after commit.
 

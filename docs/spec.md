@@ -1235,6 +1235,16 @@ that identity before copying, re-verifying an existing copy, and publishing;
 a missing or replaced root requires a fresh preview instead of recreating a
 vanished destination on another filesystem. Existing symlink parents that escape
 the root are rejected before creating directories or inspecting collisions.
+A destination leaf must be absent or a regular file, never a symlink (including
+an in-root or dangling link), directory, FIFO or device. Planning inspects the
+leaf without following links before fingerprinting; unique-suffix collision
+resolution treats every existing entry, including dangling links, as occupied.
+Path-based fingerprinting, copy verification and full library reconciliation
+open without following leaf links and reject non-regular file handles; opening a
+FIFO must not block before its type can be checked. Verification obtains size
+and content from the same opened handle rather than separately resolving a path.
+These checks do not promise protection from hostile concurrent parent-directory
+replacement; the existing parent/root checks remain path-based.
 On Linux GNU builds, publication uses an atomic no-replace rename rather than
 requiring destination hard-link support; a file created after planning is still
 never overwritten. Partial-file ownership is checked by device/inode while its

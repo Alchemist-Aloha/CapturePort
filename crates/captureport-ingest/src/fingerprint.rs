@@ -3,6 +3,7 @@ use captureport_core::{MediaLocator, MediaSource, SourceError};
 use std::{
     fs::File,
     io::{self, Read, Seek, SeekFrom},
+    os::unix::fs::OpenOptionsExt,
     path::Path,
 };
 
@@ -159,8 +160,23 @@ pub fn quick_source(
     }
 }
 
+pub(crate) fn open_regular_file(path: &Path) -> io::Result<File> {
+    // Refuse leaf links, and never block opening a FIFO before checking its type.
+    let file = File::options()
+        .read(true)
+        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK)
+        .open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Not a regular file",
+        ));
+    }
+    Ok(file)
+}
+
 pub fn quick_path(path: &Path) -> io::Result<Fingerprint> {
-    let mut file = File::open(path)?;
+    let mut file = open_regular_file(path)?;
     let size = file.metadata()?.len();
     if size <= (SAMPLE * 2) as u64 {
         let mut bytes = Vec::new();
@@ -211,15 +227,14 @@ pub(crate) fn verify_copy_with_progress(
     if cancellation.is_cancelled() {
         return Err(io::Error::other("Verification cancelled"));
     }
-    let metadata = destination.metadata()?;
-    if metadata.len() != source.size() {
+    let file = open_regular_file(destination)?;
+    if file.metadata()?.len() != source.size() {
         return Ok(false);
     }
     if mode == VerificationMode::Fast {
         return Ok(true);
     }
-    let destination =
-        digest_reader_with_progress(File::open(destination)?, cancellation, progress)?;
+    let destination = digest_reader_with_progress(file, cancellation, progress)?;
     Ok(match mode {
         VerificationMode::Fast => true,
         VerificationMode::Standard => source.quick() == destination.quick(),
@@ -230,6 +245,56 @@ pub(crate) fn verify_copy_with_progress(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn leaf_symlink_is_rejected_by_path_fingerprinting_and_every_verification_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("target");
+        let link = dir.path().join("link");
+        std::fs::write(&target, b"original").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let digest = digest_reader(b"original".as_slice()).unwrap();
+        assert!(quick_path(&link).is_err());
+        for mode in [
+            VerificationMode::Fast,
+            VerificationMode::Standard,
+            VerificationMode::Strict,
+        ] {
+            assert!(verify_copy(mode, &digest, &link).is_err());
+        }
+    }
+
+    #[test]
+    fn nonregular_paths_are_rejected_without_blocking() {
+        let dir = tempfile::tempdir().unwrap();
+        let fifo = dir.path().join("fifo");
+        nix::unistd::mkfifo(
+            &fifo,
+            nix::sys::stat::Mode::S_IRUSR | nix::sys::stat::Mode::S_IWUSR,
+        )
+        .unwrap();
+        let directory = dir.path().to_path_buf();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let digest = CopyDigest::new();
+            let refused = [fifo, directory].iter().all(|path| {
+                quick_path(path).is_err()
+                    && [
+                        VerificationMode::Fast,
+                        VerificationMode::Standard,
+                        VerificationMode::Strict,
+                    ]
+                    .iter()
+                    .all(|mode| verify_copy(*mode, &digest, path).is_err())
+            });
+            let _ = sender.send(refused);
+        });
+        assert!(
+            receiver
+                .recv_timeout(std::time::Duration::from_secs(2))
+                .expect("Fingerprinting a special file blocked")
+        );
+    }
 
     #[test]
     fn streaming_and_file_digest_agree_at_sample_boundaries() {

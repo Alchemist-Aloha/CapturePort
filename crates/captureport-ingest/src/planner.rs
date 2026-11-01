@@ -608,13 +608,19 @@ fn plan_copy(
         status = PlanStatus::DestinationUnavailable;
     }
     if status == PlanStatus::Ready {
-        if let Some(count) = generated.get(&path).copied() {
+        let existing = path.symlink_metadata();
+        if existing
+            .as_ref()
+            .is_err_and(|error| error.kind() != std::io::ErrorKind::NotFound)
+        {
+            status = PlanStatus::DestinationUnavailable;
+        } else if let Some(count) = generated.get(&path).copied() {
             let mut next_count = count + 1;
             generated.insert(path.clone(), next_count);
             match policy {
                 CollisionPolicy::UniqueSuffix => {
                     let original = path.clone();
-                    while generated.contains_key(&path) || path.exists() {
+                    while generated.contains_key(&path) || path.symlink_metadata().is_ok() {
                         path = with_suffix(&original, next_count);
                         next_count += 1;
                     }
@@ -623,17 +629,19 @@ fn plan_copy(
                 CollisionPolicy::Skip => status = PlanStatus::Skipped,
                 _ => status = PlanStatus::DestinationCollision,
             }
-        } else if path.exists() && policy == CollisionPolicy::UniqueSuffix {
+        } else if existing.is_ok() && policy == CollisionPolicy::UniqueSuffix {
             let original = path.clone();
             let mut next_count = 2;
-            while generated.contains_key(&path) || path.exists() {
+            while generated.contains_key(&path) || path.symlink_metadata().is_ok() {
                 path = with_suffix(&original, next_count);
                 next_count += 1;
             }
             generated.insert(path.clone(), 1);
-        } else if path.exists() {
+        } else if let Ok(metadata) = existing {
             generated.insert(path.clone(), 1);
-            status = if path.metadata().map(|m| m.len()).ok() == Some(input.item.size)
+            status = if !metadata.is_file() {
+                PlanStatus::DestinationUnavailable
+            } else if metadata.len() == input.item.size
                 && crate::quick_source(source, &input.item.locator, input.item.size)
                     .ok()
                     .and_then(|a| crate::quick_path(&path).ok().map(|b| a == b))
@@ -723,6 +731,59 @@ mod tests {
             session_name: None,
         }
     }
+    #[test]
+    fn nonregular_destinations_are_blocked_or_receive_an_unoccupied_suffix() {
+        let time = FixedOffset::east_opt(0)
+            .unwrap()
+            .with_ymd_and_hms(2026, 1, 1, 12, 0, 0)
+            .unwrap();
+        for kind in ["link", "dangling", "directory", "fifo"] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("a.JPG");
+            let target = dir.path().join("target");
+            if kind == "link" {
+                fs::write(&target, vec![0; 1024]).unwrap();
+            }
+            match kind {
+                "link" | "dangling" => std::os::unix::fs::symlink(&target, &path).unwrap(),
+                "directory" => fs::create_dir(&path).unwrap(),
+                "fifo" => nix::unistd::mkfifo(&path, nix::sys::stat::Mode::S_IRUSR).unwrap(),
+                _ => unreachable!(),
+            }
+            std::os::unix::fs::symlink(dir.path().join("missing"), with_suffix(&path, 2)).unwrap();
+            let mut preset = ImportPreset::everyday(dir.path());
+            preset.photo.root = dir.path().into();
+            preset.photo.folder_template.clear();
+            for policy in [
+                CollisionPolicy::Stop,
+                CollisionPolicy::Skip,
+                CollisionPolicy::VerifyIdentical,
+                CollisionPolicy::UniqueSuffix,
+            ] {
+                preset.collision = policy;
+                let plan = ImportPlanner::build(
+                    &FakeMediaSource::new(1),
+                    vec![input(1, "a.JPG", time)],
+                    &preset,
+                );
+                if policy == CollisionPolicy::UniqueSuffix {
+                    assert_eq!(plan.items[0].status, PlanStatus::Ready, "{kind}");
+                    assert_eq!(
+                        plan.items[0].copies[0].final_destination,
+                        with_suffix(&path, 3)
+                    );
+                } else {
+                    assert_eq!(
+                        plan.items[0].status,
+                        PlanStatus::DestinationUnavailable,
+                        "{kind}"
+                    );
+                }
+            }
+            assert!(path.symlink_metadata().is_ok());
+        }
+    }
+
     #[test]
     fn folder_exclusions_also_filter_previously_selected_media() {
         let dir = tempfile::tempdir().unwrap();

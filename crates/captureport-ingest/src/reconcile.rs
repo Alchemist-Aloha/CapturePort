@@ -1,6 +1,6 @@
 //! Explicit, read-only library reconciliation.
 
-use crate::{Fingerprint, digest_reader, quick_path};
+use crate::{Fingerprint, digest_reader, fingerprint::open_regular_file, quick_path};
 use captureport_core::{CancellationToken, MediaType, classify_path};
 use std::{
     fs,
@@ -81,7 +81,7 @@ pub fn scan_existing_library(
             }
         };
         let full = if options.calculate_full {
-            match fs::File::open(&path).and_then(digest_reader) {
+            match open_regular_file(&path).and_then(digest_reader) {
                 Ok(digest) => Some(digest.full()),
                 Err(error) => {
                     report.errors.push(format!("{}: {error}", path.display()));

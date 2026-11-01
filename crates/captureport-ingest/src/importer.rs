@@ -947,6 +947,43 @@ mod tests {
     }
 
     #[test]
+    fn leaf_symlink_is_rejected_at_planning_and_execution() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let destination = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let target = outside.path().join("original.JPG");
+        let final_path = destination.path().join("photo.JPG");
+        fs::write(source_dir.path().join("photo.JPG"), b"original").unwrap();
+        fs::write(&final_path, b"original").unwrap();
+        fs::write(&target, b"original").unwrap();
+        let (source, plan) = prepared(source_dir.path(), destination.path());
+        fs::remove_file(&final_path).unwrap();
+        std::os::unix::fs::symlink(&target, &final_path).unwrap();
+        let result = ImportEngine::execute(
+            &source,
+            &plan,
+            &CancellationToken::new(),
+            &mut NoopRecorder,
+            |_| {},
+        )
+        .unwrap();
+        assert_eq!(result.items[0].copies[0].state, ImportItemState::Failed);
+        let (_, blocked) = prepared(source_dir.path(), destination.path());
+        assert_eq!(blocked.items[0].status, PlanStatus::DestinationUnavailable);
+        assert!(
+            fs::symlink_metadata(&final_path)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(fs::read(&target).unwrap(), b"original");
+        assert_eq!(
+            fs::read(source_dir.path().join("photo.JPG")).unwrap(),
+            b"original"
+        );
+    }
+
+    #[test]
     fn cancellation_leaves_no_incomplete_final_file() {
         let source_dir = tempfile::tempdir().unwrap();
         let destination_dir = tempfile::tempdir().unwrap();
