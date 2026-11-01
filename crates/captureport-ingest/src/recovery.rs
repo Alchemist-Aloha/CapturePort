@@ -18,6 +18,9 @@ pub struct RecoveryReport {
 /// Find only CapturePort-owned temporary files. Inspection never removes media.
 pub fn inspect_partials(roots: &[PathBuf]) -> RecoveryReport {
     let mut report = RecoveryReport::default();
+    // Photo and video destinations may be the same folder (or nested), so the
+    // same directory must not be walked twice or its partials listed twice.
+    let mut visited = std::collections::HashSet::new();
     let mut pending = roots.to_vec();
     while let Some(path) = pending.pop() {
         let metadata = match fs::symlink_metadata(&path) {
@@ -31,6 +34,10 @@ pub fn inspect_partials(roots: &[PathBuf]) -> RecoveryReport {
             continue;
         }
         if metadata.is_dir() {
+            let identity = fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+            if !visited.insert(identity) {
+                continue;
+            }
             match fs::read_dir(&path) {
                 Ok(entries) => {
                     pending.extend(entries.filter_map(Result::ok).map(|entry| entry.path()))
@@ -93,6 +100,33 @@ fn is_captureport_partial(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn overlapping_roots_do_not_duplicate_partials() {
+        let dir = tempfile::tempdir().unwrap();
+        let nested = dir.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        let partial = dir.path().join(format!(
+            ".captureport-a.JPG.{}.partial",
+            uuid::Uuid::new_v4()
+        ));
+        fs::write(&partial, b"partial").unwrap();
+        let roots = vec![
+            dir.path().to_path_buf(),
+            dir.path().to_path_buf(),
+            nested.clone(),
+            dir.path().to_path_buf(),
+        ];
+        let report = inspect_partials(&roots);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        assert_eq!(
+            report.partials,
+            vec![PartialFile {
+                path: partial,
+                size: 7
+            }]
+        );
+    }
+
     #[test]
     fn inspection_and_cleanup_ignore_unrelated_partials() {
         let root = tempfile::tempdir().unwrap();

@@ -428,12 +428,30 @@ impl Browser {
             ));
         }
         if !self.incomplete_sessions.is_empty() {
-            panel = panel.child(button(
-                Icon::AddToList,
-                "Review remaining files",
-                p,
-                cx.listener(|t, _, _, c| t.resume_from_current_source(c)),
-            ));
+            // Resuming needs the interrupted source connected and scanned; a
+            // button that can only produce an error is worse than the reason.
+            let resumable = self.catalog_source_id.is_some_and(|id| {
+                self.incomplete_sessions
+                    .iter()
+                    .any(|session| session.session.source_id == id)
+            }) && !self.scanning;
+            panel = panel.child(if resumable {
+                button(
+                    Icon::AddToList,
+                    "Review remaining files",
+                    p,
+                    cx.listener(|t, _, _, c| t.resume_from_current_source(c)),
+                )
+                .into_any_element()
+            } else {
+                div()
+                    .text_sm()
+                    .text_color(p.muted)
+                    .child(i18n::tr(
+                        "Reconnect the interrupted source and finish scanning to review its remaining files.",
+                    ))
+                    .into_any_element()
+            });
         }
         for (index, partial) in self.partial_files.iter().enumerate() {
             panel = panel.child(
@@ -444,13 +462,17 @@ impl Browser {
                     .flex()
                     .items_center()
                     .justify_between()
-                    .child(format!(
+                    .gap(px(spacing::CONTROL_GAP))
+                    // A long path must ellipsize; otherwise it pushes the
+                    // destructive confirmation controls out of the window.
+                    .child(div().flex_1().min_w_0().truncate().child(format!(
                         "{} · {}",
                         partial.path.display(),
                         format_size(partial.size)
-                    ))
+                    )))
                     .child(if self.armed_partial == Some(index) {
                         div()
+                            .flex_shrink_0()
                             .flex()
                             .items_center()
                             .gap(px(spacing::CONTROL_GAP))
@@ -460,11 +482,12 @@ impl Browser {
                                 p,
                                 cx.listener(|t, _, _, c| t.cancel_clean_partial(c)),
                             ))
-                            .child(danger_button(
+                            .child(danger_button_with_focus(
                                 Icon::Delete,
                                 "Confirm delete",
                                 p,
-                                cx.listener(move |t, _, _, c| t.clean_partial(index, c)),
+                                &self.partial_confirm_focus,
+                                cx.listener(move |t, _, w, c| t.clean_partial(index, w, c)),
                             ))
                             .into_any_element()
                     } else {
@@ -472,7 +495,7 @@ impl Browser {
                             Icon::Delete,
                             "Clean incomplete file",
                             p,
-                            cx.listener(move |t, _, _, c| t.clean_partial(index, c)),
+                            cx.listener(move |t, _, w, c| t.clean_partial(index, w, c)),
                         )
                         .into_any_element()
                     }),
