@@ -69,9 +69,7 @@ actions!(
         ReconcileLibrary,
         CancelReconcile,
         AdjustClock,
-        DiscoverSources,
-        ScrollPageUp,
-        ScrollPageDown
+        DiscoverSources
     ]
 );
 use scan::{ScanMessage, SourceRequest, scan_source};
@@ -438,7 +436,7 @@ include!("render.rs");
 
 const BROWSER_KEY_CONTEXT: &str = "CapturePort";
 
-fn app_key_bindings() -> [KeyBinding; 8] {
+fn app_key_bindings() -> [KeyBinding; 6] {
     [
         KeyBinding::new("ctrl-o", OpenFolder, Some("!CapturePortTextInput")),
         KeyBinding::new("ctrl-d", OpenDemo, Some("!CapturePortTextInput")),
@@ -446,8 +444,6 @@ fn app_key_bindings() -> [KeyBinding; 8] {
         KeyBinding::new("ctrl-shift-a", SelectAllNew, Some("!CapturePortTextInput")),
         KeyBinding::new("escape", SelectNone, None),
         KeyBinding::new("ctrl-i", ImportSelected, Some("!CapturePortTextInput")),
-        KeyBinding::new("pageup", ScrollPageUp, Some("!CapturePortTextInput")),
-        KeyBinding::new("pagedown", ScrollPageDown, Some("!CapturePortTextInput")),
     ]
 }
 
@@ -551,16 +547,6 @@ fn main() {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-
-    #[test]
-    fn page_scroll_stays_inside_the_scrollable_range() {
-        assert_eq!(page_scroll_target(0., -400., 1000.), -400.);
-        assert_eq!(page_scroll_target(-900., -400., 1000.), -1000.);
-        assert_eq!(page_scroll_target(-200., 400., 1000.), 0.);
-        assert_eq!(page_scroll_target(-150., 400., 250.), -0.0_f32.min(0.));
-        assert_eq!(page_scroll_target(0., -400., 0.), 0.);
-        assert_eq!(page_scroll_target(-100., 0., 300.), -100.);
-    }
 
     #[test]
     fn session_timestamps_are_shown_like_media_times_not_raw_rfc3339() {

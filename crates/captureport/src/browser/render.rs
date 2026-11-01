@@ -315,8 +315,6 @@ impl Render for Browser {
                         .on_action(cx.listener(Self::clock))
                         .on_action(cx.listener(Self::cancel_reconcile))
                         .on_action(cx.listener(Self::discover_sources))
-                        .on_action(cx.listener(Self::scroll_page_up))
-                        .on_action(cx.listener(Self::scroll_page_down))
                 },
             )
             .child(

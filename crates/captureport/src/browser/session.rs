@@ -48,42 +48,6 @@ impl Browser {
             cx.notify();
         }
     }
-    /// PageUp/PageDown scroll the long non-list pages by most of a viewport, so
-    /// keyboard users can reach controls whose focus is below the fold.
-    fn scroll_page(&mut self, up: bool) {
-        let bar = match self.page {
-            Page::Settings => &self.scrollbars.settings.handle,
-            Page::History => &self.scrollbars.history.handle,
-            Page::Recovery => &self.scrollbars.recovery.handle,
-            Page::Browser | Page::Preview => return,
-        };
-        let viewport = bar.bounds().size.height;
-        if viewport <= px(0.) {
-            return;
-        }
-        let limit = bar.max_offset().height.max(px(0.));
-        let step = viewport * 0.8 * if up { -1. } else { 1. };
-        let y = page_scroll_target(f32::from(bar.offset().y), f32::from(step), f32::from(limit));
-        bar.set_offset(gpui::point(bar.offset().x, px(y)));
-    }
-    pub(crate) fn scroll_page_up(
-        &mut self,
-        _: &ScrollPageUp,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.scroll_page(true);
-        cx.notify();
-    }
-    pub(crate) fn scroll_page_down(
-        &mut self,
-        _: &ScrollPageDown,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.scroll_page(false);
-        cx.notify();
-    }
     pub(crate) fn drain(&mut self, cx: &mut Context<Self>) {
         let mut changed = false;
         let mut media_changed = false;
