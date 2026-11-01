@@ -1,4 +1,5 @@
 {
+  "Reconnect the interrupted source and finish scanning to review its remaining files.": "Reconecte a origem interrompida e conclua a verificação para revisar os arquivos restantes.",
   "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification": "Importação cancelada · {0} verificados · {1} com falha · predefinição {2} · verificação {3}",
   "Review the verified copies below.": "Revise as cópias verificadas abaixo.",
   "Import finished · {0} verified · {1} failed · {2} preset · {3} verification": "Importação concluída · {0} verificados · {1} com falha · predefinição {2} · verificação {3}",

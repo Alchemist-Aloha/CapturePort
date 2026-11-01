@@ -108,6 +108,9 @@ struct Browser {
     deletion_armed: bool,
     /// Which incomplete file's destructive control has been armed for confirmation.
     armed_partial: Option<usize>,
+    /// Focused while a partial-file deletion waits for confirmation, so the
+    /// keyboard position survives the arming button being replaced.
+    partial_confirm_focus: FocusHandle,
     source: Option<Arc<dyn MediaSource>>,
     filesystem_root: Option<PathBuf>,
     catalog: CatalogHandle,
@@ -331,6 +334,7 @@ impl Browser {
             last_import_result: None,
             deletion_armed: false,
             armed_partial: None,
+            partial_confirm_focus: cx.focus_handle(),
             source: None,
             filesystem_root: None,
             catalog,

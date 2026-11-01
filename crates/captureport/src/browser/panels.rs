@@ -421,7 +421,7 @@ impl Browser {
                     "Session {0} · started {1} · {2} recorded copy/copies",
                     &[
                         format!("{}", session.session.id),
-                        session.session.started_at.to_string(),
+                        format_session_time(&session.session.started_at),
                         format!("{}", session.imports.len()),
                     ],
                 ),

@@ -1,4 +1,5 @@
 {
+  "Reconnect the interrupted source and finish scanning to review its remaining files.": "중단된 원본을 다시 연결하고 스캔을 완료하면 남은 파일을 확인할 수 있습니다.",
   "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification": "가져오기 취소됨 · 검증됨 {0} · 실패 {1} · 프리셋 {2} · 검증 {3}",
   "Review the verified copies below.": "아래에서 검증된 사본을 확인하세요.",
   "Import finished · {0} verified · {1} failed · {2} preset · {3} verification": "가져오기 완료 · 검증됨 {0} · 실패 {1} · 프리셋 {2} · 검증 {3}",

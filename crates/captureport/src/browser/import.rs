@@ -173,10 +173,9 @@ impl Browser {
                 .any(|session| session.session.source_id == id)
         });
         if !matching || self.scanning {
-            self.message = Some(
-                "Reconnect the source and finish scanning before building a recovery preview"
-                    .into(),
-            );
+            self.message = Some(i18n::tr(
+                "Reconnect the source and finish scanning before building a recovery preview",
+            ));
             cx.notify();
             return;
         }
@@ -300,7 +299,12 @@ impl Browser {
         self.message = Some(i18n::tr("Incomplete file kept"));
         cx.notify();
     }
-    pub(crate) fn clean_partial(&mut self, index: usize, cx: &mut Context<Self>) {
+    pub(crate) fn clean_partial(
+        &mut self,
+        index: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(partial) = self.partial_files.get(index).cloned() else {
             return;
         };
@@ -308,6 +312,7 @@ impl Browser {
             // Deleting an incomplete file is permanent, so the first click only
             // says which file is about to go.
             self.armed_partial = Some(index);
+            window.focus(&self.partial_confirm_focus);
             self.message = Some(i18n::format(
                 "Confirm deleting {0} ({1}) — this cannot be undone",
                 &[
@@ -319,6 +324,7 @@ impl Browser {
             return;
         }
         self.armed_partial = None;
+        window.focus(&self.focus);
         let roots = [
             self.preset.photo.root.clone(),
             self.preset.video.root.clone(),

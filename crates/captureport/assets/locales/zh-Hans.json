@@ -1,4 +1,5 @@
 {
+  "Reconnect the interrupted source and finish scanning to review its remaining files.": "重新连接中断的来源并完成扫描，以查看未完成的文件。",
   "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification": "导入已取消 · 已验证 {0} 个 · 失败 {1} 个 · {2} 预设 · {3} 校验",
   "Review the verified copies below.": "请查看下方已验证的副本。",
   "Import finished · {0} verified · {1} failed · {2} preset · {3} verification": "导入完成 · 已验证 {0} 个 · 失败 {1} 个 · {2} 预设 · {3} 校验",

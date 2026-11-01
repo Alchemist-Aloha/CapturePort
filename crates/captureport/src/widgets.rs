@@ -77,6 +77,40 @@ pub(crate) fn danger_button(
         .child(icons::icon(icon, palette.text))
         .child(div().min_w_0().truncate().child(i18n::tr(&label)))
 }
+/// A destructive action that can receive keyboard focus programmatically, so
+/// replacing the arming control does not drop the user's position.
+pub(crate) fn danger_button_with_focus(
+    icon: icons::Icon,
+    label: impl Into<gpui::SharedString>,
+    palette: Palette,
+    focus: &gpui::FocusHandle,
+    handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
+) -> impl IntoElement {
+    let label = label.into();
+    div()
+        .id(label.clone())
+        .cursor_pointer()
+        .flex()
+        .items_center()
+        .gap(px(spacing::CONTROL_GAP))
+        .rounded_sm()
+        .px(px(spacing::CONTENT))
+        .py(px(spacing::TIGHT))
+        .min_h(px(spacing::CONTROL_HEIGHT))
+        .flex_shrink_0()
+        .text_sm()
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(palette.text)
+        .border_1()
+        .border_color(palette.accent)
+        .bg(palette.danger)
+        .track_focus(focus)
+        .tab_index(0)
+        .focus(move |style| style.border_color(palette.accent))
+        .on_click(handler)
+        .child(icons::icon(icon, palette.text))
+        .child(div().min_w_0().truncate().child(i18n::tr(&label)))
+}
 pub(crate) fn chip(
     label: impl Into<gpui::SharedString>,
     active: bool,

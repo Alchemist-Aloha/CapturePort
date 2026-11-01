@@ -1,4 +1,5 @@
 {
+  "Reconnect the interrupted source and finish scanning to review its remaining files.": "Reconnect the interrupted source and finish scanning to review its remaining files.",
   "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification": "Import cancelled · {0} verified · {1} failed · {2} preset · {3} verification",
   "Review the verified copies below.": "Review the verified copies below.",
   "Import finished · {0} verified · {1} failed · {2} preset · {3} verification": "Import finished · {0} verified · {1} failed · {2} preset · {3} verification",
