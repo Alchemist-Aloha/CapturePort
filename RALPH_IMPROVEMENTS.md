@@ -555,6 +555,31 @@ Committed as `692ac20` (dedupe, timestamp, reachable row) and `6607a00`
 (resume gating, focus handoff, catalogs). Camera interruption, resuming an
 actually reconnected source, and power-loss behaviour remain unverified.
 
+## Iteration 16 — paging reverted after the shortcut failed in the real window
+
+**Correction of iteration 15 →** the earlier conclusion ("compositor key
+injection did not reach the app") was wrong. With a pid-based window lookup and
+`RUST_LOG` instrumentation, pressing Page Down through
+`hl.dsp.send_shortcut({key="Next"})` fires the action: the handler logs
+`up=false` with a real viewport (**367 px**), a real maximum offset
+(**3045 px**) and offset **0**. Synthetic keys and the keybinding work.
+
+**Real failure →** neither `ScrollHandle::set_offset` nor
+`ScrollHandle::scroll_to_item` changed the page. Every later press still reported
+offset `0px`, so the write never reached the painted scroller. Shipping a
+shortcut that silently does nothing is worse than no shortcut.
+
+**Decision → REJECT / REVERT** `53f230e` in `81ce1f1`; the spec paragraph is
+removed in this entry. The clamp helper and its test went with the revert, so the
+suite is back to **199 tests / 15 suites**. Remaining hypothesis: the tracked
+handle is not the element that actually scrolls the Settings column (or this GPUI
+version needs the scroll offset set during layout, not from an action).
+
+**Better next step →** instead of paging, make focus visible: attach a focus
+handle per Settings section and call `scroll_to_item(section_index)` from
+`on_focus_in`, then prove it with Tab alone (which is known to work) and OCR —
+no synthetic function keys required.
+
 ## Iteration 15 — keyboard paging for long pages
 
 **Gap →** Settings is a single tall column; tabbing to a control below the fold
