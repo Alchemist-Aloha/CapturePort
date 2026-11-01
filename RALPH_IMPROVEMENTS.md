@@ -38,7 +38,9 @@ The large Ralph iteration allowance is a harness guard, not a stopping criterion
 
 ## Baseline measurements
 
-Host: Linux 7.3.0-4-cachyos x86_64, i5-13600K (20 logical CPUs), btrfs.
+Host: Linux 7.3.0-4-cachyos x86_64, i5-13600K (20 logical CPUs).
+Checkout is btrfs; temporary benchmark/native fixtures under `/tmp` are **tmpfs**.
+These probes must not be interpreted as physical-storage throughput/durability.
 Command: `rtk cargo build -p captureport-bench --release --locked --offline`,
 then run `target/release/captureport-bench` sequentially six times; discard the
 first warm-up and report median and min–max of the other five. Per-process CPU
@@ -79,13 +81,13 @@ to the stated states. Prior-session screenshots are historical evidence only.
 | Surface / workflow | Principal implementation | Coverage / next check |
 |---|---|---|
 | Fresh launch, source-empty/loading/error states | main, browser/render + views | S/T/G: fresh empty light/dark; demo loading/ready; errors pending |
-| Sources, refresh, mount, disconnect/reconnect | devices, browser/sources, gphoto/discovery | S/T/G: folder picker opens/cancels; selection automation blocked; camera separate |
+| Sources, refresh, mount, disconnect/reconnect | devices, browser/sources, gphoto/discovery | S/T/G: GTK opens/cancels; private broker selects fixtures; actual GTK choice/camera separate |
 | Grid/filter/sort/selection and gallery grouping/rename | browser/views + gallery + session | S/T/G: populated demo grid at 1180×900 / 720×640; interactions/latency pending |
-| RAW+JPEG bundles and member selection | ingest/bundle, browser/bundles + views | S/T; G pending |
+| RAW+JPEG bundles and member selection | ingest/bundle, browser/bundles + views | S/T/G: merged tile/JPEG preview/both files copied; member interaction pending |
 | Details popup, original URL copy, dismissal/focus | browser/detail | S/T; G pending |
-| Image/video previews, unavailable fallback, progress strip | metadata/thumbnail, browser/thumbnails + render | S/T/G: synthetic preview decode + progress; real mixed decode/fallback G pending |
-| Plan preview, collisions, backup paths, confirmation | ingest/planner, browser/import + panels | S/T; G pending |
-| Import phases, cancel, outcomes | ingest/importer, tasks, browser/render | S/T; real isolated normal/re-import/cancel/error G pending |
+| Image/video previews, unavailable fallback, progress strip | metadata/thumbnail, browser/thumbnails + render | S/T/G: generated JPEG + ffmpeg video decode; paired RAW placeholder; genuine RAW/unavailable-tile G pending |
+| Plan preview, collisions, backup paths, confirmation | ingest/planner, browser/import + panels | S/T/G: exact paths, first/re-import confirmation, late collision; backup UI pending |
+| Import phases, cancel, outcomes | ingest/importer, tasks, browser/render | S/T/G: actual filesystem import/re-import/cancel/late-error; camera phases separate |
 | History and session-detail inspection | catalog, browser/import + panels | S/T; G pending |
 | Recovery, resume, partial cleanup confirmation | ingest/recovery, browser/import + panels | S/T; crash/fault and G pending |
 | Verified-original deletion confirmation/cancel/refusal | ingest/source_delete, tasks, browser/import | S/T; disposable fixture only; G pending |
@@ -131,7 +133,11 @@ to the stated states. Prior-session screenshots are historical evidence only.
     discard focus. Native theme/refresh/template-help and input shortcut guard
     pass. Remaining audit: focus handoff when a control is actually removed,
     and keyboard reachability of inline template token controls.
-11. **Measurement gap:** correct quick-hash byte accounting, add realistic
+11. **Native confirmed UI follow-up:** post-import preview still says Ready / to
+    copy, and offers Delete verified originals after zero-success cancellation
+    or collision. Backend refusal guards remain; fix the misleading eligibility
+    and outcome display before calling destructive-control coverage complete.
+12. **Measurement gap:** correct quick-hash byte accounting, add realistic
    filesystem/decode/import/duplicate-heavy/fault baselines without claiming
    synthetic placeholder or 1 TB metadata tests cover those workloads.
 
@@ -415,10 +421,56 @@ release build pass. Two bounded native confirmation batches; artifacts
 `theme-focus.json` under `/tmp/captureport-native-c0f0be1e76dc44ca85d5971e6d4730df/`.
 All processes stopped, focus restored, clipboard untouched. No performance claim.
 
-**Decision → ACCEPT**; code commit SHA will be recorded immediately after commit.
+**Decision → ACCEPT**; committed as **`41f0d25`**
+(`fix: preserve keyboard focus across dynamic button labels`).
 Next: resume downstream native filesystem workflow coverage. If real GTK picker
 keyboard automation remains blocked, use a private mocked picker broker seam,
 explicitly separating that mock from real native scan/preview/import behavior.
+
+## Iteration 8 — native filesystem workflows; hand off disappearing-button focus
+
+**Test seam →** private D-Bus FileChooser broker returns only directories inside
+an owned fixture root. No real desktop portal state is involved. Generated JPEG,
+MP4 and a RAW placeholder exercise the real native app, FilesystemSource, codecs,
+planner, copier and disk SQLite. Cancellation uses a 1 GiB sparse-padded MP4
+(logical test payload, not representative camera footage or disk throughput).
+
+**Issue/before →** cancellation succeeded, but its focused Cancel button vanished
+and subsequent Ctrl+O never reached the broker. Pre-fix fixture
+`/tmp/captureport-files-a9a0025a8f9c4855bd795f8f72b4b1aa/` records Cancelled,
+no final/partial, only three broker requests, then a source-change timeout.
+
+**Change →** accepted preview/import and cancellation actions hand focus to the
+existing browser root before their triggers disappear. Two focus calls, using
+the existing gallery/detail handoff pattern; no engine changes, new dependencies
+or shipping test/source CLI. General asynchronous removals still need review.
+
+**After / empirical regression →** one complete native run asserts:
+- 3 Standard-verified copies, matching the displayed paths and source bytes;
+- re-import: 3 Strict-verified existing copies, unchanged destination contents;
+- 1 GiB import canceled: no final large file, no partial left;
+- next Ctrl+O works (fourth broker request), then a late collision records one
+  failed copy / partial session, preserving the unrelated file;
+- SHA-256 of every original remains identical; prior successful copies intact.
+
+**Evidence →** `/tmp/captureport-files-729da4c950414b9d91b8a18837c6ede0/`:
+`results.json`, original hashes, SQLite, screenshots 01–06, and frozen
+`workflow.py` / `broker.py`. Working helpers are `/tmp/captureport-files-workflow.py`
+and `/tmp/captureport-filechooser-broker.py`. They are compositor-specific local
+checks, not shipped scripts or Cargo tests. All app/broker/bus processes stopped;
+focus restored; clipboard untouched. Initial harness assumptions about paired
+JPEG case and Cancel's Tab position were corrected, not called product bugs.
+A missed cancellation was counted as Completed, not passed; its known 1 GiB
+fixture destination was later removed to reclaim RAM, with SQL/logs retained.
+
+**Validation / limits →** full ladder **193 tests / 15 suites** and release build
+pass; no new Rust test count is claimed for these native assertions. Actual GTK
+folder selection, genuine RAW decoding, physical cameras, power-loss durability
+and remaining UI surfaces are not covered. No performance gain claimed.
+
+**Decision → ACCEPT** focus handoff fix; code commit SHA recorded after commit.
+Next: zero-success deletion affordance/outcome clarity, then history/recovery/
+details/preset coverage and the still-uninvestigated measured performance paths.
 
 ## Stopping/remaining limits
 

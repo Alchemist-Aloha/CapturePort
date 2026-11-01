@@ -4,7 +4,7 @@ impl Browser {
     pub(crate) fn import_selected(
         &mut self,
         _: &ImportSelected,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if self.importing || self.planning || self.marking_imported {
@@ -17,6 +17,8 @@ impl Browser {
             cx.notify();
             return;
         }
+        // Preview/confirm controls may disappear as the action changes pages.
+        window.focus(&self.focus);
         if self.plan.is_none() || self.last_import_result.is_some() {
             self.start_plan(cx);
             return;
@@ -108,12 +110,13 @@ impl Browser {
     pub(crate) fn cancel_import(
         &mut self,
         _: &CancelImport,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if let Some(t) = &self.import_cancellation {
             t.cancel()
         }
+        window.focus(&self.focus);
         self.message = Some(i18n::tr("Cancelling import…"));
         cx.notify()
     }

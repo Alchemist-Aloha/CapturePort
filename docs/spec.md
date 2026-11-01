@@ -2595,7 +2595,9 @@ A control that remains present keeps a semantic element identity when its label,
 icon, busy state or compact wording changes, so activation/resize does not discard
 keyboard focus. This applies to theme, source actions, view options, template
 help, timezone and maintenance controls. Removed controls and dismissed popups
-still require their own appropriate focus handoff.
+still require their own appropriate focus handoff. Accepting preview/import or
+requesting cancellation returns keyboard focus to the browser root before its
+trigger can disappear, so Tab and application shortcuts remain available.
 Buttons and fields use 16-pixel horizontal padding; compact
 filter tabs use 8. Header, sidebar, content, and footer gutters align at 16
 pixels. A control label truncates rather than overlapping its own outline, so a
