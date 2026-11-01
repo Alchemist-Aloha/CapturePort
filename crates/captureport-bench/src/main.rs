@@ -13,7 +13,8 @@ use captureport_core::{
     ScanGeneration, SourceId,
 };
 use captureport_ingest::{
-    ImportPlanner, ImportPreset, PlanInput, Template, TemplateContext, digest_reader, quick_path,
+    ImportPlanner, ImportPreset, PlanInput, Template, TemplateContext, VerificationMode,
+    digest_reader, quick_path, verify_copy,
 };
 use captureport_metadata::{ThumbnailPipeline, ThumbnailRequest};
 use chrono::{FixedOffset, TimeZone};
@@ -47,9 +48,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     print_sample(benchmark_templates(&items)?);
     print_sample(benchmark_planner(&source, &items)?);
     print_sample(benchmark_thumbnails(&items)?);
-    let (quick, full) = benchmark_hashing()?;
+    let (quick, full, standard, strict) = benchmark_hashing()?;
     print_sample(quick);
     print_sample(full);
+    print_sample(standard);
+    print_sample(strict);
     Ok(())
 }
 
@@ -284,7 +287,7 @@ fn benchmark_thumbnails(items: &[MediaItem]) -> Result<Sample, Box<dyn std::erro
     })
 }
 
-fn benchmark_hashing() -> Result<(Sample, Sample), Box<dyn std::error::Error>> {
+fn benchmark_hashing() -> Result<(Sample, Sample, Sample, Sample), Box<dyn std::error::Error>> {
     let path = tempfile::NamedTempFile::new()?;
     let bytes = vec![0x5a; 8 * 1024 * 1024];
     fs::write(path.path(), &bytes)?;
@@ -298,14 +301,35 @@ fn benchmark_hashing() -> Result<(Sample, Sample), Box<dyn std::error::Error>> {
     };
 
     let full_started = Instant::now();
-    black_box(digest_reader(fs::File::open(path.path())?)?.full());
+    let digest = digest_reader(fs::File::open(path.path())?)?;
+    black_box(digest.full());
     let full = Sample {
         name: "full_hash_8mib",
         elapsed: full_started.elapsed(),
         units: 1,
         bytes: bytes.len() as u64,
     };
-    Ok((quick, full))
+    let standard_started = Instant::now();
+    if !verify_copy(VerificationMode::Standard, &digest, path.path())? {
+        return Err("standard verification rejected an identical copy".into());
+    }
+    let standard = Sample {
+        name: "verify_standard_8mib",
+        elapsed: standard_started.elapsed(),
+        units: 1,
+        bytes: bytes.len() as u64,
+    };
+    let strict_started = Instant::now();
+    if !verify_copy(VerificationMode::Strict, &digest, path.path())? {
+        return Err("strict verification rejected an identical copy".into());
+    }
+    let strict = Sample {
+        name: "verify_strict_8mib",
+        elapsed: strict_started.elapsed(),
+        units: 1,
+        bytes: bytes.len() as u64,
+    };
+    Ok((quick, full, standard, strict))
 }
 
 fn print_sample(sample: Sample) {

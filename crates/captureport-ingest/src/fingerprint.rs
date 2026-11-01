@@ -191,6 +191,26 @@ pub fn quick_path(path: &Path) -> io::Result<Fingerprint> {
     Ok(quick_samples(size, &first, &last))
 }
 
+/// Edge-only fingerprint from an already-open regular file, mirroring
+/// [`quick_path`] without a second path lookup.
+fn quick_from_file(file: &mut File, size: u64) -> io::Result<Fingerprint> {
+    file.seek(SeekFrom::Start(0))?;
+    if size <= (SAMPLE * 2) as u64 {
+        let mut bytes = Vec::with_capacity(size as usize);
+        file.read_to_end(&mut bytes)?;
+        if bytes.len() != size as usize {
+            return Err(io::Error::other("File changed while fingerprinting"));
+        }
+        return Ok(quick_samples(size, &bytes, &[]));
+    }
+    let mut first = vec![0; SAMPLE];
+    file.read_exact(&mut first)?;
+    file.seek(SeekFrom::Start(size - SAMPLE as u64))?;
+    let mut last = vec![0; SAMPLE];
+    file.read_exact(&mut last)?;
+    Ok(quick_samples(size, &first, &last))
+}
+
 fn quick_samples(size: u64, first: &[u8], last: &[u8]) -> Fingerprint {
     let mut hasher = blake3::Hasher::new();
     hasher.update(QUICK_ALGORITHM.as_bytes());
@@ -227,19 +247,26 @@ pub(crate) fn verify_copy_with_progress(
     if cancellation.is_cancelled() {
         return Err(io::Error::other("Verification cancelled"));
     }
-    let file = open_regular_file(destination)?;
+    let mut file = open_regular_file(destination)?;
     let before = file.metadata()?;
     if before.len() != source.size() {
         return Ok(false);
     }
-    let content_matches = if mode == VerificationMode::Fast {
-        true
-    } else {
-        let digest = digest_reader_with_progress(&file, cancellation, progress)?;
-        match mode {
-            VerificationMode::Fast => true,
-            VerificationMode::Standard => source.quick() == digest.quick(),
-            VerificationMode::Strict => source.full() == digest.full(),
+    let content_matches = match mode {
+        VerificationMode::Fast => true,
+        // Standard's contract is the edge sample; hashing every byte of a
+        // multi-gigabyte destination adds no evidence for that mode.
+        VerificationMode::Standard => {
+            let matches = quick_from_file(&mut file, before.len())? == source.quick();
+            if cancellation.is_cancelled() {
+                return Err(io::Error::other("Verification cancelled"));
+            }
+            progress(before.len());
+            matches
+        }
+        VerificationMode::Strict => {
+            let digest = digest_reader_with_progress(file, cancellation, progress)?;
+            source.full() == digest.full()
         }
     };
     // The path must still name the unchanged file we read, not a replacement.
@@ -369,6 +396,71 @@ mod tests {
             receiver
                 .recv_timeout(std::time::Duration::from_secs(2))
                 .expect("Fingerprinting a special file blocked")
+        );
+    }
+
+    #[test]
+    fn open_handle_quick_fingerprint_matches_the_path_fingerprint() {
+        for length in [
+            0,
+            1,
+            SAMPLE as u64 - 1,
+            SAMPLE as u64,
+            SAMPLE as u64 * 2,
+            SAMPLE as u64 * 2 + 1,
+            SAMPLE as u64 * 4 + 7,
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("payload");
+            let bytes: Vec<u8> = (0..length).map(|index| (index % 251) as u8).collect();
+            std::fs::write(&path, &bytes).unwrap();
+            let mut file = File::open(&path).unwrap();
+            assert_eq!(
+                quick_from_file(&mut file, length).unwrap(),
+                quick_path(&path).unwrap(),
+                "length {length}"
+            );
+        }
+    }
+
+    #[test]
+    fn standard_verification_reads_only_the_edge_samples() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("payload");
+        let bytes = vec![0x5a; SAMPLE * 12];
+        std::fs::write(&path, &bytes).unwrap();
+        let digest = digest_reader(bytes.as_slice()).unwrap();
+        let mut standard = Vec::new();
+        assert!(
+            verify_copy_with_progress(
+                VerificationMode::Standard,
+                &digest,
+                &path,
+                &captureport_core::CancellationToken::new(),
+                &mut |read| standard.push(read),
+            )
+            .unwrap()
+        );
+        // The edge check reports one completion instead of once per hashed chunk.
+        assert_eq!(standard, vec![bytes.len() as u64]);
+        let mut strict = Vec::new();
+        assert!(
+            verify_copy_with_progress(
+                VerificationMode::Strict,
+                &digest,
+                &path,
+                &captureport_core::CancellationToken::new(),
+                &mut |read| strict.push(read),
+            )
+            .unwrap()
+        );
+        assert!(
+            strict.len() > 1,
+            "Strict still hashes every byte: {strict:?}"
+        );
+        assert_eq!(
+            strict.last().copied().unwrap_or_default(),
+            bytes.len() as u64
         );
     }
 

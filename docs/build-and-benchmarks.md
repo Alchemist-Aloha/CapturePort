@@ -85,7 +85,13 @@ item counts, bytes actually hashed, and throughput for:
 - template generation;
 - deterministic import planning;
 - bounded thumbnail queue processing;
-- quick BLAKE3 sampling and full BLAKE3 hashing.
+- quick BLAKE3 sampling and full BLAKE3 hashing;
+- Standard and Strict copy verification of an 8 MiB file.
+
+Standard verification compares only the size and edge samples, so its probe
+reads roughly 512 KiB regardless of file size; Strict reads and hashes the whole
+file. Both probes mean the same thing (one verified file), so compare them with
+each other rather than treating their identical byte column as equal work.
 
 The binary is a normal release executable. Compare runs on the same host and
 build profile; these measurements are not release performance guarantees.

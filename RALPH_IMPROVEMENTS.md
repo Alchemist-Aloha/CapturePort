@@ -114,9 +114,10 @@ to the stated states. Prior-session screenshots are historical evidence only.
    identity evidence. Existing port-based history is retained, not auto-merged.
 4. **High / investigate:** concurrent camera reopen/source switching and
    generation-scoped completion/cancellation; blocked drivers and worker shutdown.
-5. **Medium / measured opportunity:** Standard verification reads/hashes the whole
-   destination although its contract compares edge samples. Benchmark identical
-   fixtures, preserve Strict and full existing-file verification, then decide.
+5. **Fixed in iteration 10:** Standard verification now reads only its edge
+   samples (512 MiB: ~220 µs vs ~152 ms). Strict and pre-existing-file full
+   verification are unchanged. Residual: Standard cannot detect middle-byte
+   corruption by design; use Strict where that matters.
 6. **Medium / measured opportunity:** catalog request sequence dominates the
    synthetic probe (~394 ms). Profile actual scan/import callers before batching
    or changing transaction semantics; memory DB is not durable import throughput.
@@ -473,6 +474,54 @@ and remaining UI surfaces are not covered. No performance gain claimed.
 Next: zero-success deletion affordance/outcome clarity, then history/recovery/
 details/preset coverage and the still-uninvestigated measured performance paths.
 
+## Iteration 10 — Standard verification stops hashing what it never compares
+
+**Issue →** `verify_copy(Standard)` streamed and BLAKE3-hashed the entire
+destination, then compared only the edge quick fingerprint. For a 20 GB video it
+re-read 20 GB to reach a decision that reads 512 KiB.
+
+**Measurement before →** release build, tmpfs/page-cache fixture, 512 MiB file,
+five samples after the digest was prepared: **162–163 ms** per Standard verify.
+This is the best case for the old path; real SSDs and the end of the page cache
+would make it slower. The probe was ad hoc and has been removed; it was never
+claimed as disk throughput.
+
+**Change →** one private `quick_from_file` helper reads the same edge samples
+`quick_path` reads (whole file only when ≤ 512 KiB) from the already-open,
+non-symlink handle; Standard uses it and reports one completion. Strict keeps the
+streaming full hash. Size, symlink/FIFO refusal and the post-read identity/version
+timestamp revalidation are unchanged, so the documented Standard guarantee
+(size + edge fingerprint) is now what the code actually computes. A repeatable
+`verify_standard_8mib` / `verify_strict_8mib` pair was added to the synthetic
+benchmark, and the docs now say the two mean the same thing while reading
+different byte counts.
+
+**Measurement after →** 512 MiB, same fixture: Standard **218–220 µs** warm
+(strict unchanged at **152–153 ms**), i.e. roughly 700× less work; the new
+repeatable 8 MiB probes give Standard **0.273 ms** (0.256–0.282) versus Strict
+**2.353 ms** (2.178–2.463) over five runs. Two tests pin the behaviour: the open
+handle fingerprint equals the path fingerprint at 0/1/512 KiB/1 MiB boundaries,
+and Standard reports one completion while Strict still reads every chunk.
+
+**Correctness boundary →** detection is exactly as strong as before: the old code
+also ignored middle bytes when comparing. A rewrite of already-read bytes during
+Standard verification is now caught by the same final metadata/mtime/ctime
+revalidation over a shorter window. Standard is still the wrong mode for
+middle-byte corruption; Strict remains the documented remedy, and pre-existing
+destination candidates still force Strict.
+
+**Validation →** workspace **197 tests / 15 suites**, formatting, locked/offline
+check, strict all-target Clippy and diff checks pass; release build passes. The
+full native filesystem workflow was rerun to completion
+(`/tmp/captureport-files-a32c84aff15646699f21e2b5e62e0ad6`): 3 Standard copies,
+3 Strict re-verifications, cancel, late collision and unchanged originals. Faster
+verification made the cancellation keystrokes race the 1 GiB copy, so the harness
+now sends them without inter-key delays — a fixture-tuning note, not a product
+fix. Camera transfers, real RAW decode, genuine GTK selection and physical
+disks remain unverified.
+
+**Decision → ACCEPT**; code commit SHA recorded after commit.
+
 ## Iteration 9 — deletion entry mirrors the true verified-copy policy
 
 **Issue →** the native run offered **Delete verified originals…** after a
@@ -511,7 +560,8 @@ Cancellation-as-completion, camera deletion, genuine GTK selection and power-los
 recovery are still unverified. No claim that every dynamic control's focus or
 all destructive surfaces were exercised.
 
-**Decision → ACCEPT**; code commit SHA recorded after commit.
+**Decision → ACCEPT**; committed as **`74b3213`**
+(`fix: gate source deletion on the verified-copy policy`).
 
 ## Stopping/remaining limits
 
