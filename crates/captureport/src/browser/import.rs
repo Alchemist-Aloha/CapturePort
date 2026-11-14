@@ -1,13 +1,30 @@
 use crate::*;
 
 impl Browser {
+    pub(crate) fn importing(&self) -> bool {
+        self.active_import.is_some()
+    }
+    /// The running import started from the scan being browsed, so its plan,
+    /// statuses and result belong to what is on screen.
+    pub(crate) fn importing_browsed_source(&self) -> bool {
+        self.active_import
+            .as_ref()
+            .is_some_and(|import| import.generation == self.state.generation)
+    }
     pub(crate) fn import_selected(
         &mut self,
         _: &ImportSelected,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.importing || self.planning || self.marking_imported {
+        if self.importing() {
+            self.message = Some(i18n::tr(
+                "Another import is running. Preview the next one when it finishes.",
+            ));
+            cx.notify();
+            return;
+        }
+        if self.planning || self.marking_imported {
             return;
         }
         if self.scanning {
@@ -43,9 +60,15 @@ impl Browser {
         let cancel = CancellationToken::new();
         let (tx, rx) = mpsc::channel();
         self.work_receivers.push(rx);
-        self.import_cancellation = Some(cancel.clone());
-        self.importing = true;
-        self.progress = None;
+        self.active_import = Some(ActiveImport {
+            generation: self.state.generation,
+            source_label: self
+                .source_label()
+                .map_or_else(|| i18n::tr("this source"), |label| label.primary),
+            plan: plan.clone(),
+            cancellation: cancel.clone(),
+            progress: None,
+        });
         self.message = None;
         let cat = self.catalog.clone();
         let sid = self.catalog_source_id;
@@ -57,7 +80,16 @@ impl Browser {
         cx.notify();
     }
     pub(crate) fn start_plan(&mut self, cx: &mut Context<Self>) {
-        if self.importing || self.marking_imported {
+        if self.importing() {
+            // Planning against half-written destinations could pick names the
+            // running import is about to publish, so the next preview waits.
+            self.message = Some(i18n::tr(
+                "Another import is running. Preview the next one when it finishes.",
+            ));
+            cx.notify();
+            return;
+        }
+        if self.marking_imported {
             return;
         }
         let Some(source) = self.source.clone() else {
@@ -113,8 +145,8 @@ impl Browser {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(t) = &self.import_cancellation {
-            t.cancel()
+        if let Some(import) = &self.active_import {
+            import.cancellation.cancel()
         }
         window.focus(&self.focus);
         self.message = Some(i18n::tr("Cancelling import…"));
@@ -358,7 +390,7 @@ impl Browser {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.importing || self.reconcile_cancellation.is_some() {
+        if self.importing() || self.reconcile_cancellation.is_some() {
             self.message = Some(i18n::tr("Finish the active import or reconciliation first"));
             cx.notify();
             return;

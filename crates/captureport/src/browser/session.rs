@@ -187,13 +187,15 @@ impl Browser {
             for _ in 0..256 {
                 match self.work_receivers[index].try_recv() {
                     Ok(WorkMessage::Event(e)) => {
+                        // Progress belongs to the import, not to the browsed scan.
                         if let AppEvent::ImportProgress {
                             generation,
                             progress,
                         } = &*e
-                            && *generation == self.state.generation
+                            && let Some(import) = self.active_import.as_mut()
+                            && *generation == import.generation
                         {
-                            self.progress = Some(progress.clone());
+                            import.progress = Some(progress.clone());
                             changed = true;
                         }
                         media_changed |= self.state.apply_event(*e)
@@ -342,13 +344,21 @@ impl Browser {
                         changed = true;
                     }
                     Ok(WorkMessage::ImportDone(generation, v)) => {
-                        self.importing = false;
-                        self.import_cancellation = None;
-                        if generation == self.state.generation {
-                            self.message = Some(v.unwrap_or_else(|e| {
-                                i18n::format("Import failed: {0}", std::slice::from_ref(&e))
-                            }));
-                        }
+                        let label = self
+                            .active_import
+                            .take()
+                            .map(|import| import.source_label)
+                            .unwrap_or_default();
+                        let message = v.unwrap_or_else(|e| {
+                            i18n::format("Import failed: {0}", std::slice::from_ref(&e))
+                        });
+                        // Report completion even after the user moved to another
+                        // source; name the source so it is not mistaken for this one.
+                        self.message = Some(if generation == self.state.generation {
+                            message
+                        } else {
+                            i18n::format("{0}: {1}", &[label, message])
+                        });
                         changed = true;
                     }
                     Ok(WorkMessage::ReconcileDone(v)) => {

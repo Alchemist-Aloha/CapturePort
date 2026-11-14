@@ -2544,6 +2544,20 @@ source reading, copying, verification, atomic publication, and history recording
 Camera driver progress is normalized to object bytes; temporary spooling and
 verification never inflate copied-byte totals. Drivers without progress callbacks
 retain the active phase and cancellation control, without inventing progress.
+
+An import does not block browsing. While it runs, the user can open other
+folders, cards or cameras, scan them, filter, and change selection; the panel
+names the source being imported ("From: …") and keeps reporting progress and
+filenames from the import's own plan. One import runs at a time: building a
+preview or starting another import waits until it finishes (planning against
+half-written destinations could reuse names the running import is about to
+publish) and says so. A camera being imported from cannot be opened again until
+the import finishes, because a camera accepts one connection. Disconnecting the
+source being browsed cancels the import only when that source is the one being
+imported. Imported status updates, the import result, and the option to delete
+verified originals apply only while the import's own scan is still being
+browsed; after switching away, completion is reported as a message prefixed with
+the import's source name, and the catalog history still records every copy.
 Existing-file checks report source-read and destination-verification progress,
 are cancellable between reads, and increment verified counts only after history
 recording succeeds. Unrelated notices do not replace active transfer status.

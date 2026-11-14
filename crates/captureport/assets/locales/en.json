@@ -162,7 +162,6 @@
   "Filename template": "Filename template",
   "Filesystem": "Filesystem",
   "Filesystem time": "Filesystem time",
-  "Finish or cancel the current import before changing sources": "Finish or cancel the current import before changing sources",
   "Finish the active import or reconciliation first": "Finish the active import or reconciliation first",
   "Four-digit corrected capture year": "Four-digit corrected capture year",
   "GPS": "GPS",
@@ -449,5 +448,9 @@
   "Rename after scan": "Rename after scan",
   "Scan stopped unexpectedly. Reopen the source to retry.": "Scan stopped unexpectedly. Reopen the source to retry.",
   "{0} h": "{0} h",
-  "{0} d": "{0} d"
+  "{0} d": "{0} d",
+  "Another import is running. Preview the next one when it finishes.": "Another import is running. Preview the next one when it finishes.",
+  "This camera is importing. Browse it again when the import finishes.": "This camera is importing. Browse it again when the import finishes.",
+  "From: {0}": "From: {0}",
+  "{0}: {1}": "{0}: {1}"
 }

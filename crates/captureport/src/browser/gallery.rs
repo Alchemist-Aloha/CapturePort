@@ -115,7 +115,7 @@ impl Browser {
         window.focus(&self.focus);
         self.rebuild_gallery_groups();
         // Session names can appear in both folder and filename templates.
-        if !self.importing {
+        if !self.importing_browsed_source() {
             self.invalidate_plan();
         }
         cx.notify();

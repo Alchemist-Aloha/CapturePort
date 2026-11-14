@@ -162,7 +162,6 @@
   "Filename template": "文件名模板",
   "Filesystem": "文件系统",
   "Filesystem time": "文件系统时间",
-  "Finish or cancel the current import before changing sources": "在更改源之前完成或取消当前导入",
   "Finish the active import or reconciliation first": "请先完成正在进行的导入或媒体库核对",
   "Four-digit corrected capture year": "四位数校正拍摄年份",
   "GPS": "GPS",
@@ -449,5 +448,9 @@
   "Rename after scan": "扫描完成后重命名",
   "Scan stopped unexpectedly. Reopen the source to retry.": "扫描意外停止。请重新打开来源以重试。",
   "{0} h": "{0} 小时",
-  "{0} d": "{0} 天"
+  "{0} d": "{0} 天",
+  "Another import is running. Preview the next one when it finishes.": "另一个导入正在进行。请在其完成后预览下一个导入。",
+  "This camera is importing. Browse it again when the import finishes.": "此相机正在导入。请在导入完成后再次浏览。",
+  "From: {0}": "来源：{0}",
+  "{0}: {1}": "{0}：{1}"
 }

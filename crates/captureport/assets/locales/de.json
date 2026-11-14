@@ -162,7 +162,6 @@
   "Filename template": "Dateinamenvorlage",
   "Filesystem": "Dateisystem",
   "Filesystem time": "Dateisystemzeit",
-  "Finish or cancel the current import before changing sources": "Beenden oder brechen Sie den aktuellen Import ab, bevor Sie die Quelle ändern",
   "Finish the active import or reconciliation first": "Beenden Sie zunächst den aktiven Import oder Abgleich",
   "Four-digit corrected capture year": "Vierstellig korrigiertes Erfassungsjahr",
   "GPS": "GPS",
@@ -449,5 +448,9 @@
   "Rename after scan": "Nach dem Scan umbenennen",
   "Scan stopped unexpectedly. Reopen the source to retry.": "Der Scan wurde unerwartet beendet. Öffnen Sie die Quelle erneut, um es noch einmal zu versuchen.",
   "{0} h": "{0} Std.",
-  "{0} d": "{0} T."
+  "{0} d": "{0} T.",
+  "Another import is running. Preview the next one when it finishes.": "Ein anderer Import läuft. Zeigen Sie die Vorschau des nächsten an, wenn er abgeschlossen ist.",
+  "This camera is importing. Browse it again when the import finishes.": "Von dieser Kamera wird gerade importiert. Durchsuchen Sie sie erneut, wenn der Import abgeschlossen ist.",
+  "From: {0}": "Von: {0}",
+  "{0}: {1}": "{0}: {1}"
 }

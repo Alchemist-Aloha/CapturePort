@@ -162,7 +162,6 @@
   "Filename template": "파일 이름 템플릿",
   "Filesystem": "파일 시스템",
   "Filesystem time": "파일 시스템 시간",
-  "Finish or cancel the current import before changing sources": "소스를 변경하기 전에 현재 가져오기를 완료하거나 취소하세요.",
   "Finish the active import or reconciliation first": "활성 가져오기 또는 조정을 먼저 완료하세요.",
   "Four-digit corrected capture year": "4자리 수정 캡처 연도",
   "GPS": "GPS",
@@ -449,5 +448,9 @@
   "Rename after scan": "스캔 후 이름 바꾸기",
   "Scan stopped unexpectedly. Reopen the source to retry.": "스캔이 예기치 않게 중지되었습니다. 소스를 다시 열어 다시 시도하세요.",
   "{0} h": "{0}시간",
-  "{0} d": "{0}일"
+  "{0} d": "{0}일",
+  "Another import is running. Preview the next one when it finishes.": "다른 가져오기가 진행 중입니다. 완료된 후 다음 미리 보기를 만드세요.",
+  "This camera is importing. Browse it again when the import finishes.": "이 카메라에서 가져오는 중입니다. 가져오기가 끝나면 다시 탐색하세요.",
+  "From: {0}": "원본: {0}",
+  "{0}: {1}": "{0}: {1}"
 }

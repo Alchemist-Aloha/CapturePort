@@ -664,3 +664,86 @@ pub(crate) fn format_size(bytes: u64) -> String {
         format!("{v:.1} {}", U[i])
     }
 }
+
+/// A running import. It owns everything the progress panel and completion
+/// handling need, so the browser can change source, scan and select while it
+/// copies. Only one import runs at a time.
+pub(crate) struct ActiveImport {
+    /// The browsed scan it started from. Status changes and the result (which
+    /// enables deleting originals) apply only while that scan is still browsed.
+    pub(crate) generation: ScanGeneration,
+    pub(crate) source_label: String,
+    pub(crate) plan: captureport_ingest::ImportPlan,
+    pub(crate) cancellation: CancellationToken,
+    pub(crate) progress: Option<captureport_core::ImportProgress>,
+}
+
+impl ActiveImport {
+    /// The source filename of a planned item; the browsed scan may hold a
+    /// different file under the same id once the user switches sources.
+    pub(crate) fn source_name(&self, media_id: MediaId) -> Option<&str> {
+        self.plan
+            .items
+            .iter()
+            .find(|item| item.media_id == media_id)
+            .map(|item| item.source_name.as_str())
+    }
+
+    /// A camera allows one connection, so it cannot be rescanned mid-import.
+    pub(crate) fn holds_camera(&self, stable_id: &str) -> bool {
+        self.plan.source.source_type == captureport_core::SourceType::Camera
+            && self.plan.source.stable_id.as_deref() == Some(stable_id)
+    }
+}
+
+#[cfg(test)]
+mod active_import_tests {
+    use super::*;
+
+    #[test]
+    fn active_import_names_its_own_files_and_holds_only_its_camera() {
+        let dir = tempfile::tempdir().unwrap();
+        let source = FakeSourceBuilder::new()
+            .scenario(FakeSourceScenario::NormalCamera)
+            .files(2)
+            .build();
+        let mut items = Vec::new();
+        source
+            .enumerate(
+                &ScanContext::new(ScanGeneration(1), CancellationToken::new()),
+                &mut |item| {
+                    items.push(item);
+                    Ok(())
+                },
+            )
+            .unwrap();
+        let inputs = items
+            .iter()
+            .cloned()
+            .map(|item| PlanInput {
+                capture_time: capture_time(&item),
+                session_name: None,
+                item,
+            })
+            .collect();
+        let mut plan = ImportPlanner::build(&source, inputs, &ImportPreset::everyday(dir.path()));
+        let import = |plan| ActiveImport {
+            generation: ScanGeneration(1),
+            source_label: "Card".into(),
+            plan,
+            cancellation: CancellationToken::new(),
+            progress: None,
+        };
+        let first = &items[0];
+        assert_eq!(
+            import(plan.clone()).source_name(first.id),
+            Some(first.source_name.as_str())
+        );
+        assert_eq!(import(plan.clone()).source_name(MediaId(u64::MAX)), None);
+        assert!(!import(plan.clone()).holds_camera("camera:a"));
+        plan.source.source_type = captureport_core::SourceType::Camera;
+        plan.source.stable_id = Some("camera:a".into());
+        assert!(import(plan.clone()).holds_camera("camera:a"));
+        assert!(!import(plan).holds_camera("camera:b"));
+    }
+}

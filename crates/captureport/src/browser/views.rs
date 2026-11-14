@@ -253,7 +253,7 @@ impl Browser {
                     cx.listener(|t, _, w, c| t.open_demo(&OpenDemo, w, c)),
                 ))
             })
-            .child(if self.importing {
+            .child(if self.importing() {
                 button(
                     Icon::Cancel,
                     "Cancel import",
@@ -327,7 +327,7 @@ impl Browser {
         let (columns, image_height) = thumbnail_layout(
             f32::from(window.bounds().size.width),
             // Reserve the main-window activity widgets before sizing image wells.
-            f32::from(window.bounds().size.height) - 48. - if self.importing { 148. } else { 0. },
+            f32::from(window.bounds().size.height) - 48. - if self.importing() { 148. } else { 0. },
             sidebar_width,
             self.ui.thumbnail_size,
             self.show_view_options,

@@ -59,7 +59,7 @@ impl Browser {
                     }
                     None => i18n::format("{0} to copy · {1} skipped · {2} blocked · {3} preset · {4} verification", &[format!("{}", count.saturating_sub(blocked + skipped)), format!("{}", skipped), format!("{}", blocked), plan.preset_name.to_string(), i18n::tr(&format!("{:?}", plan.verification))]),
                 }))
-                .child(if blocked == 0 && count > 0 && !self.importing && self.last_import_result.is_none() {
+                .child(if blocked == 0 && count > 0 && !self.importing() && self.last_import_result.is_none() {
                     primary_button(Icon::Import, "Confirm import", p,
                         cx.listener(|t, _, w, c| t.import_selected(&ImportSelected, w, c)))
                         .into_any_element()

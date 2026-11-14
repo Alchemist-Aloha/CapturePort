@@ -102,7 +102,6 @@ struct Browser {
     receiver: Option<Receiver<ScanMessage>>,
     work_receivers: Vec<Receiver<WorkMessage>>,
     cancellation: Option<CancellationToken>,
-    import_cancellation: Option<CancellationToken>,
     reconcile_cancellation: Option<CancellationToken>,
     last_import_result: Option<captureport_ingest::ImportResult>,
     deletion_armed: bool,
@@ -166,9 +165,8 @@ struct Browser {
     cache_dir: PathBuf,
     generation: u64,
     scanning: bool,
-    importing: bool,
+    active_import: Option<ActiveImport>,
     marking_imported: bool,
-    progress: Option<captureport_core::ImportProgress>,
     message: Option<String>,
     focus: FocusHandle,
 }
@@ -326,7 +324,6 @@ impl Browser {
             receiver: None,
             work_receivers: vec![recovery_rx, presets_rx],
             cancellation: None,
-            import_cancellation: None,
             reconcile_cancellation: None,
             last_import_result: None,
             deletion_armed: false,
@@ -382,9 +379,8 @@ impl Browser {
             cache_dir,
             generation: 0,
             scanning: false,
-            importing: false,
+            active_import: None,
             marking_imported: false,
-            progress: None,
             message: None,
             focus,
         };
@@ -392,8 +388,22 @@ impl Browser {
             browser.scan(request, cx);
         }
         if demo_importing {
-            browser.importing = true;
-            browser.progress = Some(captureport_core::ImportProgress {
+            let plan = captureport_ingest::ImportPlan {
+                source: captureport_core::SourceIdentity {
+                    id: SourceId(0),
+                    source_type: captureport_core::SourceType::Fake,
+                    stable_id: None,
+                    serial: None,
+                    manufacturer: None,
+                    model: None,
+                    volume_uuid: None,
+                    display_name: Some("Demo".into()),
+                },
+                preset_name: "Demo".into(),
+                verification: VerificationMode::Standard,
+                items: Vec::new(),
+            };
+            let progress = Some(captureport_core::ImportProgress {
                 session_id: 0,
                 phase: captureport_core::ImportPhase::Copying,
                 completed: 25,
@@ -406,6 +416,13 @@ impl Browser {
                 current_file_total: 32_000_000,
                 bytes_per_second: 64_000_000.,
             });
+            browser.active_import = Some(ActiveImport {
+                generation: ScanGeneration(browser.generation),
+                source_label: "Demo".into(),
+                plan,
+                cancellation: CancellationToken::new(),
+                progress,
+            });
         }
         browser
     }
@@ -416,8 +433,8 @@ impl Drop for Browser {
         if let Some(t) = &self.cancellation {
             t.cancel()
         }
-        if let Some(t) = &self.import_cancellation {
-            t.cancel()
+        if let Some(import) = &self.active_import {
+            import.cancellation.cancel()
         }
         if let Some(t) = &self.reconcile_cancellation {
             t.cancel();

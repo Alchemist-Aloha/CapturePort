@@ -75,11 +75,9 @@ impl Browser {
         )
     }
     fn active_import_panel(&self, cx: &Context<Self>) -> Option<AnyElement> {
-        if !self.importing {
-            return None;
-        }
+        let import = self.active_import.as_ref()?;
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
-        let overall = self
+        let overall = import
             .progress
             .as_ref()
             .map(|progress| {
@@ -114,23 +112,16 @@ impl Browser {
                             .min_w_0()
                             .text_sm()
                             .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .child(
-                                if self
-                                    .import_cancellation
+                            .child(if import.cancellation.is_cancelled() {
+                                i18n::tr("Cancelling import…")
+                            } else {
+                                import
+                                    .progress
                                     .as_ref()
-                                    .is_some_and(CancellationToken::is_cancelled)
-                                {
-                                    i18n::tr("Cancelling import…")
-                                } else {
-                                    self.progress
-                                        .as_ref()
-                                        .map(|progress| {
-                                            i18n::tr(import_phase_label(progress.phase))
-                                        })
-                                        .unwrap_or_else(|| i18n::tr("Preparing import…"))
-                                },
-                            )
-                            .children(self.progress.as_ref().map(|progress| {
+                                    .map(|progress| i18n::tr(import_phase_label(progress.phase)))
+                                    .unwrap_or_else(|| i18n::tr("Preparing import…"))
+                            })
+                            .children(import.progress.as_ref().map(|progress| {
                                 div().text_xs().child(i18n::format(
                                     "Active import · {0}% · {1}/{2} copies verified",
                                     &[
@@ -139,7 +130,18 @@ impl Browser {
                                         progress.total.to_string(),
                                     ],
                                 ))
-                            })),
+                            }))
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::NORMAL)
+                                    .text_color(p.muted)
+                                    .truncate()
+                                    .child(i18n::format(
+                                        "From: {0}",
+                                        std::slice::from_ref(&import.source_label),
+                                    )),
+                            ),
                     )
                     .child(button(
                         Icon::Cancel,
@@ -148,13 +150,12 @@ impl Browser {
                         cx.listener(|t, _, w, c| t.cancel_import(&CancelImport, w, c)),
                     )),
             );
-        if let Some(progress) = &self.progress {
+        if let Some(progress) = &import.progress {
             let current =
                 progress_fraction(progress.current_file_bytes, progress.current_file_total);
-            let name = self
-                .state
-                .item(progress.media_id)
-                .map(|item| item.source_name.clone())
+            let name = import
+                .source_name(progress.media_id)
+                .map(str::to_owned)
                 .unwrap_or_else(|| {
                     progress
                         .destination
@@ -234,8 +235,9 @@ impl Render for Browser {
             232.
         };
         let summary = self.state.selection_summary();
-        let status = if self.importing {
-            self.progress
+        let status = if let Some(import) = &self.active_import {
+            import
+                .progress
                 .as_ref()
                 .map(|p| {
                     i18n::format(
@@ -414,7 +416,6 @@ impl Render for Browser {
                             .child(
                                 if self.page == Page::Browser
                                     && summary.count > 0
-                                    && !self.importing
                                     && !self.planning
                                     && self.last_import_result.is_none()
                                 {

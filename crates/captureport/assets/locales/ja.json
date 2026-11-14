@@ -162,7 +162,6 @@
   "Filename template": "ファイル名のテンプレート",
   "Filesystem": "ファイルシステム",
   "Filesystem time": "ファイルシステム時間",
-  "Finish or cancel the current import before changing sources": "ソースを変更する前に現在のインポートを終了またはキャンセルしてください",
   "Finish the active import or reconciliation first": "最初にアクティブなインポートまたはリコンシリエーションを終了します",
   "Four-digit corrected capture year": "4 桁の修正された捕獲年",
   "GPS": "GPS",
@@ -449,5 +448,9 @@
   "Rename after scan": "スキャン後に名前を変更",
   "Scan stopped unexpectedly. Reopen the source to retry.": "スキャンが予期せず停止しました。ソースを開き直して再試行してください。",
   "{0} h": "{0} 時間",
-  "{0} d": "{0} 日"
+  "{0} d": "{0} 日",
+  "Another import is running. Preview the next one when it finishes.": "別の取り込みを実行中です。完了後に次のプレビューを作成してください。",
+  "This camera is importing. Browse it again when the import finishes.": "このカメラから取り込み中です。取り込みの完了後にもう一度参照してください。",
+  "From: {0}": "取り込み元: {0}",
+  "{0}: {1}": "{0}: {1}"
 }

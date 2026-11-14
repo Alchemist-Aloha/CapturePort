@@ -8,9 +8,16 @@ fn demo_command() -> std::io::Result<Command> {
 
 impl Browser {
     pub(crate) fn scan(&mut self, request: SourceRequest, cx: &mut Context<Self>) {
-        if self.importing {
+        // Browsing continues during an import; only a camera that is being
+        // imported from cannot be opened a second time.
+        if let SourceRequest::Camera(camera) = &request
+            && self
+                .active_import
+                .as_ref()
+                .is_some_and(|import| import.holds_camera(&camera.stable_id))
+        {
             self.message = Some(i18n::tr(
-                "Finish or cancel the current import before changing sources",
+                "This camera is importing. Browse it again when the import finishes.",
             ));
             cx.notify();
             return;
@@ -71,7 +78,6 @@ impl Browser {
         self.gallery_item_names.clear();
         self.show_view_options = false;
         self.marking_imported = false;
-        self.progress = None;
         self.scrollbars.media = Default::default();
         self.scrollbars.bundle = Default::default();
         self.scrollbars.detail = Default::default();
@@ -88,8 +94,12 @@ impl Browser {
         self.scanning = false;
     }
     pub(crate) fn source_disconnected(&mut self, cx: &mut Context<Self>) {
-        if let Some(token) = &self.import_cancellation {
-            token.cancel();
+        // Only the import reading from this source loses its media; an import
+        // from another source keeps running.
+        if self.importing_browsed_source()
+            && let Some(import) = &self.active_import
+        {
+            import.cancellation.cancel();
         }
         // Keep the import busy until its worker has finalized catalog history.
         self.clear_source();
@@ -220,7 +230,7 @@ impl Browser {
     }
     pub(crate) fn can_mark_selected_imported(&self) -> bool {
         !self.scanning
-            && !self.importing
+            && !self.importing_browsed_source()
             && !self.planning
             && !self.marking_imported
             && self.state.items().any(|item| {
