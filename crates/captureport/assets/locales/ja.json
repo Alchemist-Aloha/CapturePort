@@ -15,7 +15,7 @@
   "Publishing verified copy": "検証済みコピーを確定中",
   "Saving import history": "取り込み履歴を保存中",
   "Wait for the source scan to finish before renaming": "名前を変更する前にソースのスキャンが完了するまでお待ちください",
-  "Preview unavailable": "プレビューを利用できません",
+  "Preview unavailable": "プレビューは利用できません",
   "Scanning source · {0} captures found": "ソースをスキャン中 · {0} 件の撮影を検出",
   "Thumbnails · {0}/{1} processed · {2}%": "サムネイル · {0}/{1} 件処理済み · {2}%",
   "{0} ready · {1} loading · {2} unavailable": "{0} 件準備完了 · {1} 件読み込み中 · {2} 件利用不可",
@@ -287,7 +287,6 @@
   "Presets": "プリセット",
   "Presets: {0}": "プリセット: {0}",
   "Preview import": "インポートをプレビュー",
-  "Preview unavailable": "プレビューは利用できません",
   "Previews unavailable": "プレビューは利用できません",
   "Prior import destination": "以前の輸入先",
   "RAW": "RAW",
@@ -445,5 +444,6 @@
   "{0} · {1}/{2} selected": "{0}・{1}/{2}を選択",
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}。オリジナルを削除すると元に戻すことはできません。必要なコピーが検証されたファイルのみが削除されます",
   "✓ Imported": "✓ インポート済み",
-  "✓ Imported · marked manually": "✓ インポート済み · 手動でマーク"
+  "✓ Imported · marked manually": "✓ インポート済み · 手動でマーク",
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "{0} 件の計画項目を確認してください。設定に未適用の変更があり、このプレビューでは使用されていません。"
 }

@@ -185,10 +185,15 @@ impl Browser {
                     }
                     Ok(WorkMessage::Plan(revision, plan)) if revision == self.plan_revision => {
                         self.planning = false;
-                        self.message = Some(i18n::format(
-                            "Review {0} planned item(s) before importing",
-                            &[format!("{}", plan.items.len())],
-                        ));
+                        let count = [format!("{}", plan.items.len())];
+                        self.message = Some(if self.settings_unapplied(cx) {
+                            i18n::format(
+                                "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.",
+                                &count,
+                            )
+                        } else {
+                            i18n::format("Review {0} planned item(s) before importing", &count)
+                        });
                         self.plan = Some(plan);
                         self.page = Page::Preview;
                         changed = true;

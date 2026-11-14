@@ -196,10 +196,7 @@ impl Browser {
         ] {
             cx.observe(input, |_, _, cx| cx.notify()).detach();
         }
-        let gallery_names = std::fs::read(&gallery_names_path)
-            .ok()
-            .and_then(|data| serde_json::from_slice(&data).ok())
-            .unwrap_or_default();
+        let gallery_names = read_config(&gallery_names_path).unwrap_or_default();
         let gallery_edit_input =
             cx.new(|cx| text_input::TextInput::new(String::new(), "Gallery name", cx));
         let (camera_preview_sender, camera_preview_jobs) =
@@ -447,6 +444,22 @@ fn app_key_bindings() -> [KeyBinding; 6] {
     ]
 }
 
+/// Read a JSON config file. An unreadable file is renamed to `*.invalid`
+/// rather than left in place, where the next save would silently overwrite it.
+fn read_config<T: serde::de::DeserializeOwned>(path: &std::path::Path) -> Option<T> {
+    let data = std::fs::read(path).ok()?;
+    match serde_json::from_slice(&data) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            let aside = path.with_extension("json.invalid");
+            let renamed = std::fs::rename(path, &aside);
+            tracing::warn!(%error, path = %path.display(), kept = %aside.display(),
+                rename_failed = renamed.is_err(), "unreadable config file; using defaults");
+            None
+        }
+    }
+}
+
 fn main() {
     logging::initialize().expect("could not initialize logging");
     let p = paths::AppPaths::resolve().expect("could not resolve XDG paths");
@@ -465,18 +478,13 @@ fn main() {
     let config_path = p.config.join("preset.json");
     let ui_path = p.config.join("ui.json");
     let gallery_names_path = p.config.join("gallery_names.json");
-    let mut ui = std::fs::read(&ui_path)
-        .ok()
-        .and_then(|data| serde_json::from_slice::<UiPreferences>(&data).ok())
-        .unwrap_or_default();
+    let mut ui = read_config::<UiPreferences>(&ui_path).unwrap_or_default();
     ui.thumbnail_size = ui.thumbnail_size.min(4);
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| p.data.clone());
-    let preset = std::fs::read(&config_path)
-        .ok()
-        .and_then(|data| serde_json::from_slice::<ImportPreset>(&data).ok())
-        .unwrap_or_else(|| ImportPreset::everyday(&home));
+    let preset =
+        read_config::<ImportPreset>(&config_path).unwrap_or_else(|| ImportPreset::everyday(&home));
     let initial_source = if demo {
         let (scenario, count) = match args.get(2).map(String::as_str) {
             Some("empty") => (FakeSourceScenario::NormalCamera, 0),
@@ -1234,6 +1242,120 @@ mod integration_tests {
             .collect::<HashSet<_>>();
         assert_eq!(recorded.len(), 2);
         assert_eq!(recorded, catalog_ids.values().copied().collect());
+    }
+
+    #[test]
+    fn unreadable_config_is_kept_aside_instead_of_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("preset.json");
+        assert!(read_config::<ImportPreset>(&path).is_none());
+        fs::write(&path, b"{ not json").unwrap();
+        assert!(read_config::<ImportPreset>(&path).is_none());
+        assert!(!path.exists());
+        assert_eq!(
+            fs::read(dir.path().join("preset.json.invalid")).unwrap(),
+            b"{ not json"
+        );
+        let preset = ImportPreset::everyday(dir.path());
+        fs::write(&path, serde_json::to_vec(&preset).unwrap()).unwrap();
+        assert_eq!(read_config::<ImportPreset>(&path), Some(preset));
+    }
+
+    #[test]
+    fn custom_folder_and_filename_templates_reach_disk_catalog_and_preset_file() {
+        let source_dir = tempfile::tempdir().unwrap();
+        let destination_dir = tempfile::tempdir().unwrap();
+        fs::write(
+            source_dir.path().join("IMG0001.JPG"),
+            b"custom template photo",
+        )
+        .unwrap();
+        let catalog = CatalogHandle::open(captureport_catalog::CatalogPath::Memory).unwrap();
+        let (tx, rx) = mpsc::channel();
+        scan_source(
+            SourceRequest::Filesystem(source_dir.path().to_path_buf()),
+            ScanContext::new(ScanGeneration(1), CancellationToken::new()),
+            captureport_ingest::MediaRules::default(),
+            tx,
+            catalog.clone(),
+        );
+        let mut state = AppState::new();
+        let mut source = None;
+        let mut catalog_ids = HashMap::new();
+        for message in rx {
+            match message {
+                ScanMessage::Source(found, _, _) => source = Some(found),
+                ScanMessage::CatalogMedia(id, catalog_id) => {
+                    catalog_ids.insert(id, catalog_id);
+                }
+                ScanMessage::Event(event) => {
+                    state.apply_event(*event);
+                }
+                ScanMessage::Finished(result) => {
+                    result.unwrap();
+                    break;
+                }
+                ScanMessage::ThumbnailInfo(..) => {}
+            }
+        }
+        let mut preset = ImportPreset::everyday(destination_dir.path());
+        preset.photo.root = destination_dir.path().to_path_buf();
+        preset.photo.folder_template = "{year}/{date:%Y-%m-%d} 旅行 #{session}".into();
+        preset.filename_template = "{original_stem}_{sequence:03}.{extension}".into();
+
+        // Settings are persisted as preset.json and must load back unchanged.
+        let config = tempfile::tempdir().unwrap();
+        let config_path = config.path().join("preset.json");
+        fs::write(&config_path, serde_json::to_vec_pretty(&preset).unwrap()).unwrap();
+        let loaded: ImportPreset =
+            serde_json::from_slice(&fs::read(&config_path).unwrap()).unwrap();
+        assert_eq!(loaded, preset);
+
+        let item = state.items().next().unwrap().clone();
+        let time = effective_time(capture_time(&item), &loaded);
+        let expected = destination_dir.path().join(format!(
+            "{}/{} 旅行 #01/IMG0001_001.JPG",
+            time.format("%Y"),
+            time.format("%Y-%m-%d")
+        ));
+        let inputs = vec![PlanInput {
+            capture_time: capture_time(&item),
+            session_name: None,
+            item,
+        }];
+        let plan = ImportPlanner::build(source.as_ref().unwrap().as_ref(), inputs, &loaded);
+        assert_eq!(plan.items[0].status, PlanStatus::Ready);
+        assert_eq!(plan.items[0].copies[0].final_destination, expected);
+        let (tx, rx) = mpsc::channel();
+        run_import(
+            source.unwrap(),
+            plan,
+            CancellationToken::new(),
+            catalog.clone(),
+            Some(1),
+            catalog_ids,
+            ScanGeneration(1),
+            tx,
+        );
+        for message in rx {
+            if let WorkMessage::ImportDone(_, done) = message {
+                done.unwrap();
+                break;
+            }
+        }
+        assert_eq!(fs::read(&expected).unwrap(), b"custom template photo");
+        let session = catalog.list_sessions(10).unwrap().remove(0);
+        let history = catalog.session_detail(session.id).unwrap();
+        assert_eq!(
+            history.imports[0].destination_path,
+            expected.display().to_string()
+        );
+        // Only the published file remains; no partial copies are left beside it.
+        let names: Vec<_> = fs::read_dir(expected.parent().unwrap())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(names, vec![std::ffi::OsString::from("IMG0001_001.JPG")]);
     }
 
     #[test]

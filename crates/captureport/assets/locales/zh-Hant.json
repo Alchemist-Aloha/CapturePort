@@ -15,7 +15,7 @@
   "Publishing verified copy": "正在發佈已驗證的副本",
   "Saving import history": "正在儲存匯入記錄",
   "Wait for the source scan to finish before renaming": "請等待來源掃描完成後再重新命名",
-  "Preview unavailable": "預覽無法使用",
+  "Preview unavailable": "預覽不可用",
   "Scanning source · {0} captures found": "正在掃描來源 · 已找到 {0} 個拍攝項目",
   "Thumbnails · {0}/{1} processed · {2}%": "縮圖 · 已處理 {0}/{1} · {2}%",
   "{0} ready · {1} loading · {2} unavailable": "{0} 個就緒 · {1} 個載入中 · {2} 個無法使用",
@@ -287,7 +287,6 @@
   "Presets": "預設",
   "Presets: {0}": "預設：{0}",
   "Preview import": "預覽匯入",
-  "Preview unavailable": "預覽不可用",
   "Previews unavailable": "無法預覽",
   "Prior import destination": "上次匯入的目標位置",
   "RAW": "RAW",
@@ -445,5 +444,6 @@
   "{0} · {1}/{2} selected": "{0} · 已選 {1}/{2} 項",
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}。刪除原始檔案無法復原；只會刪除所有必要副本均已通過驗證的原始檔案",
   "✓ Imported": "✓ 已匯入",
-  "✓ Imported · marked manually": "✓ 已匯入 · 手動標記"
+  "✓ Imported · marked manually": "✓ 已匯入 · 手動標記",
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "請檢查 {0} 個計畫項目。設定中有未套用的變更，此預覽未使用這些變更。"
 }

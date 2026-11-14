@@ -287,7 +287,6 @@
   "Presets": "Voreinstellungen",
   "Presets: {0}": "Voreinstellungen: {0}",
   "Preview import": "Importvorschau",
-  "Preview unavailable": "Vorschau nicht verfügbar",
   "Previews unavailable": "Vorschauen nicht verfügbar",
   "Prior import destination": "Vorheriges Importziel",
   "RAW": "RAW",
@@ -445,5 +444,6 @@
   "{0} · {1}/{2} selected": "{0} · {1}/{2} ausgewählt",
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}. Das Löschen von Originalen kann nicht rückgängig gemacht werden; Es werden nur Dateien entfernt, deren erforderliche Kopien überprüft wurden",
   "✓ Imported": "✓ Importiert",
-  "✓ Imported · marked manually": "✓ Importiert · manuell markiert"
+  "✓ Imported · marked manually": "✓ Importiert · manuell markiert",
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "Prüfen Sie {0} geplante(s) Element(e). Die Einstellungen enthalten nicht übernommene Änderungen, die diese Vorschau nicht verwendet."
 }

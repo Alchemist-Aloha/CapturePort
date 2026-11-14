@@ -278,6 +278,8 @@ impl Browser {
             VerificationMode::Strict => VerificationMode::Fast,
         };
         self.invalidate_plan();
+        // Choice buttons take effect immediately, so persist them immediately too.
+        self.save_preset();
         cx.notify();
     }
     pub(crate) fn cycle_bundle_policy(&mut self, cx: &mut Context<Self>) {
@@ -287,6 +289,7 @@ impl Browser {
             BundlePolicy::JpegOnly => BundlePolicy::KeepAll,
         };
         self.invalidate_plan();
+        self.save_preset();
         cx.notify();
     }
     pub(crate) fn cycle_grouping(&mut self, cx: &mut Context<Self>) {
@@ -301,6 +304,7 @@ impl Browser {
             Grouping::TimeGap { .. } => Grouping::None,
         };
         self.invalidate_plan();
+        self.save_preset();
         self.rebuild_gallery_groups();
         cx.notify();
     }
@@ -312,6 +316,7 @@ impl Browser {
             CollisionPolicy::VerifyIdentical => CollisionPolicy::Stop,
         };
         self.invalidate_plan();
+        self.save_preset();
         cx.notify();
     }
     pub(crate) fn toggle_backup_required(&mut self, cx: &mut Context<Self>) {
@@ -329,6 +334,19 @@ impl Browser {
         self.timezone_menu_open = false;
         self.invalidate_plan();
         cx.notify();
+    }
+    /// Settings fields edited without Apply are not used by import previews.
+    pub(crate) fn settings_unapplied(&self, cx: &App) -> bool {
+        match self
+            .settings
+            .read(&self.preset, self.backup_required_choice, cx)
+        {
+            Ok(mut edited) => {
+                edited.name = self.preset.name.clone();
+                edited != self.preset
+            }
+            Err(_) => true,
+        }
     }
     pub(crate) fn apply_settings(&mut self, cx: &mut Context<Self>) {
         let preset = match self

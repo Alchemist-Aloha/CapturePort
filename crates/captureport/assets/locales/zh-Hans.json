@@ -287,7 +287,6 @@
   "Presets": "预设",
   "Presets: {0}": "预设：{0}",
   "Preview import": "预览导入",
-  "Preview unavailable": "预览不可用",
   "Previews unavailable": "无法预览",
   "Prior import destination": "上次导入的目标位置",
   "RAW": "RAW",
@@ -445,5 +444,6 @@
   "{0} · {1}/{2} selected": "{0} · 已选 {1}/{2} 项",
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}。删除原始文件无法撤销；只会删除所有必需副本均已通过验证的原始文件",
   "✓ Imported": "✓ 已导入",
-  "✓ Imported · marked manually": "✓ 已导入 · 手动标记"
+  "✓ Imported · marked manually": "✓ 已导入 · 手动标记",
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "请检查 {0} 个计划项目。设置中有未应用的更改，此预览未使用这些更改。"
 }

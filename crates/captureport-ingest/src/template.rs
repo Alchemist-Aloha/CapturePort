@@ -336,7 +336,36 @@ impl Template {
         &self,
         context: &TemplateContext<'_>,
     ) -> Result<String, TemplateError> {
-        let path = self.render(context);
+        // A folder level built only from empty tokens (e.g. a missing camera
+        // serial) becomes `unknown`, so it neither vanishes nor breaks the path.
+        let mut components = vec![(String::new(), false)];
+        for part in &self.parts {
+            match part {
+                Part::Literal(value) => {
+                    let mut pieces = value.split('/');
+                    let last = components.last_mut().expect("one component");
+                    last.0.push_str(pieces.next().unwrap_or_default());
+                    components.extend(pieces.map(|piece| (piece.to_owned(), false)));
+                }
+                Part::Token(token) => {
+                    let last = components.last_mut().expect("one component");
+                    last.0
+                        .push_str(&sanitize_value(&token_value(token, context)));
+                    last.1 = true;
+                }
+            }
+        }
+        let path = components
+            .into_iter()
+            .map(|(value, from_token)| {
+                if value.is_empty() && from_token {
+                    "unknown".into()
+                } else {
+                    value
+                }
+            })
+            .collect::<Vec<String>>()
+            .join("/");
         if path.is_empty() {
             return Ok(path);
         }
@@ -675,6 +704,44 @@ mod tests {
         assert_eq!(
             template.render_relative_path(&context()).unwrap(),
             "unknown/unknown/DSC0001.ARW"
+        );
+    }
+
+    #[test]
+    fn empty_camera_tokens_keep_folder_levels_without_breaking_paths() {
+        let mut ctx = context();
+        ctx.camera_serial = "";
+        for (source, expected) in [
+            ("{camera_serial}/{date}", "unknown/20260927"),
+            ("{year}/{camera_serial}/{date}", "2026/unknown/20260927"),
+            ("{date}/{camera_serial}", "20260927/unknown"),
+            ("{date}/{camera_serial}{camera_serial}", "20260927/unknown"),
+            ("{date}/x{camera_serial}", "20260927/x"),
+        ] {
+            assert_eq!(
+                Template::parse(source)
+                    .unwrap()
+                    .render_relative_path(&ctx)
+                    .unwrap(),
+                expected,
+                "{source}"
+            );
+        }
+        // Literal empty levels stay invalid; filenames keep the empty fallback.
+        for source in ["/{date}", "{date}//{year}"] {
+            assert!(
+                Template::parse(source)
+                    .unwrap()
+                    .render_relative_path(&ctx)
+                    .is_err()
+            );
+        }
+        assert_eq!(
+            Template::parse("{camera_serial}_{original_name}")
+                .unwrap()
+                .render_filename(&ctx)
+                .unwrap(),
+            "_DSC0001.ARW"
         );
     }
 

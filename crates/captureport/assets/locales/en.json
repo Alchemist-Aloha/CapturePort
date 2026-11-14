@@ -287,7 +287,6 @@
   "Presets": "Presets",
   "Presets: {0}": "Presets: {0}",
   "Preview import": "Preview import",
-  "Preview unavailable": "Preview unavailable",
   "Previews unavailable": "Previews unavailable",
   "Prior import destination": "Prior import destination",
   "RAW": "RAW",
@@ -445,5 +444,6 @@
   "{0} · {1}/{2} selected": "{0} · {1}/{2} selected",
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed",
   "✓ Imported": "✓ Imported",
-  "✓ Imported · marked manually": "✓ Imported · marked manually"
+  "✓ Imported · marked manually": "✓ Imported · marked manually",
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "Review {0} planned item(s). Settings has unapplied changes that this preview does not use."
 }

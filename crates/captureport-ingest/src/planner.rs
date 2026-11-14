@@ -233,17 +233,30 @@ impl ImportPlanner {
         // Free space is checked after all paths and sizes are known. A root is
         // marked unavailable before this pass, so statvfs cannot turn a bad
         // destination into a misleading space error.
+        // Roots on one filesystem (e.g. photo and video roots, or a backup on the
+        // same disk) share its free space, so their bytes are summed per device.
+        let device = |root: &Path| destination_identity(root).map(|(device, _)| device);
+        let mut device_bytes = HashMap::<u64, u64>::new();
+        for (root, (bytes, available)) in &roots {
+            if let (true, Some(device)) = (*available, device(root)) {
+                let total = device_bytes.entry(device).or_default();
+                *total = total.saturating_add(*bytes);
+            }
+        }
         for (root, (bytes, available)) in roots {
             if !available {
                 continue;
             }
+            let needed = device(&root)
+                .and_then(|device| device_bytes.get(&device).copied())
+                .unwrap_or(bytes);
             let free = free_space(&root).unwrap_or(0);
-            if free < bytes {
+            if free < needed {
                 for item in &mut planned {
                     for copy in &mut item.copies {
-                        if copy.final_destination.starts_with(&root)
-                            && copy.status == PlanStatus::Ready
-                        {
+                        // Both sides are canonical; final paths keep the
+                        // user's spelling and may not share a symlinked root.
+                        if copy.destination_root == root && copy.status == PlanStatus::Ready {
                             copy.status = PlanStatus::InsufficientDiskSpace;
                             if copy.required {
                                 item.status = PlanStatus::InsufficientDiskSpace;
@@ -1099,5 +1112,52 @@ mod tests {
             raw.copies[0].final_destination.with_extension("jpg")
         );
         assert_eq!(raw.copies[0].final_destination.extension().unwrap(), "ARW");
+    }
+
+    #[test]
+    fn free_space_is_checked_through_symlinked_roots_and_summed_per_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real");
+        fs::create_dir(&real).unwrap();
+        let linked = dir.path().join("linked");
+        std::os::unix::fs::symlink(&real, &linked).unwrap();
+        let free = free_space(&real).unwrap();
+        let time = FixedOffset::east_opt(0)
+            .unwrap()
+            .with_ymd_and_hms(2026, 1, 1, 12, 0, 0)
+            .unwrap();
+        let sized = |id, name, size| {
+            let mut input = input(id, name, time);
+            input.item.size = size;
+            input
+        };
+        let mut preset = ImportPreset::everyday(&linked);
+        preset.photo.root = linked.clone();
+        preset.photo.folder_template.clear();
+        let source = FakeMediaSource::new(1);
+
+        let plan = ImportPlanner::build(
+            &source,
+            vec![sized(1, "a.JPG", free.saturating_mul(2))],
+            &preset,
+        );
+        assert_eq!(plan.items[0].status, PlanStatus::InsufficientDiskSpace);
+
+        // Each copy fits alone; together the primary and same-disk backup do not.
+        let backup = dir.path().join("backup");
+        fs::create_dir(&backup).unwrap();
+        preset.backup = Some(crate::BackupRule {
+            photo: crate::DestinationRule {
+                root: backup.clone(),
+                folder_template: String::new(),
+            },
+            video: crate::DestinationRule {
+                root: backup,
+                folder_template: String::new(),
+            },
+            required: true,
+        });
+        let plan = ImportPlanner::build(&source, vec![sized(1, "a.JPG", free / 4 * 3)], &preset);
+        assert_eq!(plan.items[0].status, PlanStatus::InsufficientDiskSpace);
     }
 }

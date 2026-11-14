@@ -974,9 +974,11 @@ the importer. All segments work in both kinds of template:
 
 Camera segments prefer embedded metadata over source identity. `{camera}` falls
 back to the source model or display name. Unavailable camera identity retains
-its existing empty-string fallback. Missing optional metadata in the added
-segments produces `unknown`; this keeps missing metadata from silently removing
-a folder level.
+its existing empty-string fallback in filenames and inside a folder level that
+also has other text; a folder level made only of empty tokens renders
+`unknown`. Missing optional metadata in the added segments produces `unknown`;
+this keeps missing metadata from silently removing a folder level or turning a
+folder template into an invalid path.
 
 `{date}`, `{time}`, and `{datetime}` accept strftime formatting, for example
 `{date:%Y-%m-%d}` and `{datetime:%Y-%m-%d_%H-%M-%S}`. Common directives are `%Y`
@@ -1915,6 +1917,10 @@ filename collisions are known
 ```
 
 If multiple destinations are required, evaluate disk capacity for each.
+Destinations on the same filesystem share its free space, so the planned bytes
+of every root on that filesystem are summed before comparing. Roots are compared
+by their resolved path, so a destination root reached through a symbolic link
+is still checked.
 
 ---
 
@@ -2694,7 +2700,7 @@ coordinates. Read-only media-detail URLs retain their separate copy-only action.
 Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to open the import preview (and confirm only while reviewing it), and Escape to clear the visible selection on the browser. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
 The browser footer shows the selected count and size with a Preview import action when items are selected. The preview names blocked destinations and only offers Confirm import when every planned item can execute. After an import finishes, the same selection cannot be confirmed again until the selection or settings change and a fresh plan is built.
 
-Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. Named saved presets capture all Settings values in the catalog as described in section 33. The screen groups presets, destinations and filename first, followed by import safety, media discovery, capture time, backup copies, source alias, and appearance. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance and source alias save immediately; import settings require the persistent **Apply settings** button at the bottom of the settings view. A blank pair of backup roots disables backup. Skipped collision items do not block other ready copies; the preview counts them separately. Camera/card aliases are stored in the catalog and shown when the device reconnects.
+Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. Named saved presets capture all Settings values in the catalog as described in section 33. The screen groups presets, destinations and filename first, followed by import safety, media discovery, capture time, backup copies, source alias, and appearance. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance, source alias and the choice buttons (verification, grouping, collision and bundle policies) save immediately; text-field import settings, including roots and folder/filename templates, require the persistent **Apply settings** button at the bottom of the settings view. If a preview is built while Settings has unapplied text-field changes, the preview message says those changes are not used. An unreadable `preset.json`, `ui.json` or `gallery_names.json` is renamed to `*.json.invalid` and defaults are used, so a later save cannot overwrite the user's file. A blank pair of backup roots disables backup. Skipped collision items do not block other ready copies; the preview counts them separately. Camera/card aliases are stored in the catalog and shown when the device reconnects.
 
 Recovery, history, reconciliation, thumbnail-cache clearing, and post-import source deletion are separate actions. Recovery cleanup only offers CapturePort-owned partial files, and deleting one requires confirmation. Source deletion requires a second explicit confirmation after a verified filesystem import, states how many originals and how many bytes will be removed and from which source, offers an explicit cancel, and compares the source's full content hash with every planned destination before removing it. Same-device/inode destination aliases (including hard links and bind-mounted aliases) are not independent copies and refuse deletion. The original inode remains pinned during hashing; a final identity, size and modification/change-time check refuses originals that changed while verification was running.
 
