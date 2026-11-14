@@ -1925,6 +1925,14 @@ generated paths are valid
 filename collisions are known
 ```
 
+A missing destination root is created when the import preview is built, so a
+new root such as `~/Pictures/Imports` needs no manual setup. To avoid importing
+onto the wrong disk, it is created only when its nearest existing parent is a
+non-empty directory and, under `/media`, `/run/media` or `/mnt`, belongs to a
+mounted filesystem rather than the bare mount directory. Otherwise (or if
+creation fails) the root is reported as unavailable. Folders below the root are
+created during import.
+
 If multiple destinations are required, evaluate disk capacity for each.
 Destinations on the same filesystem share its free space, so the planned bytes
 of every root on that filesystem are summed before comparing. Roots are compared

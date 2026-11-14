@@ -626,6 +626,7 @@ fn plan_copy(
     generated: &mut HashMap<PathBuf, usize>,
     roots: &mut BTreeMap<PathBuf, (u64, bool)>,
 ) -> PlannedCopy {
+    create_missing_root(destination_root, REMOVABLE_BASES);
     let root = absolute_root(destination_root);
     let available = root.is_dir();
     let mut status = if !available {
@@ -708,6 +709,41 @@ fn plan_copy(
         expected_size: input.item.size,
         required,
         status,
+    }
+}
+
+/// Where removable drives are mounted; a bare directory here is an unmounted drive.
+const REMOVABLE_BASES: &[&str] = &["/media", "/run/media", "/mnt"];
+
+/// Create a missing destination root, unless that could put imports on the
+/// wrong disk. The nearest existing ancestor must be a non-empty directory (an
+/// unmounted mount point is empty) and, under a removable base, must be on a
+/// mounted filesystem rather than the base's own. On refusal or failure the
+/// root stays missing and the preview reports it unavailable.
+fn create_missing_root(root: &Path, removable_bases: &[&str]) {
+    use std::os::unix::fs::MetadataExt;
+    if !root.is_absolute()
+        || root.symlink_metadata().is_ok()
+        || root
+            .components()
+            .any(|component| component == std::path::Component::ParentDir)
+    {
+        return;
+    }
+    let Some(existing) = root
+        .ancestors()
+        .skip(1)
+        .find(|ancestor| ancestor.symlink_metadata().is_ok())
+    else {
+        return;
+    };
+    let device = |path: &Path| fs::metadata(path).map(|metadata| metadata.dev()).ok();
+    let empty = fs::read_dir(existing).map_or(true, |mut entries| entries.next().is_none());
+    let unmounted = removable_bases
+        .iter()
+        .any(|base| existing.starts_with(base) && device(existing) == device(Path::new(base)));
+    if existing.is_dir() && !empty && !unmounted {
+        let _ = fs::create_dir_all(root);
     }
 }
 
@@ -1237,5 +1273,38 @@ mod tests {
             paths(ImportPlanner::build(&source, inputs(), &preset))[1],
             PathBuf::from("2027/2027-01-01_0101/20270101_002000.JPG")
         );
+    }
+
+    #[test]
+    fn missing_roots_are_created_only_where_they_cannot_land_on_the_wrong_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("keep"), b"").unwrap();
+        let mut preset = ImportPreset::everyday(dir.path());
+        preset.photo.root = dir.path().join("new/Photos");
+        let time = FixedOffset::east_opt(0)
+            .unwrap()
+            .with_ymd_and_hms(2026, 1, 1, 12, 0, 0)
+            .unwrap();
+        let source = FakeMediaSource::new(1);
+        let plan = ImportPlanner::build(&source, vec![input(1, "a.JPG", time)], &preset);
+        assert_eq!(plan.items[0].status, PlanStatus::Ready);
+        assert!(preset.photo.root.is_dir());
+
+        // An empty ancestor looks like an unmounted drive's mount point.
+        let empty = dir.path().join("mountpoint");
+        fs::create_dir(&empty).unwrap();
+        create_missing_root(&empty.join("Photos"), &[]);
+        assert!(!empty.join("Photos").exists());
+
+        // A non-empty directory on the removable base's own filesystem is
+        // still the base, not a mounted drive.
+        let base = dir.path().join("media");
+        fs::create_dir_all(base.join("user")).unwrap();
+        fs::write(base.join("user/other"), b"").unwrap();
+        let base_str = base.to_str().unwrap();
+        create_missing_root(&base.join("user/Disk/Photos"), &[base_str]);
+        assert!(!base.join("user/Disk").exists());
+        create_missing_root(&dir.path().join("a/../b"), &[]);
+        assert!(!dir.path().join("b").exists());
     }
 }
