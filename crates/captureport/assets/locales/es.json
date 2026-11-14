@@ -445,5 +445,9 @@
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}. La eliminación de originales no se puede deshacer; sólo se eliminan los archivos cuyas copias requeridas sean verificadas",
   "✓ Imported": "✓ Importado",
   "✓ Imported · marked manually": "✓ Importado · marcado manualmente",
-  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "Revisa {0} elemento(s) planificado(s). Los ajustes tienen cambios sin aplicar que esta vista previa no usa."
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "Revisa {0} elemento(s) planificado(s). Los ajustes tienen cambios sin aplicar que esta vista previa no usa.",
+  "Rename after scan": "Renombrar tras el escaneo",
+  "Scan stopped unexpectedly. Reopen the source to retry.": "El escaneo se detuvo inesperadamente. Vuelve a abrir el origen para reintentarlo.",
+  "{0} h": "{0} h",
+  "{0} d": "{0} d"
 }

@@ -445,5 +445,9 @@
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed",
   "✓ Imported": "✓ Imported",
   "✓ Imported · marked manually": "✓ Imported · marked manually",
-  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "Review {0} planned item(s). Settings has unapplied changes that this preview does not use."
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.",
+  "Rename after scan": "Rename after scan",
+  "Scan stopped unexpectedly. Reopen the source to retry.": "Scan stopped unexpectedly. Reopen the source to retry.",
+  "{0} h": "{0} h",
+  "{0} d": "{0} d"
 }

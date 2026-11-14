@@ -445,5 +445,9 @@
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}。删除原始文件无法撤销；只会删除所有必需副本均已通过验证的原始文件",
   "✓ Imported": "✓ 已导入",
   "✓ Imported · marked manually": "✓ 已导入 · 手动标记",
-  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "请检查 {0} 个计划项目。设置中有未应用的更改，此预览未使用这些更改。"
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "请检查 {0} 个计划项目。设置中有未应用的更改，此预览未使用这些更改。",
+  "Rename after scan": "扫描完成后重命名",
+  "Scan stopped unexpectedly. Reopen the source to retry.": "扫描意外停止。请重新打开来源以重试。",
+  "{0} h": "{0} 小时",
+  "{0} d": "{0} 天"
 }

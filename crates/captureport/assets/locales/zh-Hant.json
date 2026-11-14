@@ -445,5 +445,9 @@
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}。刪除原始檔案無法復原；只會刪除所有必要副本均已通過驗證的原始檔案",
   "✓ Imported": "✓ 已匯入",
   "✓ Imported · marked manually": "✓ 已匯入 · 手動標記",
-  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "請檢查 {0} 個計畫項目。設定中有未套用的變更，此預覽未使用這些變更。"
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "請檢查 {0} 個計畫項目。設定中有未套用的變更，此預覽未使用這些變更。",
+  "Rename after scan": "掃描完成後重新命名",
+  "Scan stopped unexpectedly. Reopen the source to retry.": "掃描意外停止。請重新開啟來源以重試。",
+  "{0} h": "{0} 小時",
+  "{0} d": "{0} 天"
 }

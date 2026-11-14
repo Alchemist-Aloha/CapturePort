@@ -445,5 +445,9 @@
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}。オリジナルを削除すると元に戻すことはできません。必要なコピーが検証されたファイルのみが削除されます",
   "✓ Imported": "✓ インポート済み",
   "✓ Imported · marked manually": "✓ インポート済み · 手動でマーク",
-  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "{0} 件の計画項目を確認してください。設定に未適用の変更があり、このプレビューでは使用されていません。"
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "{0} 件の計画項目を確認してください。設定に未適用の変更があり、このプレビューでは使用されていません。",
+  "Rename after scan": "スキャン後に名前を変更",
+  "Scan stopped unexpectedly. Reopen the source to retry.": "スキャンが予期せず停止しました。ソースを開き直して再試行してください。",
+  "{0} h": "{0} 時間",
+  "{0} d": "{0} 日"
 }

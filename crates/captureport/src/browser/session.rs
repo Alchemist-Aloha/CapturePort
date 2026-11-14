@@ -160,7 +160,22 @@ impl Browser {
                         changed = true;
                         break;
                     }
-                    Err(_) => break,
+                    Err(mpsc::TryRecvError::Empty) => break,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        // The scan thread ended without Finished (e.g. a panic). Without
+                        // this, `scanning` stays set and scan-gated actions never unlock.
+                        self.receiver = None;
+                        if self.scanning {
+                            self.scanning = false;
+                            self.rebuild_bundles();
+                            media_changed = true;
+                            self.message = Some(i18n::tr(
+                                "Scan stopped unexpectedly. Reopen the source to retry.",
+                            ));
+                            changed = true;
+                        }
+                        break;
+                    }
                 }
             } else {
                 break;

@@ -419,7 +419,7 @@ impl Browser {
                     .child(div().flex().items_center().gap(px(spacing::CONTROL_GAP))
                         .child(div().text_sm().text_color(p.muted).child(i18n::tr("Session gap")))
                         .child(div().id("gallery-gap-slider").flex().items_center().gap(px(spacing::TIGHT))
-                            .children([5_u32, 15, 30, 60, 120, 240, 480, 1440].into_iter().map(|minutes| {
+                            .children(GAP_STOPS_MINUTES.into_iter().map(|minutes| {
                                 let active = matches!(self.preset.grouping, Grouping::TimeGap { threshold_minutes } if threshold_minutes >= minutes);
                                 div().id(gpui::ElementId::named_usize("gallery-gap-step", minutes as usize)).w(px(24.)).h(px(28.))
                                     .flex().items_center().cursor_pointer()
@@ -431,7 +431,7 @@ impl Browser {
                                         .bg(if active { p.accent } else { p.border }))
                             })))
                         .child(div().text_xs().text_color(p.muted).child(match self.preset.grouping {
-                            Grouping::TimeGap { threshold_minutes } => i18n::format("{0} min", &[format!("{}", threshold_minutes)]),
+                            Grouping::TimeGap { threshold_minutes } => gap_label(threshold_minutes),
                             _ => i18n::tr("Off"),
                         })))
                     .into_any_element()
@@ -565,7 +565,11 @@ impl Browser {
                                             }))
                                             .child(title.clone()),
                                     )
-                                    .child(button(Icon::Rename, "Rename", p,  cx.listener(move |t,_,w,c| t.edit_gallery(key.clone(),w,c))))
+                                    // Galleries can regroup until metadata finishes, so rename waits
+                                    // for the scan; say so on the button instead of looking dead.
+                                    .child(div().when(t.scanning, |d| d.opacity(0.5)).child(button_with_id("Rename", Icon::Rename,
+                                        if t.scanning { "Rename after scan" } else { "Rename" }, p,
+                                        cx.listener(move |t,_,w,c| t.edit_gallery(key.clone(),w,c)))))
                             }
                         } else { div().h(px(spacing::CONTROL_HEIGHT)) };
                         view=view.child(heading.mb(px(spacing::CONTROL_GAP)));
@@ -734,5 +738,32 @@ impl Browser {
             .child(panel)
             .child(self.scrollbars.bundle.element(p.border, p.muted, p.accent))
             .into_any_element()
+    }
+}
+
+/// Session-gap slider stops: 5 minutes up to 30 days.
+const GAP_STOPS_MINUTES: [u32; 11] = [5, 15, 30, 60, 120, 240, 480, 1440, 2880, 10080, 43200];
+
+/// Whole days or hours read better than large minute counts.
+fn gap_label(minutes: u32) -> String {
+    let value = |n: u32| [format!("{n}")];
+    if minutes >= 1440 && minutes.is_multiple_of(1440) {
+        i18n::format("{0} d", &value(minutes / 1440))
+    } else if minutes >= 60 && minutes.is_multiple_of(60) {
+        i18n::format("{0} h", &value(minutes / 60))
+    } else {
+        i18n::format("{0} min", &value(minutes))
+    }
+}
+
+#[cfg(test)]
+mod gap_tests {
+    #[test]
+    fn gap_labels_use_the_largest_whole_unit() {
+        assert_eq!(super::gap_label(5), "5 min");
+        assert_eq!(super::gap_label(90), "90 min");
+        assert_eq!(super::gap_label(120), "2 h");
+        assert_eq!(super::gap_label(1440), "1 d");
+        assert_eq!(super::gap_label(43200), "30 d");
     }
 }

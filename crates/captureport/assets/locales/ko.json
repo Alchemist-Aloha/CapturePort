@@ -445,5 +445,9 @@
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}. 원본 삭제는 취소할 수 없습니다. 필요한 복사본이 확인된 파일만 제거됩니다.",
   "✓ Imported": "✓ 가져옴",
   "✓ Imported · marked manually": "✓ 가져옴 · 수동 표시",
-  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "계획된 항목 {0}개를 검토하세요. 설정에 이 미리 보기에서 사용하지 않는 적용되지 않은 변경 사항이 있습니다."
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "계획된 항목 {0}개를 검토하세요. 설정에 이 미리 보기에서 사용하지 않는 적용되지 않은 변경 사항이 있습니다.",
+  "Rename after scan": "스캔 후 이름 바꾸기",
+  "Scan stopped unexpectedly. Reopen the source to retry.": "스캔이 예기치 않게 중지되었습니다. 소스를 다시 열어 다시 시도하세요.",
+  "{0} h": "{0}시간",
+  "{0} d": "{0}일"
 }

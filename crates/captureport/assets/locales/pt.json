@@ -445,5 +445,9 @@
   "{0}. Deleting originals cannot be undone; only files whose required copies verified are removed": "{0}. A exclusão de originais não pode ser desfeita; apenas os arquivos cujas cópias obrigatórias foram verificadas são removidos",
   "✓ Imported": "✓ Importado",
   "✓ Imported · marked manually": "✓ Importado · marcado manualmente",
-  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "Revise {0} item(ns) planejado(s). As configurações têm alterações não aplicadas que esta pré-visualização não usa."
+  "Review {0} planned item(s). Settings has unapplied changes that this preview does not use.": "Revise {0} item(ns) planejado(s). As configurações têm alterações não aplicadas que esta pré-visualização não usa.",
+  "Rename after scan": "Renomear após a verificação",
+  "Scan stopped unexpectedly. Reopen the source to retry.": "A verificação parou inesperadamente. Reabra a origem para tentar novamente.",
+  "{0} h": "{0} h",
+  "{0} d": "{0} d"
 }
