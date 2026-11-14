@@ -984,6 +984,14 @@ folder template into an invalid path.
 `{date:%Y-%m-%d}` and `{datetime:%Y-%m-%d_%H-%M-%S}`. Common directives are `%Y`
 (year), `%m` (month), `%d` (day), `%H` (hour), `%M` (minute), `%S` (second), and
 `%%` (literal percent). These segments use the corrected effective capture time.
+Under time-gap grouping, the date segments `{year}`, `{month}`, `{day}`,
+`{date}` and `{date:…}` in **folder** templates use the earliest corrected
+capture time of the item's shooting session, so a session that crosses midnight
+or spans several days is placed under one date (matching its default gallery
+name). Time segments (`{time}`, `{datetime}`, `{hour}`, and so on) and all
+filename-template segments keep each file's own capture time, so a filename
+never shows a date the file was not taken on. Calendar grouping modes already
+split sessions by date and are unaffected.
 Both sequence and session support a zero-padding width of 1–12, such as
 `{sequence:04}` or `{session:03}`. Unformatted session numbers keep their existing
 two-digit minimum width.
@@ -1081,7 +1089,8 @@ the session folder structure. To create folders such as:
 2026-09-26_02/
 ```
 
-use `{date:%Y-%m-%d}_{session}` explicitly in the folder template.
+use `{date:%Y-%m-%d}_{session}` explicitly in the folder template. A session
+spanning several days uses its earliest date for every member's folder.
 
 Possible configuration:
 

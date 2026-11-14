@@ -22,11 +22,13 @@ pub fn example(source: &str, filename: bool, video: bool) -> Result<String, Temp
         lens: Some("FE 35mm F1.8".into()),
         gps_e7: Some((377749000, -1224194000)),
     };
+    let timestamp = FixedOffset::east_opt(0)
+        .unwrap()
+        .with_ymd_and_hms(2026, 9, 27, 14, 20, 33)
+        .unwrap();
     let context = TemplateContext {
-        timestamp: FixedOffset::east_opt(0)
-            .unwrap()
-            .with_ymd_and_hms(2026, 9, 27, 14, 20, 33)
-            .unwrap(),
+        timestamp,
+        session_date: timestamp,
         camera: "A7C II",
         camera_make: "Sony",
         camera_model: "A7C II",

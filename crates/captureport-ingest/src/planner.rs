@@ -130,6 +130,14 @@ impl ImportPlanner {
             &effective.iter().map(|(_, time)| *time).collect::<Vec<_>>(),
             &preset.grouping,
         );
+        // Under time-gap grouping a session can cross midnight (or span days);
+        // its date tokens use the earliest capture so it lands in one dated place.
+        let mut session_dates = HashMap::<u32, DateTime<FixedOffset>>::new();
+        if matches!(preset.grouping, Grouping::TimeGap { .. }) {
+            for ((_, time), session) in effective.iter().zip(&sessions) {
+                session_dates.entry(*session).or_insert(*time);
+            }
+        }
         let mut counts = HashMap::<u32, u64>::new();
         let mut planned = Vec::with_capacity(selected.len());
         let mut generated = HashMap::<PathBuf, usize>::new();
@@ -174,6 +182,7 @@ impl ImportPlanner {
                 source,
                 primary_input,
                 primary_time,
+                session_dates.get(&session).copied().unwrap_or(primary_time),
                 sequence,
                 session,
                 preset,
@@ -199,6 +208,7 @@ impl ImportPlanner {
                         source,
                         input,
                         time,
+                        session_dates.get(&session).copied().unwrap_or(time),
                         sequence,
                         session,
                         preset,
@@ -353,6 +363,7 @@ fn make_copies(
     source: &dyn MediaSource,
     input: &PlanInput,
     time: DateTime<FixedOffset>,
+    session_date: DateTime<FixedOffset>,
     sequence: u64,
     session: u32,
     preset: &ImportPreset,
@@ -421,6 +432,7 @@ fn make_copies(
     let (stem, extension) = split_name(&input.item.source_name);
     let context = TemplateContext {
         timestamp: time,
+        session_date,
         camera,
         camera_make: metadata
             .and_then(|m| m.camera_make.as_deref())
@@ -448,6 +460,12 @@ fn make_copies(
         file_size: input.item.size,
         source_name: identity.display_name.as_deref().unwrap_or(""),
     };
+    // Filenames keep each file's own capture date; only folders share the
+    // session date, so a name never shows a date the file was not taken on.
+    let filename_context = TemplateContext {
+        session_date: time,
+        ..context
+    };
     let folder = match Template::parse(&rule.folder_template)
         .and_then(|t| t.render_relative_path(&context))
     {
@@ -463,7 +481,7 @@ fn make_copies(
         }
     };
     let filename = match Template::parse(&preset.filename_template)
-        .and_then(|t| t.render_filename(&context))
+        .and_then(|t| t.render_filename(&filename_context))
     {
         Ok(name) => name,
         Err(_) => {
@@ -498,8 +516,8 @@ fn make_copies(
         };
         let backup_folder = Template::parse(&backup_rule.folder_template)
             .and_then(|t| t.render_relative_path(&context));
-        let backup_name =
-            Template::parse(&preset.filename_template).and_then(|t| t.render_filename(&context));
+        let backup_name = Template::parse(&preset.filename_template)
+            .and_then(|t| t.render_filename(&filename_context));
         let copy = match (backup_folder, backup_name) {
             (Ok(folder), Ok(name)) => {
                 let folder = grouped_folder(&folder, &preset.grouping, time);
@@ -1159,5 +1177,65 @@ mod tests {
         });
         let plan = ImportPlanner::build(&source, vec![sized(1, "a.JPG", free / 4 * 3)], &preset);
         assert_eq!(plan.items[0].status, PlanStatus::InsufficientDiskSpace);
+    }
+
+    #[test]
+    fn multi_day_time_gap_sessions_share_the_earliest_date_in_folders_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut preset = ImportPreset::organized(dir.path());
+        preset.photo.root = dir.path().into();
+        preset.photo.folder_template = "{year}/{date:%Y-%m-%d}_{month}{day}".into();
+        preset.filename_template = "{date}_{time}.{extension}".into();
+        preset.grouping = Grouping::TimeGap {
+            threshold_minutes: 2880,
+        };
+        let zone = FixedOffset::east_opt(0).unwrap();
+        let inputs = || {
+            vec![
+                input(
+                    1,
+                    "a.JPG",
+                    zone.with_ymd_and_hms(2026, 12, 31, 23, 50, 0).unwrap(),
+                ),
+                input(
+                    2,
+                    "b.JPG",
+                    zone.with_ymd_and_hms(2027, 1, 1, 0, 20, 0).unwrap(),
+                ),
+                input(
+                    3,
+                    "c.JPG",
+                    zone.with_ymd_and_hms(2027, 1, 2, 9, 0, 0).unwrap(),
+                ),
+            ]
+        };
+        let source = FakeMediaSource::new(1);
+        let paths = |plan: ImportPlan| {
+            plan.items
+                .into_iter()
+                .map(|item| {
+                    item.copies[0]
+                        .final_destination
+                        .strip_prefix(dir.path())
+                        .unwrap()
+                        .to_path_buf()
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            paths(ImportPlanner::build(&source, inputs(), &preset)),
+            [
+                "2026/2026-12-31_1231/20261231_235000.JPG",
+                "2026/2026-12-31_1231/20270101_002000.JPG",
+                "2026/2026-12-31_1231/20270102_090000.JPG",
+            ]
+            .map(PathBuf::from)
+        );
+        // Calendar grouping already splits by day, so each file keeps its own date.
+        preset.grouping = Grouping::None;
+        assert_eq!(
+            paths(ImportPlanner::build(&source, inputs(), &preset))[1],
+            PathBuf::from("2027/2027-01-01_0101/20270101_002000.JPG")
+        );
     }
 }

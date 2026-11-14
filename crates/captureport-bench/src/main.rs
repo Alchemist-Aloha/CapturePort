@@ -182,6 +182,7 @@ fn benchmark_templates(items: &[MediaItem]) -> Result<Sample, Box<dyn std::error
             .unwrap_or("");
         black_box(template.render(&TemplateContext {
             timestamp: time,
+            session_date: time,
             camera: "Benchmark",
             camera_make: "CapturePort",
             camera_model: "Synthetic",

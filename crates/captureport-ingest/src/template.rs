@@ -51,6 +51,7 @@ enum Token {
     Minute,
     Second,
     FormattedTime(String),
+    FormattedDate(String),
     Metadata(String),
     FileSize,
     SourceName,
@@ -70,6 +71,9 @@ pub struct Template {
 #[derive(Clone, Debug)]
 pub struct TemplateContext<'a> {
     pub timestamp: DateTime<FixedOffset>,
+    /// Date tokens use this: the session's earliest capture time under
+    /// time-gap grouping, so a session spanning midnight keeps one date.
+    pub session_date: DateTime<FixedOffset>,
     pub camera: &'a str,
     pub camera_make: &'a str,
     pub camera_model: &'a str,
@@ -438,7 +442,7 @@ fn parse_token(name: &str) -> Result<Token, TemplateError> {
             || name.starts_with("time:")
             || name.starts_with("datetime:") =>
         {
-            let (_, format) = name.split_once(':').expect("formatted token");
+            let (base, format) = name.split_once(':').expect("formatted token");
             if format.is_empty()
                 || StrftimeItems::new(format).any(|item| matches!(item, Item::Error))
                 || chrono::DateTime::from_timestamp(0, 0)
@@ -451,7 +455,11 @@ fn parse_token(name: &str) -> Result<Token, TemplateError> {
                     "{name}: use a valid date/time format such as %Y-%m-%d"
                 )));
             }
-            Token::FormattedTime(format.into())
+            if base == "date" {
+                Token::FormattedDate(format.into())
+            } else {
+                Token::FormattedTime(format.into())
+            }
         }
         _ => return Err(TemplateError::UnknownToken(name.into())),
     };
@@ -460,11 +468,12 @@ fn parse_token(name: &str) -> Result<Token, TemplateError> {
 
 fn token_value(token: &Token, context: &TemplateContext<'_>) -> String {
     let time = &context.timestamp;
+    let date = &context.session_date;
     match token {
-        Token::Year => format!("{:04}", time.year()),
-        Token::Month => format!("{:02}", time.month()),
-        Token::Day => format!("{:02}", time.day()),
-        Token::Date => format!("{:04}{:02}{:02}", time.year(), time.month(), time.day()),
+        Token::Year => format!("{:04}", date.year()),
+        Token::Month => format!("{:02}", date.month()),
+        Token::Day => format!("{:02}", date.day()),
+        Token::Date => format!("{:04}{:02}{:02}", date.year(), date.month(), date.day()),
         Token::Time => format!("{:02}{:02}{:02}", time.hour(), time.minute(), time.second()),
         Token::Datetime => format!(
             "{:04}{:02}{:02}_{:02}{:02}{:02}",
@@ -495,10 +504,15 @@ fn token_value(token: &Token, context: &TemplateContext<'_>) -> String {
         Token::Hour => format!("{:02}", time.hour()),
         Token::Minute => format!("{:02}", time.minute()),
         Token::Second => format!("{:02}", time.second()),
-        Token::FormattedTime(format) => {
+        Token::FormattedTime(format) | Token::FormattedDate(format) => {
+            let at = if matches!(token, Token::FormattedDate(_)) {
+                date
+            } else {
+                time
+            };
             let mut value = String::new();
             // parse() validates formatting directives; avoid Display panics even if that changes.
-            if time.format(format).write_to(&mut value).is_err() {
+            if at.format(format).write_to(&mut value).is_err() {
                 return "unknown".into();
             }
             value
@@ -619,11 +633,13 @@ mod tests {
     use chrono::TimeZone;
 
     fn context() -> TemplateContext<'static> {
+        let timestamp = FixedOffset::east_opt(0)
+            .unwrap()
+            .with_ymd_and_hms(2026, 9, 27, 14, 20, 33)
+            .unwrap();
         TemplateContext {
-            timestamp: FixedOffset::east_opt(0)
-                .unwrap()
-                .with_ymd_and_hms(2026, 9, 27, 14, 20, 33)
-                .unwrap(),
+            timestamp,
+            session_date: timestamp,
             camera: "Sony",
             camera_make: "Sony",
             camera_model: "A7C II",
