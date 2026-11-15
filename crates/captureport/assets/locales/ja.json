@@ -451,5 +451,7 @@
   "This camera is importing. Browse it again when the import finishes.": "このカメラから取り込み中です。取り込みの完了後にもう一度参照してください。",
   "From: {0}": "取り込み元: {0}",
   "{0}: {1}": "{0}: {1}",
-  "Changes save when you leave a field.": "フィールドから移動すると変更が保存されます。"
+  "Changes save when you leave a field.": "フィールドから移動すると変更が保存されます。",
+  "Choose…": "選択…",
+  "Choose a destination folder": "保存先フォルダーを選択"
 }

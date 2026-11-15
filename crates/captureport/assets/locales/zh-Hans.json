@@ -451,5 +451,7 @@
   "This camera is importing. Browse it again when the import finishes.": "此相机正在导入。请在导入完成后再次浏览。",
   "From: {0}": "来源：{0}",
   "{0}: {1}": "{0}：{1}",
-  "Changes save when you leave a field.": "离开输入框时自动保存更改。"
+  "Changes save when you leave a field.": "离开输入框时自动保存更改。",
+  "Choose…": "选择…",
+  "Choose a destination folder": "选择目标文件夹"
 }

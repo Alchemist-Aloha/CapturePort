@@ -451,5 +451,7 @@
   "This camera is importing. Browse it again when the import finishes.": "Von dieser Kamera wird gerade importiert. Durchsuchen Sie sie erneut, wenn der Import abgeschlossen ist.",
   "From: {0}": "Von: {0}",
   "{0}: {1}": "{0}: {1}",
-  "Changes save when you leave a field.": "Änderungen werden gespeichert, wenn Sie ein Feld verlassen."
+  "Changes save when you leave a field.": "Änderungen werden gespeichert, wenn Sie ein Feld verlassen.",
+  "Choose…": "Auswählen…",
+  "Choose a destination folder": "Zielordner auswählen"
 }

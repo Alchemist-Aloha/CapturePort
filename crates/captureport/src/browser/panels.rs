@@ -676,7 +676,7 @@ impl Browser {
             .child(self.saved_presets_controls(cx)))
             .when(tab == SettingsTab::Destinations, |d| d
             .child(settings_section("Destinations", p))
-            .child(settings_field(
+            .child(settings_path_field(
                 "Photo destination",
                 self.settings.photo_root.clone(),
                 p,
@@ -693,7 +693,7 @@ impl Browser {
                 p,
                 cx,
             ))
-            .child(settings_field(
+            .child(settings_path_field(
                 "Video destination",
                 self.settings.video_root.clone(),
                 p,
@@ -903,13 +903,13 @@ impl Browser {
             ))
             .when(tab == SettingsTab::Safety, |d| d
             .child(settings_section("Backup copies", p))
-            .child(settings_field(
+            .child(settings_path_field(
                 "Backup photo root (blank disables backup)",
                 self.settings.backup_photo_root.clone(),
                 p,
                 cx,
             ))
-            .child(settings_field(
+            .child(settings_path_field(
                 "Backup video root (blank disables backup)",
                 self.settings.backup_video_root.clone(),
                 p,

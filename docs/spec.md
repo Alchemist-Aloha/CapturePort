@@ -1546,7 +1546,9 @@ choosing one applies and saves it immediately. Import text fields apply and save
 when focus leaves them (or the field is unmounted by changing page or tab); there
 is no separate Apply button. A field whose value is invalid is not applied: the
 settings footer shows the error naming the field until it is corrected, and the
-previous valid settings remain in effect. Opening the clock-adjustment action lands on Media
+previous valid settings remain in effect. Photo, video and backup root fields
+each have a **Choose…** button that opens the folder picker; a chosen folder fills
+the field and saves it the same way. Opening the clock-adjustment action lands on Media
 discovery. Empty browser, history, and recovery views explain the next useful
 action.
 

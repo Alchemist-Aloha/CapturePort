@@ -451,5 +451,7 @@
   "This camera is importing. Browse it again when the import finishes.": "이 카메라에서 가져오는 중입니다. 가져오기가 끝나면 다시 탐색하세요.",
   "From: {0}": "원본: {0}",
   "{0}: {1}": "{0}: {1}",
-  "Changes save when you leave a field.": "필드를 벗어나면 변경 사항이 저장됩니다."
+  "Changes save when you leave a field.": "필드를 벗어나면 변경 사항이 저장됩니다.",
+  "Choose…": "선택…",
+  "Choose a destination folder": "대상 폴더 선택"
 }

@@ -445,6 +445,35 @@ fn settings_field(
         .into_any_element()
 }
 
+/// A path field with a folder-picker button beside it.
+fn settings_path_field(
+    label: &'static str,
+    input: gpui::Entity<text_input::TextInput>,
+    palette: Palette,
+    cx: &mut Context<Browser>,
+) -> AnyElement {
+    let target = input.clone();
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(spacing::TIGHT))
+        .child(div().text_xs().text_color(palette.muted).child(i18n::tr(label)))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(spacing::CONTROL_GAP))
+                .child(div().flex_1().min_w_0().child(themed_input(input, palette, cx)))
+                .child(button_with_id(
+                    gpui::ElementId::Name(format!("choose-{label}").into()),
+                    icons::Icon::Folder,
+                    "Choose…",
+                    palette,
+                    cx.listener(move |t, _, _, c| t.choose_settings_folder(target.clone(), c)),
+                )),
+        )
+        .into_any_element()
+}
 /// A labeled row of mutually exclusive chips, so every option stays visible.
 fn settings_choices(
     label: &'static str,

@@ -451,5 +451,7 @@
   "This camera is importing. Browse it again when the import finishes.": "此相機正在匯入。請在匯入完成後再次瀏覽。",
   "From: {0}": "來源：{0}",
   "{0}: {1}": "{0}：{1}",
-  "Changes save when you leave a field.": "離開輸入框時自動儲存變更。"
+  "Changes save when you leave a field.": "離開輸入框時自動儲存變更。",
+  "Choose…": "選擇…",
+  "Choose a destination folder": "選擇目標資料夾"
 }
