@@ -731,19 +731,32 @@ impl Browser {
                     .id(("verification", mode as u64))
                     .child(chip(i18n::tr(&format!("{mode:?}")), self.preset.verification == mode, p,
                         cx.listener(move |t, _, _, c| t.set_import_rule(|preset| preset.verification = mode, c))))
-                    .into_any_element()), p))
+                    .into_any_element()), Some(match self.preset.verification {
+                    VerificationMode::Fast => "Checks only the file size. Quickest, least certain.",
+                    VerificationMode::Standard => "Checks size and a sampled fingerprint of each copy. Recommended.",
+                    VerificationMode::Strict => "Hashes every byte of source and copy. Slowest; use before deleting source media.",
+                }), p))
             .child(settings_choices("Collision",
                 [CollisionPolicy::Stop, CollisionPolicy::Skip, CollisionPolicy::UniqueSuffix, CollisionPolicy::VerifyIdentical].map(|policy| div()
                     .id(("collision", policy as u64))
                     .child(chip(i18n::tr(&format!("{policy:?}")), self.preset.collision == policy, p,
                         cx.listener(move |t, _, _, c| t.set_import_rule(|preset| preset.collision = policy, c))))
-                    .into_any_element()), p))
+                    .into_any_element()), Some(match self.preset.collision {
+                    CollisionPolicy::Stop => "A different file already at the destination blocks the import until you resolve it.",
+                    CollisionPolicy::Skip => "A different file already at the destination is left alone and that item is skipped.",
+                    CollisionPolicy::UniqueSuffix => "A different file already at the destination is kept; the new copy gets a numbered suffix.",
+                    CollisionPolicy::VerifyIdentical => "An identical existing file counts as imported; a different one blocks the import.",
+                }), p))
             .child(settings_choices("Bundles",
                 [BundlePolicy::KeepAll, BundlePolicy::RawOnly, BundlePolicy::JpegOnly].map(|policy| div()
                     .id(("bundle-policy", policy as u64))
                     .child(chip(i18n::tr(&format!("{policy:?}")), self.preset.bundle_policy == policy, p,
                         cx.listener(move |t, _, _, c| t.set_import_rule(|preset| preset.bundle_policy = policy, c))))
-                    .into_any_element()), p))
+                    .into_any_element()), Some(match self.preset.bundle_policy {
+                    BundlePolicy::KeepAll => "Imports every file of each RAW+JPEG pair.",
+                    BundlePolicy::RawOnly => "Imports only the RAW file of each RAW+JPEG pair.",
+                    BundlePolicy::JpegOnly => "Imports only the JPEG of each RAW+JPEG pair.",
+                }), p))
             .child({
                 // Choosing Time gap uses the threshold typed under Capture time.
                 let gap = self.settings.gap_minutes.read(cx).value().trim().parse().unwrap_or(30);
@@ -761,7 +774,7 @@ impl Browser {
                             t.set_import_rule(|preset| preset.grouping = grouping, c)
                         })))
                         .into_any_element()
-                }), p)
+                }), None, p)
             }))
             .when(tab == SettingsTab::Discovery, |d| d
             .child(settings_section("Media discovery", p))
@@ -917,7 +930,7 @@ impl Browser {
                 .id(("backup-required", required as u64))
                 .child(chip(i18n::tr(label), self.backup_required_choice == required, p,
                     cx.listener(move |t, _, _, c| t.set_backup_required(required, c))))
-                .into_any_element()), p)))
+                .into_any_element()), None, p)))
             .when(tab == SettingsTab::Discovery, |d| d
             .child(settings_section("Source", p))
             .child(settings_field(

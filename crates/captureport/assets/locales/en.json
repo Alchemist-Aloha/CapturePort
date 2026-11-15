@@ -453,5 +453,15 @@
   "Changes save when you leave a field.": "Changes save when you leave a field.",
   "Choose…": "Choose…",
   "Choose a destination folder": "Choose a destination folder",
-  "Example: camera time 12:00:00 is imported as {0}": "Example: camera time 12:00:00 is imported as {0}"
+  "Example: camera time 12:00:00 is imported as {0}": "Example: camera time 12:00:00 is imported as {0}",
+  "Checks only the file size. Quickest, least certain.": "Checks only the file size. Quickest, least certain.",
+  "Checks size and a sampled fingerprint of each copy. Recommended.": "Checks size and a sampled fingerprint of each copy. Recommended.",
+  "Hashes every byte of source and copy. Slowest; use before deleting source media.": "Hashes every byte of source and copy. Slowest; use before deleting source media.",
+  "A different file already at the destination blocks the import until you resolve it.": "A different file already at the destination blocks the import until you resolve it.",
+  "A different file already at the destination is left alone and that item is skipped.": "A different file already at the destination is left alone and that item is skipped.",
+  "A different file already at the destination is kept; the new copy gets a numbered suffix.": "A different file already at the destination is kept; the new copy gets a numbered suffix.",
+  "An identical existing file counts as imported; a different one blocks the import.": "An identical existing file counts as imported; a different one blocks the import.",
+  "Imports every file of each RAW+JPEG pair.": "Imports every file of each RAW+JPEG pair.",
+  "Imports only the RAW file of each RAW+JPEG pair.": "Imports only the RAW file of each RAW+JPEG pair.",
+  "Imports only the JPEG of each RAW+JPEG pair.": "Imports only the JPEG of each RAW+JPEG pair."
 }

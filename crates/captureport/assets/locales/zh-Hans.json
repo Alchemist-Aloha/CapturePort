@@ -453,5 +453,15 @@
   "Changes save when you leave a field.": "离开输入框时自动保存更改。",
   "Choose…": "选择…",
   "Choose a destination folder": "选择目标文件夹",
-  "Example: camera time 12:00:00 is imported as {0}": "示例：相机时间 12:00:00 将导入为 {0}"
+  "Example: camera time 12:00:00 is imported as {0}": "示例：相机时间 12:00:00 将导入为 {0}",
+  "Checks only the file size. Quickest, least certain.": "只检查文件大小。最快，但最不可靠。",
+  "Checks size and a sampled fingerprint of each copy. Recommended.": "检查每个副本的大小和抽样指纹。推荐。",
+  "Hashes every byte of source and copy. Slowest; use before deleting source media.": "对源文件和副本的每个字节计算哈希。最慢；删除源媒体前请使用。",
+  "A different file already at the destination blocks the import until you resolve it.": "目标位置已有不同文件时，导入会被阻止，直到你处理为止。",
+  "A different file already at the destination is left alone and that item is skipped.": "目标位置已有的不同文件保持不变，并跳过该项。",
+  "A different file already at the destination is kept; the new copy gets a numbered suffix.": "保留目标位置已有的不同文件；新副本添加编号后缀。",
+  "An identical existing file counts as imported; a different one blocks the import.": "已有相同文件视为已导入；不同文件会阻止导入。",
+  "Imports every file of each RAW+JPEG pair.": "导入每组 RAW+JPEG 的全部文件。",
+  "Imports only the RAW file of each RAW+JPEG pair.": "只导入每组 RAW+JPEG 中的 RAW 文件。",
+  "Imports only the JPEG of each RAW+JPEG pair.": "只导入每组 RAW+JPEG 中的 JPEG。"
 }

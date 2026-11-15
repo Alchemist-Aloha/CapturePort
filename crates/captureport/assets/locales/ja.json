@@ -453,5 +453,15 @@
   "Changes save when you leave a field.": "フィールドから移動すると変更が保存されます。",
   "Choose…": "選択…",
   "Choose a destination folder": "保存先フォルダーを選択",
-  "Example: camera time 12:00:00 is imported as {0}": "例: カメラ時刻 12:00:00 は {0} として取り込まれます"
+  "Example: camera time 12:00:00 is imported as {0}": "例: カメラ時刻 12:00:00 は {0} として取り込まれます",
+  "Checks only the file size. Quickest, least certain.": "ファイルサイズのみを確認します。最速ですが確実性は最も低くなります。",
+  "Checks size and a sampled fingerprint of each copy. Recommended.": "各コピーのサイズとサンプリングした指紋を確認します。推奨。",
+  "Hashes every byte of source and copy. Slowest; use before deleting source media.": "元ファイルとコピーの全バイトをハッシュします。最も遅いため、元のメディアを削除する前に使用してください。",
+  "A different file already at the destination blocks the import until you resolve it.": "保存先に別のファイルがある場合、解決するまで取り込みを止めます。",
+  "A different file already at the destination is left alone and that item is skipped.": "保存先にある別のファイルはそのままにし、その項目はスキップします。",
+  "A different file already at the destination is kept; the new copy gets a numbered suffix.": "保存先にある別のファイルは残し、新しいコピーには番号の接尾辞を付けます。",
+  "An identical existing file counts as imported; a different one blocks the import.": "同一のファイルが既にあれば取り込み済みとみなし、異なる場合は取り込みを止めます。",
+  "Imports every file of each RAW+JPEG pair.": "RAW+JPEG ペアのすべてのファイルを取り込みます。",
+  "Imports only the RAW file of each RAW+JPEG pair.": "RAW+JPEG ペアの RAW ファイルのみを取り込みます。",
+  "Imports only the JPEG of each RAW+JPEG pair.": "RAW+JPEG ペアの JPEG のみを取り込みます。"
 }

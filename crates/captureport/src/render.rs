@@ -478,6 +478,8 @@ fn settings_path_field(
 fn settings_choices(
     label: &'static str,
     choices: impl IntoIterator<Item = AnyElement>,
+    // Explains the selected choice; a catalog key.
+    note: Option<&'static str>,
     palette: Palette,
 ) -> AnyElement {
     div()
@@ -486,6 +488,7 @@ fn settings_choices(
         .gap(px(spacing::TIGHT))
         .child(div().text_xs().text_color(palette.muted).child(i18n::tr(label)))
         .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP)).children(choices))
+        .children(note.map(|note| div().text_xs().text_color(palette.muted).child(i18n::tr(note))))
         .into_any_element()
 }
 

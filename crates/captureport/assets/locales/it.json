@@ -453,5 +453,15 @@
   "Changes save when you leave a field.": "Le modifiche vengono salvate quando esci da un campo.",
   "Choose…": "Scegli…",
   "Choose a destination folder": "Scegli una cartella di destinazione",
-  "Example: camera time 12:00:00 is imported as {0}": "Esempio: l’ora della fotocamera 12:00:00 viene importata come {0}"
+  "Example: camera time 12:00:00 is imported as {0}": "Esempio: l’ora della fotocamera 12:00:00 viene importata come {0}",
+  "Checks only the file size. Quickest, least certain.": "Controlla solo la dimensione del file. Più rapida, meno sicura.",
+  "Checks size and a sampled fingerprint of each copy. Recommended.": "Controlla la dimensione e un’impronta campionata di ogni copia. Consigliata.",
+  "Hashes every byte of source and copy. Slowest; use before deleting source media.": "Calcola l’hash di ogni byte di origine e copia. Più lenta; usala prima di eliminare i file originali.",
+  "A different file already at the destination blocks the import until you resolve it.": "Un file diverso già presente nella destinazione blocca l’importazione finché non lo risolvi.",
+  "A different file already at the destination is left alone and that item is skipped.": "Un file diverso già presente nella destinazione resta invariato e l’elemento viene saltato.",
+  "A different file already at the destination is kept; the new copy gets a numbered suffix.": "Il file diverso già presente viene mantenuto; la nuova copia riceve un suffisso numerato.",
+  "An identical existing file counts as imported; a different one blocks the import.": "Un file identico esistente conta come importato; uno diverso blocca l’importazione.",
+  "Imports every file of each RAW+JPEG pair.": "Importa tutti i file di ogni coppia RAW+JPEG.",
+  "Imports only the RAW file of each RAW+JPEG pair.": "Importa solo il file RAW di ogni coppia RAW+JPEG.",
+  "Imports only the JPEG of each RAW+JPEG pair.": "Importa solo il JPEG di ogni coppia RAW+JPEG."
 }

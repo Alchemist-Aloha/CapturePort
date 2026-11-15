@@ -1545,7 +1545,8 @@ rules, backup copies), **Media discovery** (source alias, discovery rules,
 RAW+JPEG browsing, capture time), **Presets**, **Appearance** (language, color
 scheme, light/dark) and **Maintenance**. Each rule with fixed options shows all
 of them as a labeled row of choices rather than a button that cycles values;
-choosing one applies and saves it immediately. Import text fields apply and save
+choosing one applies and saves it immediately. Verification, collision and
+bundle rows show a one-line description of the selected option. Import text fields apply and save
 when focus leaves them (or the field is unmounted by changing page or tab); there
 is no separate Apply button. A field whose value is invalid is not applied: the
 settings footer shows the error naming the field until it is corrected, and the
