@@ -175,7 +175,7 @@
   "Hide video folder segments": "隐藏视频文件夹片段",
   "Hide view options": "隐藏视图选项",
   "History": "历史",
-  "Ignored media types (raw, photo, video, sidecar, unknown)": "忽略的媒体类型 (raw, photo, video, sidecar, unknown)",
+  "Ignored media types": "忽略的媒体类型",
   "Import blocked": "导入已阻止",
   "Import cancelled · {0} copies verified · {1} failed. Originals unchanged.": "导入已取消 · {0} 副本已验证 · {1} 失败。原件不变。",
   "Import failed: {0}": "导入失败：{0}",
@@ -463,5 +463,7 @@
   "An identical existing file counts as imported; a different one blocks the import.": "已有相同文件视为已导入；不同文件会阻止导入。",
   "Imports every file of each RAW+JPEG pair.": "导入每组 RAW+JPEG 的全部文件。",
   "Imports only the RAW file of each RAW+JPEG pair.": "只导入每组 RAW+JPEG 中的 RAW 文件。",
-  "Imports only the JPEG of each RAW+JPEG pair.": "只导入每组 RAW+JPEG 中的 JPEG。"
+  "Imports only the JPEG of each RAW+JPEG pair.": "只导入每组 RAW+JPEG 中的 JPEG。",
+  "Sidecars": "附属文件",
+  "Unknown files": "未知文件"
 }

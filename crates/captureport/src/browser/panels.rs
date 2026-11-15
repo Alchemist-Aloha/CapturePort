@@ -806,12 +806,22 @@ impl Browser {
             ))
             .child(div().text_xs().text_color(p.muted)
                 .child(i18n::tr("Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.")))
-            .child(settings_field(
-                "Ignored media types (raw, photo, video, sidecar, unknown)",
-                self.settings.ignore_types.clone(),
-                p,
-                cx,
-            ))
+            .child(settings_choices("Ignored media types",
+                [("raw", "RAW"), ("photo", "Photos"), ("video", "Videos"), ("sidecar", "Sidecars"), ("unknown", "Unknown files")]
+                    .map(|(kind, label)| {
+                        let ignored = self.preset.media_rules.ignore.iter()
+                            .any(|entry| entry.trim().eq_ignore_ascii_case(kind));
+                        div().id(kind).child(chip(i18n::tr(label), ignored, p,
+                            cx.listener(move |t, _, _, c| t.set_import_rule(|preset| {
+                                let ignore = &mut preset.media_rules.ignore;
+                                if ignored {
+                                    ignore.retain(|entry| !entry.trim().eq_ignore_ascii_case(kind));
+                                } else {
+                                    ignore.push(kind.into());
+                                }
+                            }, c))))
+                            .into_any_element()
+                    }), None, p))
             .child(settings_section("Browsing", p))
             .child(div().text_xs().text_color(p.muted)
                 .child(i18n::tr("Choose whether a RAW and its JPEG sidecar appear as one item or as separate files.")))

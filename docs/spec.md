@@ -332,8 +332,10 @@ MTS/M2TS where practical
 Files whose extensions are not recognized as image, RAW, or video are excluded
 from the browser by default; sidecar and unknown media are the default ignored
 types. Import settings expose comma-separated **additional photo extensions**,
-**additional video extensions**, **excluded extensions**, **excluded folders**,
-and **ignored media types** (`raw`, `photo`, `video`, `sidecar`, `unknown`). Odd extensions listed
+**additional video extensions**, **excluded extensions** and **excluded folders**,
+plus **ignored media types** as toggles (RAW, Photos, Videos, Sidecars, Unknown
+files, stored as `raw`, `photo`, `video`, `sidecar`, `unknown`) that save as soon
+as they are clicked. Odd extensions listed
 under the additional photo or video fields are imported as stills or video,
 extensions listed under excluded are dropped outright, and listed media types
 are dropped. These rules persist with the preset across sessions, are applied

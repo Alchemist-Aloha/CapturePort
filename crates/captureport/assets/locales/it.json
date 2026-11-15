@@ -175,7 +175,7 @@
   "Hide video folder segments": "Nascondi i segmenti della cartella video",
   "Hide view options": "Nascondi le opzioni di visualizzazione",
   "History": "Storia",
-  "Ignored media types (raw, photo, video, sidecar, unknown)": "Tipi di supporto ignorati (raw, photo, video, sidecar, unknown)",
+  "Ignored media types": "Tipi di media ignorati",
   "Import blocked": "Importazione bloccata",
   "Import cancelled · {0} copies verified · {1} failed. Originals unchanged.": "Importazione annullata · Copie {0} verificate · {1} non riuscito. Originali invariati.",
   "Import failed: {0}": "Importazione non riuscita: {0}",
@@ -463,5 +463,7 @@
   "An identical existing file counts as imported; a different one blocks the import.": "Un file identico esistente conta come importato; uno diverso blocca l’importazione.",
   "Imports every file of each RAW+JPEG pair.": "Importa tutti i file di ogni coppia RAW+JPEG.",
   "Imports only the RAW file of each RAW+JPEG pair.": "Importa solo il file RAW di ogni coppia RAW+JPEG.",
-  "Imports only the JPEG of each RAW+JPEG pair.": "Importa solo il JPEG di ogni coppia RAW+JPEG."
+  "Imports only the JPEG of each RAW+JPEG pair.": "Importa solo il JPEG di ogni coppia RAW+JPEG.",
+  "Sidecars": "File sidecar",
+  "Unknown files": "File sconosciuti"
 }

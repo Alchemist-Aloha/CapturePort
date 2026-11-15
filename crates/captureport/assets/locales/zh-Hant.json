@@ -175,7 +175,7 @@
   "Hide video folder segments": "隱藏影片資料夾片段",
   "Hide view options": "隱藏視圖選項",
   "History": "歷史",
-  "Ignored media types (raw, photo, video, sidecar, unknown)": "忽略的媒體類型 (raw, photo, video, sidecar, unknown)",
+  "Ignored media types": "忽略的媒體類型",
   "Import blocked": "匯入已阻止",
   "Import cancelled · {0} copies verified · {1} failed. Originals unchanged.": "匯入已取消 · {0} 副本已驗證 · {1} 失敗。原件不變。",
   "Import failed: {0}": "匯入失敗：{0}",
@@ -463,5 +463,7 @@
   "An identical existing file counts as imported; a different one blocks the import.": "已有相同檔案視為已匯入；不同檔案會阻止匯入。",
   "Imports every file of each RAW+JPEG pair.": "匯入每組 RAW+JPEG 的全部檔案。",
   "Imports only the RAW file of each RAW+JPEG pair.": "只匯入每組 RAW+JPEG 中的 RAW 檔案。",
-  "Imports only the JPEG of each RAW+JPEG pair.": "只匯入每組 RAW+JPEG 中的 JPEG。"
+  "Imports only the JPEG of each RAW+JPEG pair.": "只匯入每組 RAW+JPEG 中的 JPEG。",
+  "Sidecars": "附屬檔案",
+  "Unknown files": "未知檔案"
 }

@@ -49,7 +49,6 @@ pub(crate) struct SettingsInputs {
     pub(crate) include_video: Entity<text_input::TextInput>,
     pub(crate) exclude_extensions: Entity<text_input::TextInput>,
     pub(crate) exclude_folders: Entity<text_input::TextInput>,
-    pub(crate) ignore_types: Entity<text_input::TextInput>,
 }
 pub(crate) struct Startup {
     pub(crate) catalog: CatalogHandle,
@@ -509,11 +508,10 @@ impl SettingsInputs {
             include_video: field(preset.media_rules.include_video.join(", "), cx),
             exclude_extensions: field(preset.media_rules.exclude.join(", "), cx),
             exclude_folders: field(preset.media_rules.exclude_folders.join(", "), cx),
-            ignore_types: field(preset.media_rules.ignore.join(", "), cx),
         }
     }
     /// Fields read into the import preset (not the preset name or source alias).
-    pub(crate) fn import_fields(&self) -> [&Entity<text_input::TextInput>; 15] {
+    pub(crate) fn import_fields(&self) -> [&Entity<text_input::TextInput>; 14] {
         [
             &self.photo_root,
             &self.photo_folder,
@@ -529,7 +527,6 @@ impl SettingsInputs {
             &self.include_video,
             &self.exclude_extensions,
             &self.exclude_folders,
-            &self.ignore_types,
         ]
     }
     pub(crate) fn sync(&self, preset: &ImportPreset, cx: &mut Context<Browser>) {
@@ -604,9 +601,6 @@ impl SettingsInputs {
         });
         self.exclude_folders.update(cx, |input, cx| {
             input.set_value(preset.media_rules.exclude_folders.join(", "), cx)
-        });
-        self.ignore_types.update(cx, |input, cx| {
-            input.set_value(preset.media_rules.ignore.join(", "), cx)
         });
     }
     pub(crate) fn read(
@@ -698,7 +692,8 @@ impl SettingsInputs {
             include_video: split(self.include_video.read(cx).value()),
             exclude: split(self.exclude_extensions.read(cx).value()),
             exclude_folders: split(self.exclude_folders.read(cx).value()),
-            ignore: split(self.ignore_types.read(cx).value()),
+            // Toggled directly by the ignored-type chips.
+            ignore: current.media_rules.ignore.clone(),
         };
         Ok(preset)
     }

@@ -175,7 +175,7 @@
   "Hide video folder segments": "ビデオフォルダーセグメントを非表示にする",
   "Hide view options": "表示オプションを非表示にする",
   "History": "歴史",
-  "Ignored media types (raw, photo, video, sidecar, unknown)": "無視されるメディア タイプ (raw, photo, video, sidecar, unknown)",
+  "Ignored media types": "無視するメディアの種類",
   "Import blocked": "輸入がブロックされました",
   "Import cancelled · {0} copies verified · {1} failed. Originals unchanged.": "インポートがキャンセルされました · {0} コピーが確認されました · {1} が失敗しました。オリジナルは変更なし。",
   "Import failed: {0}": "インポートに失敗しました: {0}",
@@ -463,5 +463,7 @@
   "An identical existing file counts as imported; a different one blocks the import.": "同一のファイルが既にあれば取り込み済みとみなし、異なる場合は取り込みを止めます。",
   "Imports every file of each RAW+JPEG pair.": "RAW+JPEG ペアのすべてのファイルを取り込みます。",
   "Imports only the RAW file of each RAW+JPEG pair.": "RAW+JPEG ペアの RAW ファイルのみを取り込みます。",
-  "Imports only the JPEG of each RAW+JPEG pair.": "RAW+JPEG ペアの JPEG のみを取り込みます。"
+  "Imports only the JPEG of each RAW+JPEG pair.": "RAW+JPEG ペアの JPEG のみを取り込みます。",
+  "Sidecars": "サイドカー",
+  "Unknown files": "不明なファイル"
 }
