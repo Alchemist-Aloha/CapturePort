@@ -8,7 +8,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-version=${CAPTUREPORT_VERSION:-0.6.0}
+version=${CAPTUREPORT_VERSION:-1.0.0}
 output_dir=${CAPTUREPORT_OUTPUT_DIR:-"$repo_root/dist"}
 arch=$(uname -m)
 linuxdeploy_tag=1-alpha-20251107-1

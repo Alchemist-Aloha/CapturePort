@@ -1,6 +1,6 @@
 [package]
 name = "captureport-metadata"
-version = "0.6.0"
+version = "1.0.0"
 edition = "2024"
 license = "MIT"
 rust-version.workspace = true
