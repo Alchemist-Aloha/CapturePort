@@ -457,10 +457,9 @@ impl Default for UiPreferences {
     }
 }
 impl SettingsInputs {
-    pub(crate) fn new(preset: &ImportPreset, cx: &mut Context<Browser>) -> Self {
-        let field = |value: String, cx: &mut Context<Browser>| {
-            cx.new(|cx| text_input::TextInput::new(value, "", cx))
-        };
+    pub(crate) fn new(preset: &ImportPreset, cx: &mut App) -> Self {
+        let field =
+            |value: String, cx: &mut App| cx.new(|cx| text_input::TextInput::new(value, "", cx));
         Self {
             preset_name: field(String::new(), cx),
             photo_root: field(preset.photo.root.display().to_string(), cx),
@@ -529,7 +528,7 @@ impl SettingsInputs {
             &self.exclude_folders,
         ]
     }
-    pub(crate) fn sync(&self, preset: &ImportPreset, cx: &mut Context<Browser>) {
+    pub(crate) fn sync(&self, preset: &ImportPreset, cx: &mut App) {
         self.photo_root.update(cx, |input, cx| {
             input.set_value(preset.photo.root.display().to_string(), cx)
         });
@@ -781,6 +780,55 @@ impl ActiveImport {
     }
 }
 
+#[cfg(test)]
+mod settings_form_tests {
+    use super::*;
+
+    /// Drives the real text-input entities in a headless app, so the form's
+    /// field -> preset -> field round trip is covered without a window.
+    #[test]
+    fn settings_form_round_trips_and_rejects_bad_fields() {
+        gpui::Application::headless().run(|cx| {
+            let home = PathBuf::from("/home/test");
+            let mut preset = ImportPreset::everyday(&home);
+            preset.media_rules.ignore = vec!["sidecar".into()];
+            let form = SettingsInputs::new(&preset, cx);
+            let set = |input: &Entity<text_input::TextInput>, value: &str, cx: &mut App| {
+                input.update(cx, |input, cx| input.set_value(value.to_string(), cx))
+            };
+            let read = form.read(&preset, false, cx).expect("defaults are valid");
+            assert_eq!(read.photo, preset.photo);
+            assert_eq!(read.time_correction, preset.time_correction);
+
+            set(&form.clock_seconds, "-0:02:00", cx);
+            set(&form.timezone_seconds, "UTC+08:00", cx);
+            let read = form.read(&preset, false, cx).expect("valid offsets");
+            assert_eq!(read.time_correction.offset_seconds, -120);
+            assert_eq!(
+                read.time_correction.assumed_utc_offset_seconds,
+                Some(8 * 3600)
+            );
+            // Ignored types come from the chips, not a text field.
+            assert_eq!(read.media_rules.ignore, vec!["sidecar".to_string()]);
+
+            form.sync(&read, cx);
+            assert_eq!(form.clock_seconds.read(cx).value(), "-0:02:00");
+            assert_eq!(form.timezone_seconds.read(cx).value(), "UTC+08:00");
+
+            set(&form.timezone_seconds, "UTC+20", cx);
+            assert!(form.read(&preset, false, cx).is_err());
+            set(&form.timezone_seconds, "", cx);
+            set(&form.backup_photo_root, "/backup/photos", cx);
+            assert!(
+                form.read(&preset, false, cx).is_err(),
+                "one backup root alone"
+            );
+            // A quit issued before the headless event loop starts is lost, so
+            // queue it to run inside the loop.
+            cx.spawn(async |cx| cx.update(|cx| cx.quit())).detach();
+        });
+    }
+}
 #[cfg(test)]
 mod time_offset_tests {
     use super::*;
