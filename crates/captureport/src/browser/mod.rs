@@ -6,6 +6,7 @@ pub(crate) mod panels;
 pub(crate) mod render;
 pub(crate) mod session;
 pub(crate) mod settings;
+pub(crate) mod settings_view;
 pub(crate) mod sources;
 pub(crate) mod thumbnails;
 pub(crate) mod views;

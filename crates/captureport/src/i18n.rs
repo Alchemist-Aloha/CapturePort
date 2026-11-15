@@ -231,6 +231,7 @@ mod tests {
             include_str!("browser/render.rs"),
             include_str!("browser/session.rs"),
             include_str!("browser/settings.rs"),
+            include_str!("browser/settings_view.rs"),
             include_str!("browser/sources.rs"),
             include_str!("browser/views.rs"),
         ] {
