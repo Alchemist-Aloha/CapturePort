@@ -267,10 +267,19 @@ impl Browser {
             })
             .child(
                 div()
+                    .id("sidebar-preset")
                     .mt(px(spacing::SECTION - spacing::CONTROL_GAP))
                     .flex_shrink_0()
+                    .cursor_pointer()
+                    .tab_index(0)
                     .text_xs()
                     .text_color(p.muted)
+                    .hover(move |style| style.text_color(p.text))
+                    .focus(move |style| style.text_color(p.text))
+                    .on_click(cx.listener(|t, _, _, c| {
+                        t.settings_tab = SettingsTab::Presets;
+                        t.show_settings(c)
+                    }))
                     .child(i18n::format(
                         "Preset: {0}",
                         std::slice::from_ref(&self.preset.name),

@@ -660,7 +660,6 @@ impl Browser {
                             c.notify()
                         }))))))
             .when(tab == SettingsTab::Presets, |d| d
-            .child(settings_section("Presets", p))
             .child(div().text_xs().text_color(p.muted)
                 .child(i18n::tr("Built-in starting points replace import rules. Choose a saved preset to restore all settings.")))
             .child(
@@ -679,7 +678,6 @@ impl Browser {
             )
             .child(self.saved_presets_controls(cx)))
             .when(tab == SettingsTab::Destinations, |d| d
-            .child(settings_section("Destinations", p))
             .child(settings_path_field(
                 "Photo destination",
                 self.settings.photo_root.clone(),
@@ -723,7 +721,6 @@ impl Browser {
                 cx,
             )))
             .when(tab == SettingsTab::Safety, |d| d
-            .child(settings_section("Import safety", p))
             .child(div().text_xs().text_color(p.muted)
                 .child(i18n::tr("Verification checks copies; collision controls what happens when a destination file already exists.")))
             .child(settings_choices("Verification",
@@ -777,7 +774,6 @@ impl Browser {
                 }), None, p)
             }))
             .when(tab == SettingsTab::Discovery, |d| d
-            .child(settings_section("Media discovery", p))
             .child(div().text_xs().text_color(p.muted)
                 .child(i18n::tr("These rules determine which files appear when you scan a source.")))
             .child(settings_field(
@@ -974,7 +970,6 @@ impl Browser {
                 .child(chip(i18n::tr("Dark"), self.ui.dark_mode, p,
                     cx.listener(|t, _, _, c| { if !t.ui.dark_mode { t.toggle_dark_mode(c); } })))))
             .when(tab == SettingsTab::Maintenance, |d| d
-            .child(settings_section("Maintenance", p))
             .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
                 .child(if self.reconcile_cancellation.is_some() {
                     button_with_id("maintenance-reconcile", Icon::Cancel, "Cancel library scan", p,

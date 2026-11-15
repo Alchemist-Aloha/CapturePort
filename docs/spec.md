@@ -1540,6 +1540,8 @@ view shows the planned destinations, a ready/blocked summary, and a visible
 reason when confirmation is unavailable. The sidebar lists workspace navigation
 (Browse media, Review import, History, Recovery, Settings) above Sources, so the
 page links keep a fixed position however many devices are connected.
+The **Preset: name** line at the bottom of the sidebar opens Settings on the
+Presets tab. A tab does not repeat its own name as its first section heading.
 
 Settings is split into tabs: **Destinations** (roots, folder and filename
 templates), **Import safety** (verification, collision, bundle and grouping
