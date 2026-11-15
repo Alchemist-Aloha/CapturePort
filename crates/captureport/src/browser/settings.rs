@@ -294,13 +294,14 @@ impl Browser {
     pub(crate) fn set_timezone_offset(&mut self, offset: Option<i32>, cx: &mut Context<Self>) {
         self.settings.timezone_seconds.update(cx, |input, cx| {
             input.set_value(
-                offset.map(|value| value.to_string()).unwrap_or_default(),
+                offset
+                    .map(|value| timezone_label(Some(value)))
+                    .unwrap_or_default(),
                 cx,
             )
         });
         self.timezone_menu_open = false;
-        self.invalidate_plan();
-        cx.notify();
+        self.apply_settings(cx);
     }
     /// A field still being edited (or holding an error) is not used by import previews.
     pub(crate) fn settings_unapplied(&self, cx: &App) -> bool {

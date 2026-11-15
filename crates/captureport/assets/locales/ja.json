@@ -78,8 +78,8 @@
   "Verification checks copies; collision controls what happens when a destination file already exists.": "検証はコピーを確認します。衝突は、保存先に同じファイルが既にある場合の動作を決めます。",
   "Click a segment to insert it at the cursor. Use {sequence:04} for 0001 or {session:02} for 02 (width 1–12). Date formats use %Y, %m, %d, %H, %M and %S; for example {datetime:%Y-%m-%d_%H-%M-%S}.": "セグメントをクリックしてカーソル位置に挿入します。 0001 には {sequence:04} を、02 (幅 1 ～ 12) には {session:02} を使用します。日付形式は %Y、%m、%d、%H、%M、%S を使用します。たとえば、{datetime:%Y-%m-%d_%H-%M-%S}。",
   "Click to copy URL": "クリックしてコピー URL",
-  "Clock correction (seconds)": "時計補正（秒）",
-  "Clock correction must be a number of seconds": "時計補正は秒数でなければなりません",
+  "Clock correction (+H:MM:SS added to camera time; negative if the camera runs fast)": "時計補正（カメラ時刻に加算する +H:MM:SS。カメラが進んでいる場合は負の値）",
+  "Clock correction must look like +0:02:00 or a number of seconds": "時計補正は +0:02:00 の形式か秒数で入力してください",
   "Close": "近い",
   "Collapse group": "グループを折りたたむ",
   "Collision": "衝突",
@@ -108,7 +108,7 @@
   "Current: {0}": "現在: {0}",
   "Custom": "カスタム",
   "Custom date format; also supported by time and datetime. %Y year, %m month, %d day, %H hour, %M minute, %S second, %% percent": "カスタム日付形式。時刻と日時でもサポートされています。 %Y年、%m月、%d日、%H時間、%M分、%S秒、%%パーセント",
-  "Custom offset (seconds east of UTC; blank keeps metadata timezone)": "カスタム オフセット (UTC から東への秒数、空白はメタデータのタイムゾーンを保持)",
+  "Custom offset (for example UTC+08:00; blank keeps metadata timezone)": "カスタムオフセット（例: UTC+08:00。空欄ならメタデータのタイムゾーンを使用）",
   "Dark": "ダーク",
   "Dark mode": "ダークモード",
   "Darkroom": "暗室",
@@ -372,8 +372,7 @@
   "Time-gap session threshold (minutes)": "タイムギャップセッションのしきい値（分）",
   "Timestamp source": "タイムスタンプソース",
   "Timezone applied to capture times": "キャプチャ時間に適用されるタイムゾーン",
-  "Timezone offset is out of range": "タイムゾーン オフセットが範囲外です",
-  "Timezone offset must be seconds east of UTC": "タイムゾーン オフセットは UTC から東に数秒である必要があります",
+  "Timezone offset must look like UTC+08:00 (at most ±14:00)": "タイムゾーンのオフセットは UTC+08:00 の形式で入力してください（最大 ±14:00）",
   "Timezone: {0}": "タイムゾーン: {0}",
   "To: {0}": "宛先: {0}",
   "Try another source or check that it contains supported media.": "別のソースを試すか、サポートされているメディアが含まれていることを確認してください。",
@@ -453,5 +452,6 @@
   "{0}: {1}": "{0}: {1}",
   "Changes save when you leave a field.": "フィールドから移動すると変更が保存されます。",
   "Choose…": "選択…",
-  "Choose a destination folder": "保存先フォルダーを選択"
+  "Choose a destination folder": "保存先フォルダーを選択",
+  "Example: camera time 12:00:00 is imported as {0}": "例: カメラ時刻 12:00:00 は {0} として取り込まれます"
 }

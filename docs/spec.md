@@ -535,7 +535,10 @@ displayed corrected capture time
 It should not silently modify source-file metadata.
 
 Timezone interpretation should also be configurable where metadata lacks timezone information. Import settings present a timezone selection menu of common UTC offsets plus a
-Capture metadata option and a custom seconds field; the chosen offset is stored
+Capture metadata option and a custom offset field that accepts `UTC+08:00`,
+`+8` or `-05:30` (at most ±14:00). The clock-correction field accepts `+H:MM:SS`,
+`-M:SS` or plain seconds, displays the saved value as `+H:MM:SS`, and shows what
+camera time 12:00:00 becomes; the chosen offset is stored
 with the preset, persists across sessions, and is applied to grouping,
 destination paths, generated filenames, and displayed corrected capture times.
 Import history therefore reflects the timezone through the recorded

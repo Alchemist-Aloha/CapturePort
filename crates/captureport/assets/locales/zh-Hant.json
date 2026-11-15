@@ -78,8 +78,8 @@
   "Verification checks copies; collision controls what happens when a destination file already exists.": "驗證用於檢查副本；衝突規則決定目標檔案已存在時如何處理。",
   "Click a segment to insert it at the cursor. Use {sequence:04} for 0001 or {session:02} for 02 (width 1–12). Date formats use %Y, %m, %d, %H, %M and %S; for example {datetime:%Y-%m-%d_%H-%M-%S}.": "點擊一段以將其插入到遊標處。使用 {sequence:04} 表示 0001 或 {session:02} 表示 02（寬度 1–12）。日期格式使用 %Y、%m、%d、%H、%M 和 %S；例如 {datetime:%Y-%m-%d_%H-%M-%S}。",
   "Click to copy URL": "點選複製URL",
-  "Clock correction (seconds)": "時鐘校正（秒）",
-  "Clock correction must be a number of seconds": "時鐘修正必須是秒數",
+  "Clock correction (+H:MM:SS added to camera time; negative if the camera runs fast)": "時鐘校正（加到相機時間上的 +H:MM:SS；相機走快時填負值）",
+  "Clock correction must look like +0:02:00 or a number of seconds": "時鐘校正應為 +0:02:00 格式或秒數",
   "Close": "關閉",
   "Collapse group": "折疊組",
   "Collision": "檔案衝突",
@@ -108,7 +108,7 @@
   "Current: {0}": "目前：{0}",
   "Custom": "自訂",
   "Custom date format; also supported by time and datetime. %Y year, %m month, %d day, %H hour, %M minute, %S second, %% percent": "自訂日期格式；也支援時間和日期時間。 %Y 年、%m 月、%d 日、%H 小時、%M 分鐘、%S 秒、%% 百分比",
-  "Custom offset (seconds east of UTC; blank keeps metadata timezone)": "自訂偏移量（UTC 以東的秒數；空白保留元資料時區）",
+  "Custom offset (for example UTC+08:00; blank keeps metadata timezone)": "自訂偏移（例如 UTC+08:00；留空則使用中繼資料時區）",
   "Dark": "深色",
   "Dark mode": "深色模式",
   "Darkroom": "暗室",
@@ -372,8 +372,7 @@
   "Time-gap session threshold (minutes)": "時間間隔會話閾值（分鐘）",
   "Timestamp source": "時間戳來源",
   "Timezone applied to capture times": "拍攝時間使用的時區",
-  "Timezone offset is out of range": "時區偏移超出範圍",
-  "Timezone offset must be seconds east of UTC": "時區偏移必須為相對 UTC 的秒數（向東為正）",
+  "Timezone offset must look like UTC+08:00 (at most ±14:00)": "時區偏移應為 UTC+08:00 格式（最多 ±14:00）",
   "Timezone: {0}": "時區：{0}",
   "To: {0}": "至：{0}",
   "Try another source or check that it contains supported media.": "嘗試其他來源或檢查它是否包含受支援的媒體。",
@@ -453,5 +452,6 @@
   "{0}: {1}": "{0}：{1}",
   "Changes save when you leave a field.": "離開輸入框時自動儲存變更。",
   "Choose…": "選擇…",
-  "Choose a destination folder": "選擇目標資料夾"
+  "Choose a destination folder": "選擇目標資料夾",
+  "Example: camera time 12:00:00 is imported as {0}": "範例：相機時間 12:00:00 將匯入為 {0}"
 }

@@ -345,6 +345,62 @@ pub(crate) fn timezone_label(offset: Option<i32>) -> String {
         }
     }
 }
+/// Parses `UTC+08:00`, `+8`, `-05:30` (blank = no override). Rejects beyond ±14:00.
+pub(crate) fn parse_utc_offset(text: &str) -> Result<Option<i32>, ()> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(None);
+    }
+    let text = text
+        .strip_prefix("UTC")
+        .or_else(|| text.strip_prefix("GMT"))
+        .unwrap_or(text)
+        .trim();
+    let (sign, rest) = match text.strip_prefix('-') {
+        Some(rest) => (-1, rest),
+        None => (1, text.strip_prefix('+').unwrap_or(text)),
+    };
+    let (hours, minutes) = rest.split_once(':').unwrap_or((rest, "0"));
+    let hours: i32 = hours.parse().map_err(|_| ())?;
+    let minutes: i32 = minutes.parse().map_err(|_| ())?;
+    if !(0..60).contains(&minutes) || hours < 0 || hours * 60 + minutes > 14 * 60 {
+        return Err(());
+    }
+    Ok(Some(sign * (hours * 3600 + minutes * 60)))
+}
+/// Parses a clock correction: `+H:MM:SS`, `-M:SS`, or plain seconds.
+pub(crate) fn parse_clock_offset(text: &str) -> Result<i64, ()> {
+    let text = text.trim();
+    let (sign, rest) = match text.strip_prefix('-') {
+        Some(rest) => (-1, rest),
+        None => (1, text.strip_prefix('+').unwrap_or(text)),
+    };
+    let parts = rest
+        .split(':')
+        .map(|part| part.parse::<i64>().map_err(|_| ()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let seconds = match parts[..] {
+        [seconds] if seconds >= 0 => seconds,
+        [minutes, seconds] if minutes >= 0 && (0..60).contains(&seconds) => minutes * 60 + seconds,
+        [hours, minutes, seconds]
+            if hours >= 0 && (0..60).contains(&minutes) && (0..60).contains(&seconds) =>
+        {
+            hours * 3600 + minutes * 60 + seconds
+        }
+        _ => return Err(()),
+    };
+    Ok(sign * seconds)
+}
+pub(crate) fn format_clock_offset(seconds: i64) -> String {
+    let sign = if seconds < 0 { "-" } else { "+" };
+    let absolute = seconds.unsigned_abs();
+    format!(
+        "{sign}{}:{:02}:{:02}",
+        absolute / 3600,
+        absolute % 3600 / 60,
+        absolute % 60
+    )
+}
 /// Format a source file's modification time in the selected timezone.
 pub(crate) fn format_file_time(seconds: u64, offset: Option<i32>) -> String {
     let Some(utc) = Utc.timestamp_opt(seconds as i64, 0).single() else {
@@ -413,12 +469,15 @@ impl SettingsInputs {
             video_root: field(preset.video.root.display().to_string(), cx),
             video_folder: field(preset.video.folder_template.clone(), cx),
             filename: field(preset.filename_template.clone(), cx),
-            clock_seconds: field(preset.time_correction.offset_seconds.to_string(), cx),
+            clock_seconds: field(
+                format_clock_offset(preset.time_correction.offset_seconds),
+                cx,
+            ),
             timezone_seconds: field(
                 preset
                     .time_correction
                     .assumed_utc_offset_seconds
-                    .map(|v| v.to_string())
+                    .map(|v| timezone_label(Some(v)))
                     .unwrap_or_default(),
                 cx,
             ),
@@ -490,14 +549,17 @@ impl SettingsInputs {
             input.set_value(preset.filename_template.clone(), cx)
         });
         self.clock_seconds.update(cx, |input, cx| {
-            input.set_value(preset.time_correction.offset_seconds.to_string(), cx)
+            input.set_value(
+                format_clock_offset(preset.time_correction.offset_seconds),
+                cx,
+            )
         });
         self.timezone_seconds.update(cx, |input, cx| {
             input.set_value(
                 preset
                     .time_correction
                     .assumed_utc_offset_seconds
-                    .map(|v| v.to_string())
+                    .map(|v| timezone_label(Some(v)))
                     .unwrap_or_default(),
                 cx,
             )
@@ -572,24 +634,12 @@ impl SettingsInputs {
             template_help::example(template, is_filename, video)
                 .map_err(|error| format!("{}: {error}", i18n::tr(label)))?;
         }
-        let clock_seconds = self
-            .clock_seconds
-            .read(cx)
-            .value()
-            .parse::<i64>()
-            .map_err(|_| i18n::tr("Clock correction must be a number of seconds"))?;
-        let timezone = self.timezone_seconds.read(cx).value();
-        let assumed_utc_offset_seconds = if timezone.trim().is_empty() {
-            None
-        } else {
-            let value = timezone
-                .parse::<i32>()
-                .map_err(|_| i18n::tr("Timezone offset must be seconds east of UTC"))?;
-            if !(-86_400..=86_400).contains(&value) {
-                return Err(i18n::tr("Timezone offset is out of range"));
-            }
-            Some(value)
-        };
+        let clock_seconds =
+            parse_clock_offset(&self.clock_seconds.read(cx).value()).map_err(|_| {
+                i18n::tr("Clock correction must look like +0:02:00 or a number of seconds")
+            })?;
+        let assumed_utc_offset_seconds = parse_utc_offset(&self.timezone_seconds.read(cx).value())
+            .map_err(|_| i18n::tr("Timezone offset must look like UTC+08:00 (at most ±14:00)"))?;
         let backup_photo = self.backup_photo_root.read(cx).value();
         let backup_video = self.backup_video_root.read(cx).value();
         let backup = if backup_photo.trim().is_empty() && backup_video.trim().is_empty() {
@@ -736,6 +786,33 @@ impl ActiveImport {
     }
 }
 
+#[cfg(test)]
+mod time_offset_tests {
+    use super::*;
+
+    #[test]
+    fn offsets_round_trip_and_reject_nonsense() {
+        assert_eq!(parse_utc_offset(""), Ok(None));
+        assert_eq!(parse_utc_offset("UTC+08:00"), Ok(Some(8 * 3600)));
+        assert_eq!(parse_utc_offset("-5:30"), Ok(Some(-(5 * 3600 + 1800))));
+        assert_eq!(parse_utc_offset("+8"), Ok(Some(8 * 3600)));
+        assert_eq!(
+            parse_utc_offset(&timezone_label(Some(-34_200))),
+            Ok(Some(-34_200))
+        );
+        for bad in ["UTC+15", "+08:60", "abc", "28800"] {
+            assert_eq!(parse_utc_offset(bad), Err(()), "{bad}");
+        }
+        assert_eq!(parse_clock_offset("120"), Ok(120));
+        assert_eq!(parse_clock_offset("-2:00"), Ok(-120));
+        assert_eq!(parse_clock_offset("+1:02:03"), Ok(3723));
+        assert_eq!(parse_clock_offset(&format_clock_offset(-3723)), Ok(-3723));
+        assert_eq!(format_clock_offset(0), "+0:00:00");
+        for bad in ["", "1:60", "1:2:3:4", "x", "--5"] {
+            assert_eq!(parse_clock_offset(bad), Err(()), "{bad}");
+        }
+    }
+}
 #[cfg(test)]
 mod active_import_tests {
     use super::*;

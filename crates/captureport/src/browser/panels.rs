@@ -623,6 +623,10 @@ impl Browser {
     pub(crate) fn settings_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let tab = self.settings_tab;
+        let timezone = parse_utc_offset(&self.settings.timezone_seconds.read(cx).value())
+            .ok()
+            .flatten();
+        let clock = parse_clock_offset(&self.settings.clock_seconds.read(cx).value()).ok();
         let panel = div()
             .id("settings-panel")
             .w_full().max_w(px(820.))
@@ -814,11 +818,19 @@ impl Browser {
             )
             .child(settings_section("Capture time", p))
             .child(settings_field(
-                "Clock correction (seconds)",
+                "Clock correction (+H:MM:SS added to camera time; negative if the camera runs fast)",
                 self.settings.clock_seconds.clone(),
                 p,
                 cx,
             ))
+            .children(clock.map(|seconds| {
+                let example = chrono::NaiveTime::from_hms_opt(12, 0, 0).expect("noon")
+                    + chrono::Duration::seconds(seconds);
+                div().text_xs().text_color(p.muted).child(i18n::format(
+                    "Example: camera time 12:00:00 is imported as {0}",
+                    &[example.format("%H:%M:%S").to_string()],
+                ))
+            }))
             .child(settings_field(
                 "Time-gap session threshold (minutes)",
                 self.settings.gap_minutes.clone(),
@@ -839,15 +851,7 @@ impl Browser {
                     .child(button_with_id(
                         "timezone-picker",
                         Icon::Time,
-                        i18n::format("Timezone: {0}", &[timezone_label(
-                                self.settings
-                                    .timezone_seconds
-                                    .read(cx)
-                                    .value()
-                                    .trim()
-                                    .parse::<i32>()
-                                    .ok()
-                            ).to_string()]), p,
+                        i18n::format("Timezone: {0}", &[timezone_label(timezone)]), p,
                         cx.listener(|t, _, _, c| {
                             t.timezone_menu_open = !t.timezone_menu_open;
                             c.notify()
@@ -874,13 +878,7 @@ impl Browser {
                             .children(TIMEZONE_CHOICES.iter().map(|(label, seconds)| {
                                 timezone_choice(
                                     (*label).to_string(),
-                                    self.settings
-                                        .timezone_seconds
-                                        .read(cx)
-                                        .value()
-                                        .trim()
-                                        .parse::<i32>()
-                                        .ok()
+                                    timezone
                                         == Some(*seconds),
                                     (*seconds + 50_400) as u64,
                                     p,
@@ -895,7 +893,7 @@ impl Browser {
                         div().into_any_element()
                     })
                     .child(settings_field(
-                        "Custom offset (seconds east of UTC; blank keeps metadata timezone)",
+                        "Custom offset (for example UTC+08:00; blank keeps metadata timezone)",
                         self.settings.timezone_seconds.clone(),
                         p,
                         cx,

@@ -78,8 +78,8 @@
   "Verification checks copies; collision controls what happens when a destination file already exists.": "La vérification contrôle les copies ; la collision détermine ce qui se passe lorsqu’un fichier de destination existe déjà.",
   "Click a segment to insert it at the cursor. Use {sequence:04} for 0001 or {session:02} for 02 (width 1–12). Date formats use %Y, %m, %d, %H, %M and %S; for example {datetime:%Y-%m-%d_%H-%M-%S}.": "Cliquez sur un segment pour l'insérer au niveau du curseur. Utilisez {sequence:04} pour 0001 ou {session:02} pour 02 (largeur 1 à 12). Les formats de date utilisent %Y, %m, %d, %H, %M et %S ; par exemple {datetime:%Y-%m-%d_%H-%M-%S}.",
   "Click to copy URL": "Cliquez pour copier URL",
-  "Clock correction (seconds)": "Correction d'horloge (secondes)",
-  "Clock correction must be a number of seconds": "La correction de l'horloge doit être de plusieurs secondes",
+  "Clock correction (+H:MM:SS added to camera time; negative if the camera runs fast)": "Correction d’horloge (+H:MM:SS ajouté à l’heure de l’appareil ; négative si l’appareil avance)",
+  "Clock correction must look like +0:02:00 or a number of seconds": "La correction d’horloge doit ressembler à +0:02:00 ou être un nombre de secondes",
   "Close": "Fermer",
   "Collapse group": "Réduire le groupe",
   "Collision": "Collision",
@@ -108,7 +108,7 @@
   "Current: {0}": "Actuel : {0}",
   "Custom": "Coutume",
   "Custom date format; also supported by time and datetime. %Y year, %m month, %d day, %H hour, %M minute, %S second, %% percent": "Format de date personnalisé ; également pris en charge par l'heure et la date/heure. Année %Y, mois %m, jour %d, heure %H, minute %M, seconde %S, pourcentage %%",
-  "Custom offset (seconds east of UTC; blank keeps metadata timezone)": "Décalage personnalisé (secondes à l'est de UTC ; le blanc conserve le fuseau horaire des métadonnées)",
+  "Custom offset (for example UTC+08:00; blank keeps metadata timezone)": "Décalage personnalisé (par exemple UTC+08:00 ; vide conserve le fuseau des métadonnées)",
   "Dark": "Sombre",
   "Dark mode": "Mode sombre",
   "Darkroom": "Chambre noire",
@@ -372,8 +372,7 @@
   "Time-gap session threshold (minutes)": "Seuil de session d'intervalle de temps (minutes)",
   "Timestamp source": "Source d'horodatage",
   "Timezone applied to capture times": "Fuseau horaire appliqué aux heures de capture",
-  "Timezone offset is out of range": "Le décalage du fuseau horaire est hors plage",
-  "Timezone offset must be seconds east of UTC": "Le décalage du fuseau horaire doit être en secondes à l’est de UTC",
+  "Timezone offset must look like UTC+08:00 (at most ±14:00)": "Le décalage horaire doit ressembler à UTC+08:00 (au plus ±14:00)",
   "Timezone: {0}": "Fuseau horaire : {0}",
   "To: {0}": "À : {0}",
   "Try another source or check that it contains supported media.": "Essayez une autre source ou vérifiez qu'elle contient des médias pris en charge.",
@@ -453,5 +452,6 @@
   "{0}: {1}": "{0} : {1}",
   "Changes save when you leave a field.": "Les modifications sont enregistrées lorsque vous quittez un champ.",
   "Choose…": "Choisir…",
-  "Choose a destination folder": "Choisissez un dossier de destination"
+  "Choose a destination folder": "Choisissez un dossier de destination",
+  "Example: camera time 12:00:00 is imported as {0}": "Exemple : l’heure appareil 12:00:00 est importée comme {0}"
 }
