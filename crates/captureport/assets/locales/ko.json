@@ -35,7 +35,6 @@
   "An unfinished import needs review": "완료되지 않은 가져오기에 검토가 필요함",
   "Appearance": "모양",
   "Appearance: {0}": "외관: {0}",
-  "Apply settings": "설정 적용",
   "BUNDLE": "묶음",
   "Back to media": "미디어로 돌아가기",
   "Backup copies": "백업 사본",
@@ -306,7 +305,6 @@
   "Review import": "가져오기 검토",
   "Review import · {0} files": "가져오기 · {0} 파일 검토",
   "Review remaining files": "남은 파일 검토",
-  "Review the import preview before copying.": "복사하기 전에 가져오기 미리보기를 검토하세요.",
   "Review the verified copies, then confirm source deletion separately": "검증된 사본을 검토한 후 소스 삭제를 별도로 확인하세요.",
   "Review {0} planned item(s) before importing": "가져오기 전에 {0} 계획 품목을 검토하세요.",
   "Running": "진행 중",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "고유 접미사",
   "Unsupported source": "지원되지 않는 소스",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "메타데이터의 경우 폴더와 {segments} 사이에 /를 사용하세요. {year}/{date:%Y-%m-%d}. 대상 루트로 직접 가져오려면 비워 두세요.",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "폴더 이름 또는 경로 조각(예: Screenshots, DCIM/Private)을 사용하십시오. 일치 항목은 대소문자를 구분하며 하위 폴더를 포함합니다. 설정을 적용한 다음 다시 검색하여 브라우저를 업데이트하세요.",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "폴더 이름 또는 경로 조각(예: Screenshots, DCIM/Private)을 사용하십시오. 일치 항목은 대소문자를 구분하며 하위 폴더를 포함합니다. 다시 검색하면 브라우저에 반영됩니다.",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "텍스트와 {segments}를 사용하세요. 파일 형식을 유지하려면 .{extension}를 포함하세요. {original_name}는 전체 원래 이름을 유지합니다. 여기에는 폴더가 허용되지 않습니다.",
   "VIDEO": "동영상",
   "Verification": "확인",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "다른 가져오기가 진행 중입니다. 완료된 후 다음 미리 보기를 만드세요.",
   "This camera is importing. Browse it again when the import finishes.": "이 카메라에서 가져오는 중입니다. 가져오기가 끝나면 다시 탐색하세요.",
   "From: {0}": "원본: {0}",
-  "{0}: {1}": "{0}: {1}"
+  "{0}: {1}": "{0}: {1}",
+  "Changes save when you leave a field.": "필드를 벗어나면 변경 사항이 저장됩니다."
 }

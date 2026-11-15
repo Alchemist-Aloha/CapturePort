@@ -35,7 +35,6 @@
   "An unfinished import needs review": "Uma importação inacabada precisa de revisão",
   "Appearance": "Aparência",
   "Appearance: {0}": "Aparência: {0}",
-  "Apply settings": "Aplicar configurações",
   "BUNDLE": "PACOTE",
   "Back to media": "Voltar para a mídia",
   "Backup copies": "Cópias de segurança",
@@ -306,7 +305,6 @@
   "Review import": "Revisar importação",
   "Review import · {0} files": "Revisar importação · Arquivos {0}",
   "Review remaining files": "Revise os arquivos restantes",
-  "Review the import preview before copying.": "Revise a visualização da importação antes de copiar.",
   "Review the verified copies, then confirm source deletion separately": "Revise as cópias verificadas e confirme a exclusão da fonte separadamente",
   "Review {0} planned item(s) before importing": "Revise os itens planejados {0} antes de importar",
   "Running": "Em andamento",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "Sufixo único",
   "Unsupported source": "Fonte não suportada",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "Use / entre pastas e {segments} para metadados, por exemplo. {year}/{date:%Y-%m-%d}. Deixe em branco para importar diretamente para a raiz de destino.",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "Use nomes de pastas ou fragmentos de caminho, por exemplo Screenshots, DCIM/Private. As correspondências diferenciam maiúsculas de minúsculas e incluem subpastas. Aplique as configurações e verifique novamente para atualizar o navegador.",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "Use nomes de pastas ou fragmentos de caminho, por exemplo Screenshots, DCIM/Private. As correspondências diferenciam maiúsculas de minúsculas e incluem subpastas. Verifique novamente para atualizar o navegador.",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "Use texto e {segments}. Inclua .{extension} para manter o tipo de arquivo; {original_name} mantém todo o nome original. Pastas não são permitidas aqui.",
   "VIDEO": "VÍDEO",
   "Verification": "Verificação",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "Outra importação está em andamento. Pré-visualize a próxima quando ela terminar.",
   "This camera is importing. Browse it again when the import finishes.": "Esta câmera está sendo importada. Navegue por ela novamente quando a importação terminar.",
   "From: {0}": "De: {0}",
-  "{0}: {1}": "{0}: {1}"
+  "{0}: {1}": "{0}: {1}",
+  "Changes save when you leave a field.": "As alterações são salvas ao sair de um campo."
 }

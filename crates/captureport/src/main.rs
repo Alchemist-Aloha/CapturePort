@@ -99,6 +99,7 @@ struct Browser {
     show_view_options: bool,
     timezone_menu_open: bool,
     settings_tab: SettingsTab,
+    settings_error: Option<String>,
     explicit_bundle_selection: HashSet<MediaId>,
     receiver: Option<Receiver<ScanMessage>>,
     work_receivers: Vec<Receiver<WorkMessage>>,
@@ -195,6 +196,15 @@ impl Browser {
         ] {
             cx.observe(input, |_, _, cx| cx.notify()).detach();
         }
+        // Import fields apply on their own when the user leaves them.
+        for input in settings.import_fields() {
+            let handle = input.read(cx).focus_handle(cx);
+            cx.on_blur(&handle, window, |t, _, c| t.apply_settings(c))
+                .detach();
+        }
+        // Switching pages can unmount the focused field without a blur event.
+        cx.on_focus_lost(window, |t, _, c| t.apply_settings(c))
+            .detach();
         let gallery_names = read_config(&gallery_names_path).unwrap_or_default();
         let gallery_edit_input =
             cx.new(|cx| text_input::TextInput::new(String::new(), "Gallery name", cx));
@@ -322,6 +332,7 @@ impl Browser {
             show_view_options: false,
             timezone_menu_open: false,
             settings_tab: SettingsTab::Destinations,
+            settings_error: None,
             explicit_bundle_selection: HashSet::new(),
             receiver: None,
             work_receivers: vec![recovery_rx, presets_rx],

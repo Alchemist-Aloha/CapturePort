@@ -623,7 +623,6 @@ impl Browser {
     pub(crate) fn settings_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
         let tab = self.settings_tab;
-        let show_apply = tab.needs_apply() || self.settings_unapplied(cx);
         let panel = div()
             .id("settings-panel")
             .w_full().max_w(px(820.))
@@ -789,7 +788,7 @@ impl Browser {
                 cx,
             ))
             .child(div().text_xs().text_color(p.muted)
-                .child(i18n::tr("Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.")))
+                .child(i18n::tr("Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.")))
             .child(settings_field(
                 "Ignored media types (raw, photo, video, sidecar, unknown)",
                 self.settings.ignore_types.clone(),
@@ -989,32 +988,24 @@ impl Browser {
                             .element(p.border, p.muted, p.accent),
                     ),
             )
-            .when(show_apply, |view| {
-                view.child(
-                    div()
-                        .flex_shrink_0()
-                        .border_t_1()
-                        .border_color(p.border)
-                        .px(px(spacing::CONTENT))
-                        .py(px(spacing::CONTROL_GAP))
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .gap(px(spacing::CONTENT))
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(p.muted)
-                                .child(i18n::tr("Review the import preview before copying.")),
-                        )
-                        .child(primary_button(
-                            Icon::Confirm,
-                            "Apply settings",
-                            p,
-                            cx.listener(|t, _, _, c| t.apply_settings(c)),
-                        )),
-                )
-            })
+            .child(
+                div()
+                    .flex_shrink_0()
+                    .border_t_1()
+                    .border_color(p.border)
+                    .px(px(spacing::CONTENT))
+                    .py(px(spacing::CONTROL_GAP))
+                    .text_sm()
+                    .map(|footer| match &self.settings_error {
+                        Some(error) => footer
+                            .bg(p.danger)
+                            .text_color(p.text)
+                            .child(i18n::format("Settings: {0}", std::slice::from_ref(error))),
+                        None => footer
+                            .text_color(p.muted)
+                            .child(i18n::tr("Changes save when you leave a field.")),
+                    }),
+            )
             .into_any_element()
     }
 }

@@ -35,7 +35,6 @@
   "An unfinished import needs review": "Ein unvollendeter Import muss überprüft werden",
   "Appearance": "Darstellung",
   "Appearance: {0}": "Aussehen: {0}",
-  "Apply settings": "Einstellungen anwenden",
   "BUNDLE": "BÜNDELN",
   "Back to media": "Zurück zu den Medien",
   "Backup copies": "Sicherungskopien",
@@ -306,7 +305,6 @@
   "Review import": "Überprüfen Sie den Import",
   "Review import · {0} files": "Überprüfen Sie den Import · {0}-Dateien",
   "Review remaining files": "Überprüfen Sie die verbleibenden Dateien",
-  "Review the import preview before copying.": "Überprüfen Sie vor dem Kopieren die Importvorschau.",
   "Review the verified copies, then confirm source deletion separately": "Überprüfen Sie die verifizierten Kopien und bestätigen Sie dann die Löschung der Quelle separat",
   "Review {0} planned item(s) before importing": "Überprüfen Sie vor dem Import die geplanten Artikel von {0}",
   "Running": "Läuft",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "Eindeutiges Suffix",
   "Unsupported source": "Nicht unterstützte Quelle",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "Verwenden Sie / zwischen Ordnern und {segments} für Metadaten, z. B. {year}/{date:%Y-%m-%d}. Lassen Sie das Feld leer, um es direkt in das Zielstammverzeichnis zu importieren.",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "Verwenden Sie Ordnernamen oder Pfadfragmente, zum Beispiel Screenshots, DCIM/Private. Bei Übereinstimmungen wird die Groß-/Kleinschreibung beachtet und Unterordner eingeschlossen. Übernehmen Sie die Einstellungen und scannen Sie dann erneut, um den Browser zu aktualisieren.",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "Verwenden Sie Ordnernamen oder Pfadfragmente, zum Beispiel Screenshots, DCIM/Private. Bei Übereinstimmungen wird die Groß-/Kleinschreibung beachtet und Unterordner eingeschlossen. Scannen Sie erneut, um den Browser zu aktualisieren.",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "Verwenden Sie Text und {segments}. Fügen Sie .{extension} ein, um den Dateityp beizubehalten. {original_name} behält den gesamten ursprünglichen Namen. Ordner sind hier nicht erlaubt.",
   "VIDEO": "VIDEO",
   "Verification": "Überprüfung",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "Ein anderer Import läuft. Zeigen Sie die Vorschau des nächsten an, wenn er abgeschlossen ist.",
   "This camera is importing. Browse it again when the import finishes.": "Von dieser Kamera wird gerade importiert. Durchsuchen Sie sie erneut, wenn der Import abgeschlossen ist.",
   "From: {0}": "Von: {0}",
-  "{0}: {1}": "{0}: {1}"
+  "{0}: {1}": "{0}: {1}",
+  "Changes save when you leave a field.": "Änderungen werden gespeichert, wenn Sie ein Feld verlassen."
 }

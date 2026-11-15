@@ -35,7 +35,6 @@
   "An unfinished import needs review": "未完了のインポートはレビューが必要です",
   "Appearance": "外観",
   "Appearance: {0}": "外観：{0}",
-  "Apply settings": "設定を適用する",
   "BUNDLE": "バンドル",
   "Back to media": "メディアに戻る",
   "Backup copies": "バックアップコピー",
@@ -306,7 +305,6 @@
   "Review import": "レビューインポート",
   "Review import · {0} files": "インポート・{0} ファイルを確認する",
   "Review remaining files": "残りのファイルを確認する",
-  "Review the import preview before copying.": "コピーする前にインポートのプレビューを確認してください。",
   "Review the verified copies, then confirm source deletion separately": "検証されたコピーを確認し、ソースの削除を個別に確認します。",
   "Review {0} planned item(s) before importing": "インポートする前に {0} 計画項目を確認してください",
   "Running": "実行中",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "一意のサフィックス",
   "Unsupported source": "サポートされていないソース",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "メタデータのフォルダーと {segments} の間に / を使用します。 {year}/{date:%Y-%m-%d}。宛先ルートに直接インポートするには、空白のままにします。",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "Screenshots、DCIM/Private などのフォルダー名またはパスのフラグメントを使用します。一致では大文字と小文字が区別され、サブフォルダーも含まれます。設定を適用し、再スキャンしてブラウザを更新します。",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "Screenshots、DCIM/Private などのフォルダー名またはパスの一部を使用します。大文字と小文字は区別され、サブフォルダーも含まれます。再スキャンするとブラウザーに反映されます。",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "テキストと {segments} を使用します。ファイル タイプを維持するには、.{extension} を含めます。 {original_name} は元の名前全体を保持します。ここではフォルダーは許可されません。",
   "VIDEO": "ビデオ",
   "Verification": "検証",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "別の取り込みを実行中です。完了後に次のプレビューを作成してください。",
   "This camera is importing. Browse it again when the import finishes.": "このカメラから取り込み中です。取り込みの完了後にもう一度参照してください。",
   "From: {0}": "取り込み元: {0}",
-  "{0}: {1}": "{0}: {1}"
+  "{0}: {1}": "{0}: {1}",
+  "Changes save when you leave a field.": "フィールドから移動すると変更が保存されます。"
 }

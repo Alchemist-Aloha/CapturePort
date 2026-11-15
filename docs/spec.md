@@ -347,7 +347,7 @@ names and filenames do not match. Leading/trailing slashes are optional. Empty,
 root-only and traversal entries do not exclude anything; these are literal paths,
 not globs. Folder exclusions apply to filesystem and camera sources, are saved in
 active and named presets, and default to empty when loading older presets.
-Apply settings and rescan to update the browser; new import plans also enforce
+Once the field is saved, rescan to update the browser; new import plans also enforce
 folder exclusions against previously scanned selections. Enumeration may still
 traverse excluded directories, but matching media receives no metadata or
 thumbnail jobs and is never copied. Source files are not changed or deleted.
@@ -1542,9 +1542,11 @@ rules, backup copies), **Media discovery** (source alias, discovery rules,
 RAW+JPEG browsing, capture time), **Presets**, **Appearance** (language, color
 scheme, light/dark) and **Maintenance**. Each rule with fixed options shows all
 of them as a labeled row of choices rather than a button that cycles values;
-choosing one applies and saves it immediately. **Apply settings** appears on the
-Destinations, Import safety and Media discovery tabs, and on any tab while text
-fields hold unapplied edits. Opening the clock-adjustment action lands on Media
+choosing one applies and saves it immediately. Import text fields apply and save
+when focus leaves them (or the field is unmounted by changing page or tab); there
+is no separate Apply button. A field whose value is invalid is not applied: the
+settings footer shows the error naming the field until it is corrected, and the
+previous valid settings remain in effect. Opening the clock-adjustment action lands on Media
 discovery. Empty browser, history, and recovery views explain the next useful
 action.
 
@@ -2743,7 +2745,7 @@ coordinates. Read-only media-detail URLs retain their separate copy-only action.
 Shortcuts are Ctrl+O to open a folder, Ctrl+D for the demo, Ctrl+A to select visible items, Ctrl+Shift+A to select visible new items, Ctrl+I to open the import preview (and confirm only while reviewing it), and Escape to clear the visible selection on the browser. The import action first builds a preview in the background; a separate confirmation starts copying from that exact plan.
 The browser footer shows the selected count and size with a Preview import action when items are selected. The preview names blocked destinations and only offers Confirm import when every planned item can execute. After an import finishes, the same selection cannot be confirmed again until the selection or settings change and a fresh plan is built.
 
-Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. Named saved presets capture all Settings values in the catalog as described in section 33. The screen groups presets, destinations and filename first, followed by import safety, media discovery, capture time, backup copies, source alias, and appearance. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance, source alias and the choice buttons (verification, grouping, collision and bundle policies) save immediately; text-field import settings, including roots and folder/filename templates, require the persistent **Apply settings** button at the bottom of the settings view. If a preview is built while Settings has unapplied text-field changes, the preview message says those changes are not used. An unreadable `preset.json`, `ui.json` or `gallery_names.json` is renamed to `*.json.invalid` and defaults are used, so a later save cannot overwrite the user's file. A blank pair of backup roots disables backup. Skipped collision items do not block other ready copies; the preview counts them separately. Camera/card aliases are stored in the catalog and shown when the device reconnects.
+Import settings are editable in the app and saved as `preset.json` under the XDG configuration directory. Named saved presets capture all Settings values in the catalog as described in section 33. The screen is organized into the tabs described in section 34. It exposes separate photo/video roots and folder templates, a filename template, verification, grouping, collision and bundle policies, clock correction, and optional backup roots. Appearance and the choice rows (verification, grouping, collision and bundle policies) save immediately; text-field import settings, including roots and folder/filename templates, save when focus leaves the field, and the source alias saves with its own button. If a preview is built while a Settings field still holds an unsaved or invalid edit, the preview message says those changes are not used. An unreadable `preset.json`, `ui.json` or `gallery_names.json` is renamed to `*.json.invalid` and defaults are used, so a later save cannot overwrite the user's file. A blank pair of backup roots disables backup. Skipped collision items do not block other ready copies; the preview counts them separately. Camera/card aliases are stored in the catalog and shown when the device reconnects.
 
 Recovery, history, reconciliation, thumbnail-cache clearing, and post-import source deletion are separate actions. Recovery cleanup only offers CapturePort-owned partial files, and deleting one requires confirmation. Source deletion requires a second explicit confirmation after a verified filesystem import, states how many originals and how many bytes will be removed and from which source, offers an explicit cancel, and compares the source's full content hash with every planned destination before removing it. Same-device/inode destination aliases (including hard links and bind-mounted aliases) are not independent copies and refuse deletion. The original inode remains pinned during hashing; a final identity, size and modification/change-time check refuses originals that changed while verification was running.
 

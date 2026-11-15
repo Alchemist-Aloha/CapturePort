@@ -35,7 +35,6 @@
   "An unfinished import needs review": "Un'importazione non completata necessita di revisione",
   "Appearance": "Aspetto",
   "Appearance: {0}": "Aspetto: {0}",
-  "Apply settings": "Applicare le impostazioni",
   "BUNDLE": "FASCIO",
   "Back to media": "Torniamo ai media",
   "Backup copies": "Copie di backup",
@@ -306,7 +305,6 @@
   "Review import": "Esamina l'importazione",
   "Review import · {0} files": "Revisione dell'importazione · File {0}",
   "Review remaining files": "Esamina i file rimanenti",
-  "Review the import preview before copying.": "Esamina l'anteprima di importazione prima di copiare.",
   "Review the verified copies, then confirm source deletion separately": "Esamina le copie verificate, quindi conferma l'eliminazione dell'origine separatamente",
   "Review {0} planned item(s) before importing": "Esaminare gli articoli pianificati {0} prima dell'importazione",
   "Running": "In corso",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "Suffisso unico",
   "Unsupported source": "Origine non supportata",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "Utilizzare / tra cartelle e {segments} per i metadati, ad es. {year}/{date:%Y-%m-%d}. Lascia vuoto per importare direttamente nella root di destinazione.",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "Utilizzare nomi di cartelle o frammenti di percorso, ad esempio Screenshots, DCIM/Private. Le corrispondenze fanno distinzione tra maiuscole e minuscole e includono sottocartelle. Applica le impostazioni, quindi esegui nuovamente la scansione per aggiornare il browser.",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "Utilizzare nomi di cartelle o frammenti di percorso, ad esempio Screenshots, DCIM/Private. Le corrispondenze fanno distinzione tra maiuscole e minuscole e includono sottocartelle. Esegui di nuovo la scansione per aggiornare il browser.",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "Utilizza testo e {segments}. Includere .{extension} per mantenere il tipo di file; {original_name} mantiene l'intero nome originale. Le cartelle non sono consentite qui.",
   "VIDEO": "VIDEO",
   "Verification": "Verifica",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "È in corso un'altra importazione. Visualizza l'anteprima della prossima al termine.",
   "This camera is importing. Browse it again when the import finishes.": "È in corso l'importazione da questa fotocamera. Sfogliala di nuovo al termine dell'importazione.",
   "From: {0}": "Da: {0}",
-  "{0}: {1}": "{0}: {1}"
+  "{0}: {1}": "{0}: {1}",
+  "Changes save when you leave a field.": "Le modifiche vengono salvate quando esci da un campo."
 }

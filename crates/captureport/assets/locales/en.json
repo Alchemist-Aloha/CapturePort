@@ -35,7 +35,6 @@
   "An unfinished import needs review": "An unfinished import needs review",
   "Appearance": "Appearance",
   "Appearance: {0}": "Appearance: {0}",
-  "Apply settings": "Apply settings",
   "BUNDLE": "BUNDLE",
   "Back to media": "Back to media",
   "Backup copies": "Backup copies",
@@ -306,7 +305,6 @@
   "Review import": "Review import",
   "Review import · {0} files": "Review import · {0} files",
   "Review remaining files": "Review remaining files",
-  "Review the import preview before copying.": "Review the import preview before copying.",
   "Review the verified copies, then confirm source deletion separately": "Review the verified copies, then confirm source deletion separately",
   "Review {0} planned item(s) before importing": "Review {0} planned item(s) before importing",
   "Running": "Running",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "Unique suffix",
   "Unsupported source": "Unsupported source",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.",
   "VIDEO": "VIDEO",
   "Verification": "Verification",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "Another import is running. Preview the next one when it finishes.",
   "This camera is importing. Browse it again when the import finishes.": "This camera is importing. Browse it again when the import finishes.",
   "From: {0}": "From: {0}",
-  "{0}: {1}": "{0}: {1}"
+  "{0}: {1}": "{0}: {1}",
+  "Changes save when you leave a field.": "Changes save when you leave a field."
 }

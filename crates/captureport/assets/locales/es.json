@@ -35,7 +35,6 @@
   "An unfinished import needs review": "Una importación inconclusa necesita revisión",
   "Appearance": "Apariencia",
   "Appearance: {0}": "Apariencia: {0}",
-  "Apply settings": "Aplicar configuración",
   "BUNDLE": "MANOJO",
   "Back to media": "Volver a los medios",
   "Backup copies": "Copias de seguridad",
@@ -306,7 +305,6 @@
   "Review import": "Importación de reseñas",
   "Review import · {0} files": "Revisar importación · Archivos {0}",
   "Review remaining files": "Revisar los archivos restantes",
-  "Review the import preview before copying.": "Revise la vista previa de la importación antes de copiar.",
   "Review the verified copies, then confirm source deletion separately": "Revise las copias verificadas y luego confirme la eliminación de la fuente por separado.",
   "Review {0} planned item(s) before importing": "Revisar los artículos planificados {0} antes de importar",
   "Running": "En curso",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "Sufijo único",
   "Unsupported source": "Fuente no compatible",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "Utilice / entre carpetas y {segments} para metadatos, p. {year}/{date:%Y-%m-%d}. Déjelo en blanco para importar directamente a la raíz de destino.",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "Utilice nombres de carpetas o fragmentos de rutas, por ejemplo Screenshots, DCIM/Private. Las coincidencias distinguen entre mayúsculas y minúsculas e incluyen subcarpetas. Aplique la configuración y luego vuelva a escanear para actualizar el navegador.",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "Utilice nombres de carpetas o fragmentos de rutas, por ejemplo Screenshots, DCIM/Private. Las coincidencias distinguen entre mayúsculas y minúsculas e incluyen subcarpetas. Vuelva a escanear para actualizar el navegador.",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "Utilice texto y {segments}. Incluya .{extension} para mantener el tipo de archivo; {original_name} mantiene el nombre original completo. Aquí no se permiten carpetas.",
   "VIDEO": "VIDEO",
   "Verification": "Verificación",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "Hay otra importación en curso. Previsualiza la siguiente cuando termine.",
   "This camera is importing. Browse it again when the import finishes.": "Esta cámara se está importando. Vuelve a explorarla cuando termine la importación.",
   "From: {0}": "Desde: {0}",
-  "{0}: {1}": "{0}: {1}"
+  "{0}: {1}": "{0}: {1}",
+  "Changes save when you leave a field.": "Los cambios se guardan al salir de un campo."
 }

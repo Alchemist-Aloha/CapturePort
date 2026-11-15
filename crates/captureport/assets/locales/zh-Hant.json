@@ -35,7 +35,6 @@
   "An unfinished import needs review": "未完成的匯入需要審核",
   "Appearance": "外觀",
   "Appearance: {0}": "外觀：{0}",
-  "Apply settings": "應用程式設定",
   "BUNDLE": "檔案群組",
   "Back to media": "返回媒體",
   "Backup copies": "備份副本",
@@ -306,7 +305,6 @@
   "Review import": "審核匯入",
   "Review import · {0} files": "檢查匯入·{0} 文件",
   "Review remaining files": "查看剩餘文件",
-  "Review the import preview before copying.": "複製前查看匯入預覽。",
   "Review the verified copies, then confirm source deletion separately": "查看已驗證的副本，然後單獨確認來源刪除",
   "Review {0} planned item(s) before importing": "匯入前檢查 {0} 計劃項目",
   "Running": "執行中",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "新增唯一後綴",
   "Unsupported source": "來源不受支援",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "使用 / 分隔資料夾，使用 {segments} 表示中繼資料，例如 {year}/{date:%Y-%m-%d}。留空則直接匯入目標根目錄。",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "使用資料夾名稱或路徑片段，例如 Screenshots、DCIM/Private。匹配項區分大小寫並包含子資料夾。應用設置，然後重新掃描以更新瀏覽器。",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "使用資料夾名稱或路徑片段，例如 Screenshots、DCIM/Private。匹配區分大小寫並包含子資料夾。重新掃描以更新瀏覽器。",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "使用文字和 {segments}。包含 .{extension} 可保留檔案類型；{original_name} 保留完整原始檔案名稱。此處不允許使用資料夾。",
   "VIDEO": "影片",
   "Verification": "驗證",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "另一個匯入正在進行。請在其完成後預覽下一個匯入。",
   "This camera is importing. Browse it again when the import finishes.": "此相機正在匯入。請在匯入完成後再次瀏覽。",
   "From: {0}": "來源：{0}",
-  "{0}: {1}": "{0}：{1}"
+  "{0}: {1}": "{0}：{1}",
+  "Changes save when you leave a field.": "離開輸入框時自動儲存變更。"
 }

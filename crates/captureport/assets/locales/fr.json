@@ -35,7 +35,6 @@
   "An unfinished import needs review": "Une importation inachevée doit être révisée",
   "Appearance": "Apparence",
   "Appearance: {0}": "Apparence : {0}",
-  "Apply settings": "Appliquer les paramètres",
   "BUNDLE": "PAQUET",
   "Back to media": "Retour aux médias",
   "Backup copies": "Copies de sauvegarde",
@@ -306,7 +305,6 @@
   "Review import": "Examiner l'importation",
   "Review import · {0} files": "Revoir l'importation · Fichiers {0}",
   "Review remaining files": "Examiner les fichiers restants",
-  "Review the import preview before copying.": "Vérifiez l'aperçu de l'importation avant de copier.",
   "Review the verified copies, then confirm source deletion separately": "Examinez les copies vérifiées, puis confirmez la suppression de la source séparément",
   "Review {0} planned item(s) before importing": "Vérifier les articles planifiés {0} avant l'importation",
   "Running": "En cours d'exécution",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "Suffixe unique",
   "Unsupported source": "Source non prise en charge",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "Utilisez / entre les dossiers et {segments} pour les métadonnées, par ex. {year}/{date:%Y-%m-%d}. Laissez vide pour importer directement dans la racine de destination.",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "Utilisez des noms de dossier ou des fragments de chemin, par exemple Screenshots, DCIM/Private. Les correspondances sont sensibles à la casse et incluent des sous-dossiers. Appliquez les paramètres, puis effectuez une nouvelle analyse pour mettre à jour le navigateur.",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "Utilisez des noms de dossier ou des fragments de chemin, par exemple Screenshots, DCIM/Private. Les correspondances sont sensibles à la casse et incluent des sous-dossiers. Relancez l’analyse pour mettre à jour le navigateur.",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "Utilisez le texte et {segments}. Incluez .{extension} pour conserver le type de fichier ; {original_name} conserve l'intégralité du nom d'origine. Les dossiers ne sont pas autorisés ici.",
   "VIDEO": "VIDÉO",
   "Verification": "Vérification",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "Une autre importation est en cours. Prévisualisez la suivante une fois celle-ci terminée.",
   "This camera is importing. Browse it again when the import finishes.": "Cet appareil est en cours d’importation. Parcourez-le de nouveau une fois l’importation terminée.",
   "From: {0}": "Depuis : {0}",
-  "{0}: {1}": "{0} : {1}"
+  "{0}: {1}": "{0} : {1}",
+  "Changes save when you leave a field.": "Les modifications sont enregistrées lorsque vous quittez un champ."
 }

@@ -23,10 +23,6 @@ impl SettingsTab {
         (Self::Appearance, "Appearance"),
         (Self::Maintenance, "Maintenance"),
     ];
-    /// Tabs whose text fields only take effect after Apply settings.
-    pub(crate) fn needs_apply(self) -> bool {
-        matches!(self, Self::Destinations | Self::Safety | Self::Discovery)
-    }
 }
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Page {
@@ -456,6 +452,26 @@ impl SettingsInputs {
             exclude_folders: field(preset.media_rules.exclude_folders.join(", "), cx),
             ignore_types: field(preset.media_rules.ignore.join(", "), cx),
         }
+    }
+    /// Fields read into the import preset (not the preset name or source alias).
+    pub(crate) fn import_fields(&self) -> [&Entity<text_input::TextInput>; 15] {
+        [
+            &self.photo_root,
+            &self.photo_folder,
+            &self.video_root,
+            &self.video_folder,
+            &self.filename,
+            &self.clock_seconds,
+            &self.timezone_seconds,
+            &self.gap_minutes,
+            &self.backup_photo_root,
+            &self.backup_video_root,
+            &self.include_photo,
+            &self.include_video,
+            &self.exclude_extensions,
+            &self.exclude_folders,
+            &self.ignore_types,
+        ]
     }
     pub(crate) fn sync(&self, preset: &ImportPreset, cx: &mut Context<Browser>) {
         self.photo_root.update(cx, |input, cx| {

@@ -35,7 +35,6 @@
   "An unfinished import needs review": "未完成的导入需要审核",
   "Appearance": "外观",
   "Appearance: {0}": "外观：{0}",
-  "Apply settings": "应用设置",
   "BUNDLE": "文件组",
   "Back to media": "返回媒体",
   "Backup copies": "备份副本",
@@ -306,7 +305,6 @@
   "Review import": "审核导入",
   "Review import · {0} files": "检查导入·{0} 文件",
   "Review remaining files": "查看剩余文件",
-  "Review the import preview before copying.": "复制前查看导入预览。",
   "Review the verified copies, then confirm source deletion separately": "查看已验证的副本，然后单独确认源删除",
   "Review {0} planned item(s) before importing": "导入前检查 {0} 计划项目",
   "Running": "运行中",
@@ -390,7 +388,7 @@
   "UniqueSuffix": "添加唯一后缀",
   "Unsupported source": "来源不受支持",
   "Use / between folders and {segments} for metadata, e.g. {year}/{date:%Y-%m-%d}. Leave blank to import directly into the destination root.": "使用 / 分隔文件夹，使用 {segments} 表示元数据，例如 {year}/{date:%Y-%m-%d}。留空则直接导入目标根目录。",
-  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Apply settings, then rescan to update the browser.": "使用文件夹名称或路径片段，例如 Screenshots、DCIM/Private。匹配项区分大小写并包含子文件夹。应用设置，然后重新扫描以更新浏览器。",
+  "Use folder names or path fragments, for example Screenshots, DCIM/Private. Matches are case-sensitive and include subfolders. Rescan to update the browser.": "使用文件夹名称或路径片段，例如 Screenshots、DCIM/Private。匹配区分大小写并包含子文件夹。重新扫描以更新浏览器。",
   "Use text and {segments}. Include .{extension} to keep the file type; {original_name} keeps the whole original name. Folders are not allowed here.": "使用文字和 {segments}。包含 .{extension} 可保留文件类型；{original_name} 保留完整原始文件名。此处不允许使用文件夹。",
   "VIDEO": "视频",
   "Verification": "验证",
@@ -452,5 +450,6 @@
   "Another import is running. Preview the next one when it finishes.": "另一个导入正在进行。请在其完成后预览下一个导入。",
   "This camera is importing. Browse it again when the import finishes.": "此相机正在导入。请在导入完成后再次浏览。",
   "From: {0}": "来源：{0}",
-  "{0}: {1}": "{0}：{1}"
+  "{0}: {1}": "{0}：{1}",
+  "Changes save when you leave a field.": "离开输入框时自动保存更改。"
 }
