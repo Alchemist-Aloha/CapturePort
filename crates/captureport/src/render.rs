@@ -445,6 +445,21 @@ fn settings_field(
         .into_any_element()
 }
 
+/// A labeled row of mutually exclusive chips, so every option stays visible.
+fn settings_choices(
+    label: &'static str,
+    choices: impl IntoIterator<Item = AnyElement>,
+    palette: Palette,
+) -> AnyElement {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(spacing::TIGHT))
+        .child(div().text_xs().text_color(palette.muted).child(i18n::tr(label)))
+        .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP)).children(choices))
+        .into_any_element()
+}
+
 fn segment_help_label(field: &str, expanded: bool) -> &'static str {
     match (field, expanded) {
         ("Photo folder template", false) => "Photo folder segments / help",

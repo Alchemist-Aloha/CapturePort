@@ -424,6 +424,7 @@ impl Browser {
     }
     pub(crate) fn clock(&mut self, _: &AdjustClock, _: &mut Window, cx: &mut Context<Self>) {
         self.page = Page::Settings;
+        self.settings_tab = SettingsTab::Discovery;
         cx.notify()
     }
 }

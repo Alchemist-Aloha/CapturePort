@@ -1532,9 +1532,21 @@ a bundle never selects it.
 
 The workspace navigation exposes **Review import** once a plan exists. That
 view shows the planned destinations, a ready/blocked summary, and a visible
-reason when confirmation is unavailable. Settings group destination, naming,
-import-rule, capture-time, and backup controls so their effects are easier to
-find. Empty browser, history, and recovery views explain the next useful action.
+reason when confirmation is unavailable. The sidebar lists workspace navigation
+(Browse media, Review import, History, Recovery, Settings) above Sources, so the
+page links keep a fixed position however many devices are connected.
+
+Settings is split into tabs: **Destinations** (roots, folder and filename
+templates), **Import safety** (verification, collision, bundle and grouping
+rules, backup copies), **Media discovery** (source alias, discovery rules,
+RAW+JPEG browsing, capture time), **Presets**, **Appearance** (language, color
+scheme, light/dark) and **Maintenance**. Each rule with fixed options shows all
+of them as a labeled row of choices rather than a button that cycles values;
+choosing one applies and saves it immediately. **Apply settings** appears on the
+Destinations, Import safety and Media discovery tabs, and on any tab while text
+fields hold unapplied edits. Opening the clock-adjustment action lands on Media
+discovery. Empty browser, history, and recovery views explain the next useful
+action.
 
 ---
 

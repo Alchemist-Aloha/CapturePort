@@ -4,6 +4,30 @@ pub(crate) struct HistoryEntry {
     pub(crate) detail: SessionDetail,
     pub(crate) source_name: String,
 }
+/// Settings tabs; each label is an existing catalog key.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum SettingsTab {
+    Destinations,
+    Safety,
+    Discovery,
+    Presets,
+    Appearance,
+    Maintenance,
+}
+impl SettingsTab {
+    pub(crate) const ALL: [(Self, &'static str); 6] = [
+        (Self::Destinations, "Destinations"),
+        (Self::Safety, "Import safety"),
+        (Self::Discovery, "Media discovery"),
+        (Self::Presets, "Presets"),
+        (Self::Appearance, "Appearance"),
+        (Self::Maintenance, "Maintenance"),
+    ];
+    /// Tabs whose text fields only take effect after Apply settings.
+    pub(crate) fn needs_apply(self) -> bool {
+        matches!(self, Self::Destinations | Self::Safety | Self::Discovery)
+    }
+}
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Page {
     Browser,

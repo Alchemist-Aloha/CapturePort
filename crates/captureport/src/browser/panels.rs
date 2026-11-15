@@ -622,6 +622,8 @@ impl Browser {
 
     pub(crate) fn settings_panel(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let p = Palette::new(self.ui.scheme, self.ui.dark_mode);
+        let tab = self.settings_tab;
+        let show_apply = tab.needs_apply() || self.settings_unapplied(cx);
         let panel = div()
             .id("settings-panel")
             .w_full().max_w(px(820.))
@@ -644,6 +646,17 @@ impl Browser {
             )
             .child(div().text_sm().text_color(p.muted)
                 .child(i18n::tr("Set destinations and naming, then review the safety and media rules. Appearance and source alias save separately.")))
+            .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP)).pb(px(spacing::TIGHT))
+                .border_b_1().border_color(p.border)
+                .children(SettingsTab::ALL.map(|(choice, label)| div()
+                    .id(label)
+                    .child(chip(i18n::tr(label), tab == choice, p,
+                        cx.listener(move |t, _, _, c| {
+                            t.settings_tab = choice;
+                            t.timezone_menu_open = false;
+                            c.notify()
+                        }))))))
+            .when(tab == SettingsTab::Presets, |d| d
             .child(settings_section("Presets", p))
             .child(div().text_xs().text_color(p.muted)
                 .child(i18n::tr("Built-in starting points replace import rules. Choose a saved preset to restore all settings.")))
@@ -661,7 +674,8 @@ impl Browser {
                         cx.listener(|t, _, _, c| t.choose_preset(true, c)),
                     )),
             )
-            .child(self.saved_presets_controls(cx))
+            .child(self.saved_presets_controls(cx)))
+            .when(tab == SettingsTab::Destinations, |d| d
             .child(settings_section("Destinations", p))
             .child(settings_field(
                 "Photo destination",
@@ -704,73 +718,49 @@ impl Browser {
                 self.template_segment_target.as_ref(),
                 p,
                 cx,
-            ))
+            )))
+            .when(tab == SettingsTab::Safety, |d| d
             .child(settings_section("Import safety", p))
             .child(div().text_xs().text_color(p.muted)
-                .child(i18n::tr("Click a rule to cycle its options. Verification checks copies; collision controls what happens when a destination exists.")))
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .gap(px(spacing::CONTROL_GAP))
-                    .child(
-                        div()
-                            .id("verification")
-                            .cursor_pointer()
-                            .tab_index(0)
-                            .focus(move |style| style.border_color(p.accent))
-                            .p(px(spacing::CONTROL_GAP))
-                            .bg(p.card).rounded_sm().border_1().border_color(p.border)
-                            .hover(move |style| style.bg(p.selected))
-                            .child(i18n::format("Verification: {0}", &[i18n::tr(&format!("{:?}", self.preset.verification))]))
-                            .on_click(cx.listener(|t, _, _, c| t.cycle_verification(c))),
-                    )
-                    .child(
-                        div()
-                            .id("bundle-policy")
-                            .cursor_pointer()
-                            .tab_index(0)
-                            .focus(move |style| style.border_color(p.accent))
-                            .p(px(spacing::CONTROL_GAP))
-                            .bg(p.card).rounded_sm().border_1().border_color(p.border)
-                            .hover(move |style| style.bg(p.selected))
-                            .child(i18n::format("Bundles: {0}", &[i18n::tr(&format!("{:?}", self.preset.bundle_policy))]))
-                            .on_click(cx.listener(|t, _, _, c| t.cycle_bundle_policy(c))),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
-                    .flex_wrap()
-                    .gap(px(spacing::CONTROL_GAP))
-                    .child(
-                        div()
-                            .id("grouping")
-                            .cursor_pointer()
-                            .tab_index(0)
-                            .focus(move |style| style.border_color(p.accent))
-                            .p(px(spacing::CONTROL_GAP))
-                            .bg(p.card).rounded_sm().border_1().border_color(p.border)
-                            .hover(move |style| style.bg(p.selected))
-                            .child(i18n::format("Grouping: {0}", &[match self.preset.grouping {
-                                Grouping::TimeGap { threshold_minutes } => i18n::format("Time gap: {0} min", &[threshold_minutes.to_string()]),
-                                _ => i18n::tr(&format!("{:?}", self.preset.grouping)),
-                            }]))
-                            .on_click(cx.listener(|t, _, _, c| t.cycle_grouping(c))),
-                    )
-                    .child(
-                        div()
-                            .id("collision")
-                            .cursor_pointer()
-                            .tab_index(0)
-                            .focus(move |style| style.border_color(p.accent))
-                            .p(px(spacing::CONTROL_GAP))
-                            .bg(p.card).rounded_sm().border_1().border_color(p.border)
-                            .hover(move |style| style.bg(p.selected))
-                            .child(i18n::format("Collision: {0}", &[i18n::tr(&format!("{:?}", self.preset.collision))]))
-                            .on_click(cx.listener(|t, _, _, c| t.cycle_collision(c))),
-                    ),
-            )
+                .child(i18n::tr("Verification checks copies; collision controls what happens when a destination file already exists.")))
+            .child(settings_choices("Verification",
+                [VerificationMode::Fast, VerificationMode::Standard, VerificationMode::Strict].map(|mode| div()
+                    .id(("verification", mode as u64))
+                    .child(chip(i18n::tr(&format!("{mode:?}")), self.preset.verification == mode, p,
+                        cx.listener(move |t, _, _, c| t.set_import_rule(|preset| preset.verification = mode, c))))
+                    .into_any_element()), p))
+            .child(settings_choices("Collision",
+                [CollisionPolicy::Stop, CollisionPolicy::Skip, CollisionPolicy::UniqueSuffix, CollisionPolicy::VerifyIdentical].map(|policy| div()
+                    .id(("collision", policy as u64))
+                    .child(chip(i18n::tr(&format!("{policy:?}")), self.preset.collision == policy, p,
+                        cx.listener(move |t, _, _, c| t.set_import_rule(|preset| preset.collision = policy, c))))
+                    .into_any_element()), p))
+            .child(settings_choices("Bundles",
+                [BundlePolicy::KeepAll, BundlePolicy::RawOnly, BundlePolicy::JpegOnly].map(|policy| div()
+                    .id(("bundle-policy", policy as u64))
+                    .child(chip(i18n::tr(&format!("{policy:?}")), self.preset.bundle_policy == policy, p,
+                        cx.listener(move |t, _, _, c| t.set_import_rule(|preset| preset.bundle_policy = policy, c))))
+                    .into_any_element()), p))
+            .child({
+                // Choosing Time gap uses the threshold typed under Capture time.
+                let gap = self.settings.gap_minutes.read(cx).value().trim().parse().unwrap_or(30);
+                let choices = [Grouping::None, Grouping::Day, Grouping::Week, Grouping::Month, Grouping::Year,
+                    Grouping::TimeGap { threshold_minutes: gap }];
+                settings_choices("Grouping", choices.into_iter().enumerate().map(|(index, grouping)| {
+                    let label = match grouping {
+                        Grouping::TimeGap { threshold_minutes } => i18n::format("Time gap: {0} min", &[threshold_minutes.to_string()]),
+                        _ => i18n::tr(&format!("{grouping:?}")),
+                    };
+                    let active = std::mem::discriminant(&self.preset.grouping) == std::mem::discriminant(&grouping);
+                    div().id(("grouping", index as u64))
+                        .child(chip(label, active, p, cx.listener(move |t, _, _, c| {
+                            let grouping = grouping.clone();
+                            t.set_import_rule(|preset| preset.grouping = grouping, c)
+                        })))
+                        .into_any_element()
+                }), p)
+            }))
+            .when(tab == SettingsTab::Discovery, |d| d
             .child(settings_section("Media discovery", p))
             .child(div().text_xs().text_color(p.muted)
                 .child(i18n::tr("These rules determine which files appear when you scan a source.")))
@@ -911,7 +901,8 @@ impl Browser {
                         p,
                         cx,
                     )),
-            )
+            ))
+            .when(tab == SettingsTab::Safety, |d| d
             .child(settings_section("Backup copies", p))
             .child(settings_field(
                 "Backup photo root (blank disables backup)",
@@ -925,25 +916,20 @@ impl Browser {
                 p,
                 cx,
             ))
-            .child(
-                div()
-                    .id("backup-required")
-                    .cursor_pointer()
-                    .tab_index(0)
-                    .focus(move |style| style.border_color(p.accent))
-                    .p(px(spacing::CONTROL_GAP))
-                    .bg(p.card).rounded_sm().border_1().border_color(p.border)
-                    .hover(move |style| style.bg(p.selected))
-                    .child(i18n::format("Backup required: {0}", &[i18n::tr(if self.backup_required_choice { "Yes" } else { "No" })]))
-                    .on_click(cx.listener(|t, _, _, c| t.toggle_backup_required(c))),
-            )
+            .child(settings_choices("Backup required", [(false, "No"), (true, "Yes")].map(|(required, label)| div()
+                .id(("backup-required", required as u64))
+                .child(chip(i18n::tr(label), self.backup_required_choice == required, p,
+                    cx.listener(move |t, _, _, c| t.set_backup_required(required, c))))
+                .into_any_element()), p)))
+            .when(tab == SettingsTab::Discovery, |d| d
             .child(settings_section("Source", p))
             .child(settings_field(
                 "Current source alias (blank uses device name)",
                 self.settings.source_alias.clone(), p, cx,
             ))
             .child(button(Icon::Confirm, "Save source alias", p,
-                cx.listener(|t, _, _, c| t.save_source_alias(c))))
+                cx.listener(|t, _, _, c| t.save_source_alias(c)))))
+            .when(tab == SettingsTab::Appearance, |d| d
             .child(settings_section("Language", p))
             .child(div().text_xs().text_color(p.muted)
                 .child(i18n::tr("Language changes save immediately.")))
@@ -966,7 +952,8 @@ impl Browser {
                 .child(chip(i18n::tr("Light"), !self.ui.dark_mode, p,
                     cx.listener(|t, _, _, c| { if t.ui.dark_mode { t.toggle_dark_mode(c); } })))
                 .child(chip(i18n::tr("Dark"), self.ui.dark_mode, p,
-                    cx.listener(|t, _, _, c| { if !t.ui.dark_mode { t.toggle_dark_mode(c); } }))))
+                    cx.listener(|t, _, _, c| { if !t.ui.dark_mode { t.toggle_dark_mode(c); } })))))
+            .when(tab == SettingsTab::Maintenance, |d| d
             .child(settings_section("Maintenance", p))
             .child(div().flex().flex_wrap().gap(px(spacing::CONTROL_GAP))
                 .child(if self.reconcile_cancellation.is_some() {
@@ -980,7 +967,7 @@ impl Browser {
                 })
                 .child(button_with_id("clear-thumbnails", Icon::Delete,
                     if self.cache_clearing { "Clearing thumbnails…" } else { "Clear thumbnails" }, p,
-                    cx.listener(|t, _, _, c| t.clear_thumbnail_cache(c)))))
+                    cx.listener(|t, _, _, c| t.clear_thumbnail_cache(c))))))
             .into_any_element();
         div()
             .flex_1()
@@ -1002,30 +989,32 @@ impl Browser {
                             .element(p.border, p.muted, p.accent),
                     ),
             )
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .border_t_1()
-                    .border_color(p.border)
-                    .px(px(spacing::CONTENT))
-                    .py(px(spacing::CONTROL_GAP))
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .gap(px(spacing::CONTENT))
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(p.muted)
-                            .child(i18n::tr("Review the import preview before copying.")),
-                    )
-                    .child(primary_button(
-                        Icon::Confirm,
-                        "Apply settings",
-                        p,
-                        cx.listener(|t, _, _, c| t.apply_settings(c)),
-                    )),
-            )
+            .when(show_apply, |view| {
+                view.child(
+                    div()
+                        .flex_shrink_0()
+                        .border_t_1()
+                        .border_color(p.border)
+                        .px(px(spacing::CONTENT))
+                        .py(px(spacing::CONTROL_GAP))
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .gap(px(spacing::CONTENT))
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(p.muted)
+                                .child(i18n::tr("Review the import preview before copying.")),
+                        )
+                        .child(primary_button(
+                            Icon::Confirm,
+                            "Apply settings",
+                            p,
+                            cx.listener(|t, _, _, c| t.apply_settings(c)),
+                        )),
+                )
+            })
             .into_any_element()
     }
 }

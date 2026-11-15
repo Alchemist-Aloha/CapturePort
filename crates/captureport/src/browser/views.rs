@@ -50,6 +50,61 @@ impl Browser {
                     .text_color(p.muted)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .flex_shrink_0()
+                    .child(i18n::tr("Workspace")),
+            )
+            .child(sidebar_nav(
+                Icon::Photo,
+                "Browse media",
+                self.page == Page::Browser,
+                p,
+                cx.listener(|t, _, _, c| {
+                    t.page = Page::Browser;
+                    c.notify()
+                }),
+            ))
+            .child(if self.plan.is_some() {
+                sidebar_nav(
+                    Icon::Review,
+                    "Review import",
+                    self.page == Page::Preview,
+                    p,
+                    cx.listener(|t, _, _, c| {
+                        t.page = Page::Preview;
+                        c.notify()
+                    }),
+                )
+                .into_any_element()
+            } else {
+                div().hidden().into_any_element()
+            })
+            .child(sidebar_nav(
+                Icon::History,
+                "History",
+                self.page == Page::History,
+                p,
+                cx.listener(|t, _, w, c| t.history(&ShowHistory, w, c)),
+            ))
+            .child(sidebar_nav(
+                Icon::Revert,
+                "Recovery",
+                self.page == Page::Recovery,
+                p,
+                cx.listener(|t, _, _, c| t.show_recovery(c)),
+            ))
+            .child(sidebar_nav(
+                Icon::Settings,
+                "Settings",
+                self.page == Page::Settings,
+                p,
+                cx.listener(|t, _, _, c| t.show_settings(c)),
+            ))
+            .child(
+                div()
+                    .mt(px(spacing::SECTION - spacing::CONTROL_GAP))
+                    .text_xs()
+                    .text_color(p.muted)
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .flex_shrink_0()
                     .child(i18n::tr("Sources")),
             )
             .child(button_with_id(
@@ -180,60 +235,6 @@ impl Browser {
                             .child(i18n::format("Current: {0}", &[label.joined().to_string()]))
                     }),
             )
-            .child(
-                div()
-                    .mt(px(spacing::SECTION - spacing::CONTROL_GAP))
-                    .text_xs()
-                    .text_color(p.muted)
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child(i18n::tr("Workspace")),
-            )
-            .child(sidebar_nav(
-                Icon::Photo,
-                "Browse media",
-                self.page == Page::Browser,
-                p,
-                cx.listener(|t, _, _, c| {
-                    t.page = Page::Browser;
-                    c.notify()
-                }),
-            ))
-            .child(if self.plan.is_some() {
-                sidebar_nav(
-                    Icon::Review,
-                    "Review import",
-                    self.page == Page::Preview,
-                    p,
-                    cx.listener(|t, _, _, c| {
-                        t.page = Page::Preview;
-                        c.notify()
-                    }),
-                )
-                .into_any_element()
-            } else {
-                div().hidden().into_any_element()
-            })
-            .child(sidebar_nav(
-                Icon::History,
-                "History",
-                self.page == Page::History,
-                p,
-                cx.listener(|t, _, w, c| t.history(&ShowHistory, w, c)),
-            ))
-            .child(sidebar_nav(
-                Icon::Revert,
-                "Recovery",
-                self.page == Page::Recovery,
-                p,
-                cx.listener(|t, _, _, c| t.show_recovery(c)),
-            ))
-            .child(sidebar_nav(
-                Icon::Settings,
-                "Settings",
-                self.page == Page::Settings,
-                p,
-                cx.listener(|t, _, _, c| t.show_settings(c)),
-            ))
             .child(if self.reconcile_cancellation.is_some() {
                 button(
                     Icon::Cancel,

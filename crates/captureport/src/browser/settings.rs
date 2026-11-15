@@ -271,56 +271,23 @@ impl Browser {
         self.page = Page::Settings;
         cx.notify();
     }
-    pub(crate) fn cycle_verification(&mut self, cx: &mut Context<Self>) {
-        self.preset.verification = match self.preset.verification {
-            VerificationMode::Fast => VerificationMode::Standard,
-            VerificationMode::Standard => VerificationMode::Strict,
-            VerificationMode::Strict => VerificationMode::Fast,
-        };
-        self.invalidate_plan();
-        // Choice buttons take effect immediately, so persist them immediately too.
-        self.save_preset();
-        cx.notify();
-    }
-    pub(crate) fn cycle_bundle_policy(&mut self, cx: &mut Context<Self>) {
-        self.preset.bundle_policy = match self.preset.bundle_policy {
-            BundlePolicy::KeepAll => BundlePolicy::RawOnly,
-            BundlePolicy::RawOnly => BundlePolicy::JpegOnly,
-            BundlePolicy::JpegOnly => BundlePolicy::KeepAll,
-        };
+    /// Rule choices take effect immediately, so persist them immediately too.
+    pub(crate) fn set_import_rule(
+        &mut self,
+        apply: impl FnOnce(&mut ImportPreset),
+        cx: &mut Context<Self>,
+    ) {
+        let grouping = self.preset.grouping.clone();
+        apply(&mut self.preset);
         self.invalidate_plan();
         self.save_preset();
+        if self.preset.grouping != grouping {
+            self.rebuild_gallery_groups();
+        }
         cx.notify();
     }
-    pub(crate) fn cycle_grouping(&mut self, cx: &mut Context<Self>) {
-        self.preset.grouping = match self.preset.grouping {
-            Grouping::None => Grouping::Day,
-            Grouping::Day => Grouping::Week,
-            Grouping::Week => Grouping::Month,
-            Grouping::Month => Grouping::Year,
-            Grouping::Year => Grouping::TimeGap {
-                threshold_minutes: 30,
-            },
-            Grouping::TimeGap { .. } => Grouping::None,
-        };
-        self.invalidate_plan();
-        self.save_preset();
-        self.rebuild_gallery_groups();
-        cx.notify();
-    }
-    pub(crate) fn cycle_collision(&mut self, cx: &mut Context<Self>) {
-        self.preset.collision = match self.preset.collision {
-            CollisionPolicy::Stop => CollisionPolicy::Skip,
-            CollisionPolicy::Skip => CollisionPolicy::UniqueSuffix,
-            CollisionPolicy::UniqueSuffix => CollisionPolicy::VerifyIdentical,
-            CollisionPolicy::VerifyIdentical => CollisionPolicy::Stop,
-        };
-        self.invalidate_plan();
-        self.save_preset();
-        cx.notify();
-    }
-    pub(crate) fn toggle_backup_required(&mut self, cx: &mut Context<Self>) {
-        self.backup_required_choice = !self.backup_required_choice;
+    pub(crate) fn set_backup_required(&mut self, required: bool, cx: &mut Context<Self>) {
+        self.backup_required_choice = required;
         self.invalidate_plan();
         cx.notify();
     }
