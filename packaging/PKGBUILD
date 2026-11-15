@@ -7,7 +7,7 @@ arch=('x86_64' 'aarch64')
 license=('MIT' 'OFL-1.1' 'Apache-2.0')
 depends=('glib2' 'gtk3' 'libxkbcommon' 'libxkbcommon-x11' 'wayland' 'libgphoto2' 'libxcb' 'fontconfig' 'freetype2' 'vulkan-icd-loader')
 makedepends=('cargo' 'rust')
-options=(!lto)
+options=(!lto !debug)
 source=()
 sha256sums=()
 

@@ -38,7 +38,7 @@ jobs:
         run: |
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            build-essential ca-certificates curl git cmake clang pkg-config dpkg-dev \
+            build-essential ca-certificates curl git cmake clang pkg-config dpkg-dev file \
             libx11-dev libxcb1-dev libxcb-xkb-dev libxkbcommon-dev libxkbcommon-x11-dev \
             libwayland-dev libfontconfig1-dev libfreetype6-dev libvulkan-dev \
             libasound2-dev libssl-dev libgtk-3-dev libgphoto2-dev
@@ -76,22 +76,15 @@ jobs:
 
       - name: Set package version
         run: |
-          base_version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' crates/captureport/Cargo.toml | head -n1)
-          version="${base_version}.dev.${GITHUB_RUN_NUMBER}.${GITHUB_SHA:0:7}"
-          # Normalize numeric release tags for all three package managers.
-          # Other tag names still build, using the unique development version.
-          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?)$ ]]; then
-            version=${BASH_REMATCH[1]//-/\.}
-            version=${version//+/\.}
-          fi
-          echo "CAPTUREPORT_VERSION=$version" >> "$GITHUB_ENV"
+          echo "CAPTUREPORT_VERSION=$(scripts/release-version.sh)" >> "$GITHUB_ENV"
           echo "CAPTUREPORT_OUTPUT_DIR=$GITHUB_WORKSPACE/dist" >> "$GITHUB_ENV"
 
-      - name: Build Linux binary, portable archive, and Debian package
+      - name: Build Linux binary, portable archive, AppImage, and Debian package
         if: matrix.distro == 'debian'
         run: |
           scripts/build-portable.sh
           scripts/build-deb.sh
+          scripts/build-appimage.sh
           install -Dm755 target/release/captureport dist/captureport-linux-x86_64
           dpkg-deb --info dist/*.deb
           dpkg-deb --contents dist/*.deb
@@ -147,16 +140,57 @@ jobs:
 
       - name: Assemble release assets
         run: |
+          version=$(scripts/release-version.sh)
           mkdir -p dist
-          # Flatten the per-distro artifact folders into one asset directory.
-          find artifacts -type f ! -name SHA256SUMS -exec cp -t dist {} +
+          # One naming scheme for every download: captureport-<version>-x86_64-<kind>.
+          # The bare binary keeps its version-less name because install.sh
+          # fetches it from whichever release is latest.
+          publish() {
+            local pattern=$1 name=$2
+            mapfile -t matches < <(find artifacts -type f -name "$pattern")
+            if [[ ${#matches[@]} -ne 1 ]]; then
+              printf 'Expected one %s artifact, found %s\n' "$pattern" "${#matches[@]}" >&2
+              exit 1
+            fi
+            cp "${matches[0]}" "dist/$name"
+          }
+          publish 'captureport-linux-x86_64' 'captureport-linux-x86_64'
+          publish '*.AppImage' "captureport-${version}-x86_64.AppImage"
+          publish '*-portable.tar.gz' "captureport-${version}-x86_64-portable.tar.gz"
+          publish '*.deb' "captureport-${version}-x86_64-debian-ubuntu.deb"
+          publish '*.rpm' "captureport-${version}-x86_64-fedora.rpm"
+          publish '*.pkg.tar.zst' "captureport-${version}-x86_64-arch.pkg.tar.zst"
           # One checksum file for the whole release, not three per-distro ones.
           ( cd dist && sha256sum * > SHA256SUMS )
           ls -l dist
+          prerelease=false
+          [[ "$GITHUB_REF_NAME" == *-* ]] && prerelease=true
+          {
+            echo "CAPTUREPORT_VERSION=$version"
+            echo "CAPTUREPORT_PRERELEASE=$prerelease"
+          } >> "$GITHUB_ENV"
+          cat > release-notes.md <<EOF
+          ## Downloads (Linux x86_64)
+
+          | File | Use it for |
+          | --- | --- |
+          | \`captureport-${version}-x86_64.AppImage\` | Any distribution: \`chmod +x\` it and run. Bundles libgphoto2 and its camera drivers. |
+          | \`captureport-${version}-x86_64-debian-ubuntu.deb\` | Debian / Ubuntu: \`sudo apt install ./captureport-${version}-x86_64-debian-ubuntu.deb\` |
+          | \`captureport-${version}-x86_64-fedora.rpm\` | Fedora: \`sudo dnf install ./captureport-${version}-x86_64-fedora.rpm\` |
+          | \`captureport-${version}-x86_64-arch.pkg.tar.zst\` | Arch: \`sudo pacman -U captureport-${version}-x86_64-arch.pkg.tar.zst\` |
+          | \`captureport-${version}-x86_64-portable.tar.gz\` | Unpack anywhere and run \`captureport/run-captureport\` (uses system libraries). |
+          | \`captureport-linux-x86_64\` | The bare binary used by the one-command installer. |
+          | \`SHA256SUMS\` | Verify downloads: \`sha256sum -c SHA256SUMS --ignore-missing\` |
+
+          All builds need a Vulkan-capable graphics driver.
+          EOF
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          name: CapturePort ${{ env.CAPTUREPORT_VERSION }}
+          body_path: release-notes.md
+          prerelease: ${{ env.CAPTUREPORT_PRERELEASE }}
           files: dist/*
           fail_on_unmatched_files: true
           generate_release_notes: true

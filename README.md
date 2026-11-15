@@ -50,10 +50,23 @@ launcher. The binary is built on Ubuntu 24.04 and needs compatible host librarie
 
 ### Distribution packages
 
-GitHub releases also provide Debian/Ubuntu (`.deb`), Arch (pacman), Fedora
-(`.rpm`), and portable archive downloads. Every branch and tag push builds
-x86_64 artifacts in the **Linux packages** GitHub Actions workflow; development
-builds are available from each run's **Artifacts** section.
+Each GitHub release, titled **CapturePort <version>**, provides these x86_64
+downloads named `captureport-<version>-x86_64-<kind>`:
+
+| Download | For |
+| --- | --- |
+| `….AppImage` | Any distribution; `chmod +x` and run. Bundles libgphoto2 and its camera drivers. |
+| `…-debian-ubuntu.deb` | Debian / Ubuntu (`sudo apt install ./<file>`) |
+| `…-fedora.rpm` | Fedora (`sudo dnf install ./<file>`) |
+| `…-arch.pkg.tar.zst` | Arch (`sudo pacman -U <file>`) |
+| `…-portable.tar.gz` | Unpack and run `captureport/run-captureport` with system libraries |
+
+`captureport-linux-x86_64` (the installer's binary) and `SHA256SUMS` are also
+attached. Every branch and tag push builds these in the **Linux packages**
+GitHub Actions workflow; development builds are available from each run's
+**Artifacts** section. Build an AppImage locally with `scripts/build-appimage.sh`
+(downloads a pinned, checksum-verified linuxdeploy). The AppImage and binaries
+are built on Ubuntu 24.04, so they need a distribution with glibc 2.39 or newer.
 
 Runtime requirements:
 
