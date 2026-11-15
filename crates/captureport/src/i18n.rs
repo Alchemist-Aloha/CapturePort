@@ -214,6 +214,56 @@ mod tests {
         );
     }
 
+    /// Returns the first top-level argument of a call that is a plain string
+    /// literal; `rest` starts just after the opening parenthesis.
+    fn first_literal_argument(rest: &str) -> Option<String> {
+        let (mut depth, mut start, mut in_string, mut escaped) = (0usize, 0, false, false);
+        for (index, ch) in rest.char_indices() {
+            if in_string {
+                match ch {
+                    _ if escaped => escaped = false,
+                    '\\' => escaped = true,
+                    '"' => in_string = false,
+                    _ => {}
+                }
+                continue;
+            }
+            match ch {
+                '"' => in_string = true,
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' | ',' if depth == 0 => {
+                    let argument = rest[start..index].trim();
+                    if argument.len() >= 2 && argument.starts_with('"') && argument.ends_with('"') {
+                        return serde_json::from_str(argument).ok();
+                    }
+                    if ch != ',' {
+                        return None;
+                    }
+                    start = index + 1;
+                }
+                ')' | ']' | '}' => depth -= 1,
+                _ => {}
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn helper_label_scanner_finds_only_plain_literals() {
+        assert_eq!(
+            first_literal_argument("Icon::Folder, \"Choose (a)…\", p, cx)"),
+            Some("Choose (a)…".into())
+        );
+        assert_eq!(
+            first_literal_argument("if x { \"A\" } else { \"B\" }, p)"),
+            None
+        );
+        assert_eq!(
+            first_literal_argument("label: &'static str,\n) -> X {"),
+            None
+        );
+    }
+
     #[test]
     fn interface_calls_and_template_help_have_catalog_entries() {
         let english: BTreeMap<String, String> =
@@ -231,6 +281,7 @@ mod tests {
             include_str!("browser/render.rs"),
             include_str!("browser/session.rs"),
             include_str!("browser/settings.rs"),
+            include_str!("browser/settings_view.rs"),
             include_str!("browser/sources.rs"),
             include_str!("browser/views.rs"),
         ] {
@@ -255,6 +306,42 @@ mod tests {
                     assert!(english.contains_key(&key), "missing interface key: {key}");
                 }
             }
+        }
+        // Labels that helpers translate internally (first plain string argument).
+        for source in [
+            include_str!("browser/panels.rs"),
+            include_str!("browser/settings_view.rs"),
+            include_str!("browser/views.rs"),
+            include_str!("browser/render.rs"),
+            include_str!("browser/import.rs"),
+            include_str!("browser/detail.rs"),
+        ] {
+            for call in [
+                "settings_section(",
+                "settings_field(",
+                "settings_path_field(",
+                "settings_template_field(",
+                "settings_choices(",
+                "sidebar_nav(",
+                "button(",
+            ] {
+                for rest in source.split(call).skip(1) {
+                    if let Some(key) = first_literal_argument(rest) {
+                        assert!(english.contains_key(&key), "missing helper label: {key}");
+                    }
+                }
+            }
+        }
+        // Option descriptions are returned from match arms as catalog keys.
+        for arm in include_str!("browser/settings_view.rs")
+            .split("=> \"")
+            .skip(1)
+        {
+            let key = &arm[..arm.find('"').unwrap()];
+            assert!(english.contains_key(key), "missing option note: {key}");
+        }
+        for (_, label) in crate::SettingsTab::ALL {
+            assert!(english.contains_key(label), "missing settings tab: {label}");
         }
         for token in captureport_ingest::TEMPLATE_TOKENS {
             assert!(english.contains_key(token.group), "{}", token.group);

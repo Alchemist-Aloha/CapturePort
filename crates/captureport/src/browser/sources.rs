@@ -116,18 +116,43 @@ impl Browser {
         ));
     }
     pub(crate) fn open_folder(&mut self, _: &OpenFolder, _: &mut Window, cx: &mut Context<Self>) {
+        self.pick_folder(i18n::tr("Choose a media folder"), cx, |this, path, cx| {
+            this.scan(SourceRequest::Filesystem(path), cx)
+        });
+    }
+    /// Fills a settings path field from the folder picker and saves it.
+    pub(crate) fn choose_settings_folder(
+        &mut self,
+        input: Entity<text_input::TextInput>,
+        cx: &mut Context<Self>,
+    ) {
+        self.pick_folder(
+            i18n::tr("Choose a destination folder"),
+            cx,
+            move |this, path, cx| {
+                input.update(cx, |input, cx| {
+                    input.set_value(path.display().to_string(), cx)
+                });
+                this.apply_settings(cx);
+            },
+        );
+    }
+    fn pick_folder(
+        &mut self,
+        prompt: String,
+        cx: &mut Context<Self>,
+        on_pick: impl FnOnce(&mut Self, PathBuf, &mut Context<Self>) + 'static,
+    ) {
         let picker = cx.prompt_for_paths(PathPromptOptions {
             files: false,
             directories: true,
             multiple: false,
-            prompt: Some(i18n::tr("Choose a media folder").into()),
+            prompt: Some(prompt.into()),
         });
         cx.spawn(async move |this, cx| match picker.await {
             Ok(Ok(Some(paths))) => {
                 if let Some(path) = paths.into_iter().next() {
-                    let _ = this.update(cx, |this, cx| {
-                        this.scan(SourceRequest::Filesystem(path), cx)
-                    });
+                    let _ = this.update(cx, |this, cx| on_pick(this, path, cx));
                 }
             }
             Ok(Ok(None)) => {}

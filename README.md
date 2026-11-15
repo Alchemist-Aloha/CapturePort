@@ -157,7 +157,7 @@ Open **Settings** to control how imports are organized:
 - **Excluded folders** — under Media discovery, enter folder names or path
   fragments such as `Screenshots, DCIM/Private`. Matching folders and their
   descendants are excluded from scans and import plans. Matches are
-  case-sensitive; apply settings and rescan to update the browser.
+  case-sensitive; leave the field to save it, then rescan to update the browser.
 - **Backup destinations** — optionally write a second copy of everything.
 
 See [Destination rules](docs/spec.md#20-destination-rules) for the full segment

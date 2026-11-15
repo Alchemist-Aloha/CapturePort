@@ -294,15 +294,16 @@ impl Browser {
     pub(crate) fn set_timezone_offset(&mut self, offset: Option<i32>, cx: &mut Context<Self>) {
         self.settings.timezone_seconds.update(cx, |input, cx| {
             input.set_value(
-                offset.map(|value| value.to_string()).unwrap_or_default(),
+                offset
+                    .map(|value| timezone_label(Some(value)))
+                    .unwrap_or_default(),
                 cx,
             )
         });
         self.timezone_menu_open = false;
-        self.invalidate_plan();
-        cx.notify();
+        self.apply_settings(cx);
     }
-    /// Settings fields edited without Apply are not used by import previews.
+    /// A field still being edited (or holding an error) is not used by import previews.
     pub(crate) fn settings_unapplied(&self, cx: &App) -> bool {
         match self
             .settings
@@ -322,16 +323,22 @@ impl Browser {
         {
             Ok(preset) => preset,
             Err(error) => {
-                self.message = Some(i18n::format("Settings: {0}", std::slice::from_ref(&error)));
+                self.settings_error = Some(error);
                 cx.notify();
                 return;
             }
         };
+        self.settings_error = None;
+        let mut unchanged = preset.clone();
+        unchanged.name = self.preset.name.clone();
+        if unchanged == self.preset {
+            cx.notify();
+            return;
+        }
         let replan = self.plan.is_some() || self.planning;
-        self.preset = preset.clone();
+        self.preset = preset;
         self.rebuild_gallery_groups();
         self.invalidate_plan();
-        self.page = Page::Browser;
         self.message = Some(i18n::tr("Import settings saved; build a new preview"));
         self.save_preset();
         if replan && !self.scanning {

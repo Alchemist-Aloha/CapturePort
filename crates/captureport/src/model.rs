@@ -23,10 +23,6 @@ impl SettingsTab {
         (Self::Appearance, "Appearance"),
         (Self::Maintenance, "Maintenance"),
     ];
-    /// Tabs whose text fields only take effect after Apply settings.
-    pub(crate) fn needs_apply(self) -> bool {
-        matches!(self, Self::Destinations | Self::Safety | Self::Discovery)
-    }
 }
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Page {
@@ -53,7 +49,6 @@ pub(crate) struct SettingsInputs {
     pub(crate) include_video: Entity<text_input::TextInput>,
     pub(crate) exclude_extensions: Entity<text_input::TextInput>,
     pub(crate) exclude_folders: Entity<text_input::TextInput>,
-    pub(crate) ignore_types: Entity<text_input::TextInput>,
 }
 pub(crate) struct Startup {
     pub(crate) catalog: CatalogHandle,
@@ -349,6 +344,62 @@ pub(crate) fn timezone_label(offset: Option<i32>) -> String {
         }
     }
 }
+/// Parses `UTC+08:00`, `+8`, `-05:30` (blank = no override). Rejects beyond ±14:00.
+pub(crate) fn parse_utc_offset(text: &str) -> Result<Option<i32>, ()> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(None);
+    }
+    let text = text
+        .strip_prefix("UTC")
+        .or_else(|| text.strip_prefix("GMT"))
+        .unwrap_or(text)
+        .trim();
+    let (sign, rest) = match text.strip_prefix('-') {
+        Some(rest) => (-1, rest),
+        None => (1, text.strip_prefix('+').unwrap_or(text)),
+    };
+    let (hours, minutes) = rest.split_once(':').unwrap_or((rest, "0"));
+    let hours: i32 = hours.parse().map_err(|_| ())?;
+    let minutes: i32 = minutes.parse().map_err(|_| ())?;
+    if !(0..60).contains(&minutes) || hours < 0 || hours * 60 + minutes > 14 * 60 {
+        return Err(());
+    }
+    Ok(Some(sign * (hours * 3600 + minutes * 60)))
+}
+/// Parses a clock correction: `+H:MM:SS`, `-M:SS`, or plain seconds.
+pub(crate) fn parse_clock_offset(text: &str) -> Result<i64, ()> {
+    let text = text.trim();
+    let (sign, rest) = match text.strip_prefix('-') {
+        Some(rest) => (-1, rest),
+        None => (1, text.strip_prefix('+').unwrap_or(text)),
+    };
+    let parts = rest
+        .split(':')
+        .map(|part| part.parse::<i64>().map_err(|_| ()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let seconds = match parts[..] {
+        [seconds] if seconds >= 0 => seconds,
+        [minutes, seconds] if minutes >= 0 && (0..60).contains(&seconds) => minutes * 60 + seconds,
+        [hours, minutes, seconds]
+            if hours >= 0 && (0..60).contains(&minutes) && (0..60).contains(&seconds) =>
+        {
+            hours * 3600 + minutes * 60 + seconds
+        }
+        _ => return Err(()),
+    };
+    Ok(sign * seconds)
+}
+pub(crate) fn format_clock_offset(seconds: i64) -> String {
+    let sign = if seconds < 0 { "-" } else { "+" };
+    let absolute = seconds.unsigned_abs();
+    format!(
+        "{sign}{}:{:02}:{:02}",
+        absolute / 3600,
+        absolute % 3600 / 60,
+        absolute % 60
+    )
+}
 /// Format a source file's modification time in the selected timezone.
 pub(crate) fn format_file_time(seconds: u64, offset: Option<i32>) -> String {
     let Some(utc) = Utc.timestamp_opt(seconds as i64, 0).single() else {
@@ -406,10 +457,9 @@ impl Default for UiPreferences {
     }
 }
 impl SettingsInputs {
-    pub(crate) fn new(preset: &ImportPreset, cx: &mut Context<Browser>) -> Self {
-        let field = |value: String, cx: &mut Context<Browser>| {
-            cx.new(|cx| text_input::TextInput::new(value, "", cx))
-        };
+    pub(crate) fn new(preset: &ImportPreset, cx: &mut App) -> Self {
+        let field =
+            |value: String, cx: &mut App| cx.new(|cx| text_input::TextInput::new(value, "", cx));
         Self {
             preset_name: field(String::new(), cx),
             photo_root: field(preset.photo.root.display().to_string(), cx),
@@ -417,12 +467,15 @@ impl SettingsInputs {
             video_root: field(preset.video.root.display().to_string(), cx),
             video_folder: field(preset.video.folder_template.clone(), cx),
             filename: field(preset.filename_template.clone(), cx),
-            clock_seconds: field(preset.time_correction.offset_seconds.to_string(), cx),
+            clock_seconds: field(
+                format_clock_offset(preset.time_correction.offset_seconds),
+                cx,
+            ),
             timezone_seconds: field(
                 preset
                     .time_correction
                     .assumed_utc_offset_seconds
-                    .map(|v| v.to_string())
+                    .map(|v| timezone_label(Some(v)))
                     .unwrap_or_default(),
                 cx,
             ),
@@ -454,10 +507,28 @@ impl SettingsInputs {
             include_video: field(preset.media_rules.include_video.join(", "), cx),
             exclude_extensions: field(preset.media_rules.exclude.join(", "), cx),
             exclude_folders: field(preset.media_rules.exclude_folders.join(", "), cx),
-            ignore_types: field(preset.media_rules.ignore.join(", "), cx),
         }
     }
-    pub(crate) fn sync(&self, preset: &ImportPreset, cx: &mut Context<Browser>) {
+    /// Fields read into the import preset (not the preset name or source alias).
+    pub(crate) fn import_fields(&self) -> [&Entity<text_input::TextInput>; 14] {
+        [
+            &self.photo_root,
+            &self.photo_folder,
+            &self.video_root,
+            &self.video_folder,
+            &self.filename,
+            &self.clock_seconds,
+            &self.timezone_seconds,
+            &self.gap_minutes,
+            &self.backup_photo_root,
+            &self.backup_video_root,
+            &self.include_photo,
+            &self.include_video,
+            &self.exclude_extensions,
+            &self.exclude_folders,
+        ]
+    }
+    pub(crate) fn sync(&self, preset: &ImportPreset, cx: &mut App) {
         self.photo_root.update(cx, |input, cx| {
             input.set_value(preset.photo.root.display().to_string(), cx)
         });
@@ -474,14 +545,17 @@ impl SettingsInputs {
             input.set_value(preset.filename_template.clone(), cx)
         });
         self.clock_seconds.update(cx, |input, cx| {
-            input.set_value(preset.time_correction.offset_seconds.to_string(), cx)
+            input.set_value(
+                format_clock_offset(preset.time_correction.offset_seconds),
+                cx,
+            )
         });
         self.timezone_seconds.update(cx, |input, cx| {
             input.set_value(
                 preset
                     .time_correction
                     .assumed_utc_offset_seconds
-                    .map(|v| v.to_string())
+                    .map(|v| timezone_label(Some(v)))
                     .unwrap_or_default(),
                 cx,
             )
@@ -527,9 +601,6 @@ impl SettingsInputs {
         self.exclude_folders.update(cx, |input, cx| {
             input.set_value(preset.media_rules.exclude_folders.join(", "), cx)
         });
-        self.ignore_types.update(cx, |input, cx| {
-            input.set_value(preset.media_rules.ignore.join(", "), cx)
-        });
     }
     pub(crate) fn read(
         &self,
@@ -556,24 +627,12 @@ impl SettingsInputs {
             template_help::example(template, is_filename, video)
                 .map_err(|error| format!("{}: {error}", i18n::tr(label)))?;
         }
-        let clock_seconds = self
-            .clock_seconds
-            .read(cx)
-            .value()
-            .parse::<i64>()
-            .map_err(|_| i18n::tr("Clock correction must be a number of seconds"))?;
-        let timezone = self.timezone_seconds.read(cx).value();
-        let assumed_utc_offset_seconds = if timezone.trim().is_empty() {
-            None
-        } else {
-            let value = timezone
-                .parse::<i32>()
-                .map_err(|_| i18n::tr("Timezone offset must be seconds east of UTC"))?;
-            if !(-86_400..=86_400).contains(&value) {
-                return Err(i18n::tr("Timezone offset is out of range"));
-            }
-            Some(value)
-        };
+        let clock_seconds =
+            parse_clock_offset(&self.clock_seconds.read(cx).value()).map_err(|_| {
+                i18n::tr("Clock correction must look like +0:02:00 or a number of seconds")
+            })?;
+        let assumed_utc_offset_seconds = parse_utc_offset(&self.timezone_seconds.read(cx).value())
+            .map_err(|_| i18n::tr("Timezone offset must look like UTC+08:00 (at most ±14:00)"))?;
         let backup_photo = self.backup_photo_root.read(cx).value();
         let backup_video = self.backup_video_root.read(cx).value();
         let backup = if backup_photo.trim().is_empty() && backup_video.trim().is_empty() {
@@ -632,7 +691,8 @@ impl SettingsInputs {
             include_video: split(self.include_video.read(cx).value()),
             exclude: split(self.exclude_extensions.read(cx).value()),
             exclude_folders: split(self.exclude_folders.read(cx).value()),
-            ignore: split(self.ignore_types.read(cx).value()),
+            // Toggled directly by the ignored-type chips.
+            ignore: current.media_rules.ignore.clone(),
         };
         Ok(preset)
     }
@@ -720,6 +780,82 @@ impl ActiveImport {
     }
 }
 
+#[cfg(test)]
+mod settings_form_tests {
+    use super::*;
+
+    /// Drives the real text-input entities in a headless app, so the form's
+    /// field -> preset -> field round trip is covered without a window.
+    #[test]
+    fn settings_form_round_trips_and_rejects_bad_fields() {
+        gpui::Application::headless().run(|cx| {
+            let home = PathBuf::from("/home/test");
+            let mut preset = ImportPreset::everyday(&home);
+            preset.media_rules.ignore = vec!["sidecar".into()];
+            let form = SettingsInputs::new(&preset, cx);
+            let set = |input: &Entity<text_input::TextInput>, value: &str, cx: &mut App| {
+                input.update(cx, |input, cx| input.set_value(value.to_string(), cx))
+            };
+            let read = form.read(&preset, false, cx).expect("defaults are valid");
+            assert_eq!(read.photo, preset.photo);
+            assert_eq!(read.time_correction, preset.time_correction);
+
+            set(&form.clock_seconds, "-0:02:00", cx);
+            set(&form.timezone_seconds, "UTC+08:00", cx);
+            let read = form.read(&preset, false, cx).expect("valid offsets");
+            assert_eq!(read.time_correction.offset_seconds, -120);
+            assert_eq!(
+                read.time_correction.assumed_utc_offset_seconds,
+                Some(8 * 3600)
+            );
+            // Ignored types come from the chips, not a text field.
+            assert_eq!(read.media_rules.ignore, vec!["sidecar".to_string()]);
+
+            form.sync(&read, cx);
+            assert_eq!(form.clock_seconds.read(cx).value(), "-0:02:00");
+            assert_eq!(form.timezone_seconds.read(cx).value(), "UTC+08:00");
+
+            set(&form.timezone_seconds, "UTC+20", cx);
+            assert!(form.read(&preset, false, cx).is_err());
+            set(&form.timezone_seconds, "", cx);
+            set(&form.backup_photo_root, "/backup/photos", cx);
+            assert!(
+                form.read(&preset, false, cx).is_err(),
+                "one backup root alone"
+            );
+            // A quit issued before the headless event loop starts is lost, so
+            // queue it to run inside the loop.
+            cx.spawn(async |cx| cx.update(|cx| cx.quit())).detach();
+        });
+    }
+}
+#[cfg(test)]
+mod time_offset_tests {
+    use super::*;
+
+    #[test]
+    fn offsets_round_trip_and_reject_nonsense() {
+        assert_eq!(parse_utc_offset(""), Ok(None));
+        assert_eq!(parse_utc_offset("UTC+08:00"), Ok(Some(8 * 3600)));
+        assert_eq!(parse_utc_offset("-5:30"), Ok(Some(-(5 * 3600 + 1800))));
+        assert_eq!(parse_utc_offset("+8"), Ok(Some(8 * 3600)));
+        assert_eq!(
+            parse_utc_offset(&timezone_label(Some(-34_200))),
+            Ok(Some(-34_200))
+        );
+        for bad in ["UTC+15", "+08:60", "abc", "28800"] {
+            assert_eq!(parse_utc_offset(bad), Err(()), "{bad}");
+        }
+        assert_eq!(parse_clock_offset("120"), Ok(120));
+        assert_eq!(parse_clock_offset("-2:00"), Ok(-120));
+        assert_eq!(parse_clock_offset("+1:02:03"), Ok(3723));
+        assert_eq!(parse_clock_offset(&format_clock_offset(-3723)), Ok(-3723));
+        assert_eq!(format_clock_offset(0), "+0:00:00");
+        for bad in ["", "1:60", "1:2:3:4", "x", "--5"] {
+            assert_eq!(parse_clock_offset(bad), Err(()), "{bad}");
+        }
+    }
+}
 #[cfg(test)]
 mod active_import_tests {
     use super::*;
